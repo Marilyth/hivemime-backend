@@ -1,0 +1,6 @@
+@hivemime_backend_HostAddress = http://localhost:5138
+
+GET {{hivemime_backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
