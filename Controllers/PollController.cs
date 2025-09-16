@@ -1,35 +1,30 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace HiveMime.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
-public class PollController : ControllerBase
+[Route("api/poll")]
+public class PollController(HiveMimeContext context) : ControllerBase
 {
-    private HiveMimeContext _context;
-
-    public PollController(HiveMimeContext context)
+    [HttpGet("browse")]
+    public List<ListPollDto> BrowsePolls()
     {
-        _context = context;
-    }
-
-    [HttpGet("get")]
-    public GetPollDto GetPoll(int pollId)
-    {
-        Poll poll = _context.Polls
+        List<Poll> polls = context.Polls
             .Include(p => p.Options)
-            .Include(p => p.Demographics)
-            .FirstOrDefault(p => p.Id == pollId);
+            .Include(p => p.SubPolls)
+            .Where(p => p.ParentPollId == null)
+            .ToList();
 
-        return poll?.ToPollOverviewDto();
+        return polls.Select(p => p.ToListPollDto()).ToList();
     }
 
     [HttpPost("create")]
     public bool CreatePoll([FromBody] CreatePollDto pollDto)
     {
-        _context.Polls.Add(pollDto.ToPoll());
+        context.Polls.Add(pollDto.ToPoll());
 
-        return _context.SaveChanges() > 0;
+        return context.SaveChanges() > 0;
     }
 }

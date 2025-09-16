@@ -7,20 +7,31 @@ public static class PollExtensions
             Title = dto.Title,
             Description = dto.Description,
             AnswerType = dto.AnswerType,
-            Options = dto.Options?.Select(option => new AnswerOption { Text = option }).ToList() ?? new List<AnswerOption>(),
-            Demographics = dto.Demographics?.Select(demo => demo.ToDemographics()).ToList() ?? new List<Demographics>()
+            Options = dto.Options.Select(option => new PollOption { Name = option.Name, Description = option.Description }).ToList(),
+            SubPolls = dto.SubPolls.Select(demo => demo.ToPoll()).ToList()
         };
     }
 
-    public static GetPollDto ToPollOverviewDto(this Poll poll)
+    public static ListPollDto ToListPollDto(this Poll poll)
     {
-        return new GetPollDto
+        return new ListPollDto
         {
             Id = poll.Id,
             Title = poll.Title,
             Description = poll.Description,
             PollType = poll.AnswerType,
-            Options = poll.Options?.Select(option => option.ToAnswerOptionDto()).ToList() ?? new List<AnswerOptionDto>()
+            Options = poll.Options.Select(option => option.ToPollOptionDto()).ToList()
+        };
+    }
+
+    public static PollResultsDto ToPollResultsDto(this Poll poll)
+    {
+        return new PollResultsDto
+        {
+            Title = poll.Title,
+            Description = poll.Description,
+            PollType = poll.AnswerType,
+            PollOption = poll.Options.Select(option => option.ToPollOptionResultDto()).ToList()
         };
     }
 }

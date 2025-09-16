@@ -1,12 +1,16 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
-public class Vote : ModelBase
+[PrimaryKey(nameof(UserId), nameof(PollOptionId))]
+public class Vote : Entity
 {
+    [ForeignKey(nameof(User))]
     public int UserId { get; set; }
     public User? User { get; set; }
 
-    public int AnswerOptionId { get; set; }
-    public AnswerOption? AnswerOption { get; set; }
+    [ForeignKey(nameof(PollOption))]
+    public int PollOptionId { get; set; }
+    public PollOption? PollOption { get; set; }
 
-    public int AnswerOrder { get; set; }
+    public int Value { get; set; }
 }
