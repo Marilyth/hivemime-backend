@@ -5,9 +5,13 @@ public class Poll : EntityWithIdentifier
     public string Title { get; set; }
     public string Description { get; set; }
     public bool AllowCustomAnswer { get; set; }
+
     public PollAnswerType AnswerType { get; set; }
     public List<PollOption> Options { get; set; }
     public List<Poll> SubPolls { get; set; }
+    public List<Comment> Comments { get; set; }
+    public List<Tag> Tags { get; set; }
+    public List<UserPollLike> Likes { get; set; }
 
     [ForeignKey(nameof(Creator))]
     public int CreatorId { get; set; }

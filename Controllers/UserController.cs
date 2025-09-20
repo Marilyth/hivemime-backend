@@ -7,10 +7,14 @@ public class UserController(HiveMimeContext context) : ControllerBase
 {
     [HttpGet]
     [Authorize]
-    public User GetUserDetails()
+    public IActionResult GetUserDetails()
     {
         var user = User.GetUser(context);
 
-        return user;
+        return Ok(new
+        {
+            Id = user.Id,
+            Username = user.Username
+        });
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -5,22 +6,18 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/poll/{pollId}")]
-public class PollDetailController(HiveMimeContext context) : ControllerBase
+public class PollDetailController(IPollService pollService, HiveMimeContext context) : ControllerBase
 {
     [HttpGet]
     public PollResultsDto GetPollDetails(int pollId)
     {
-        Poll poll = context.Polls
-            .Include(p => p.Options)
-                .ThenInclude(o => o.Votes)
-            .First(p => p.Id == pollId);
-
-        return poll.ToPollResultsDto();
+        return pollService.GetPollDetails(pollId);
     }
 
     [HttpPost("vote")]
-    public bool AddVoteToPoll(int pollId, [FromBody] string vote)
+    [Authorize]
+    public void UpsertVoteToPoll([FromBody] UpsertVoteToPollDto[] votes)
     {
-        return true;
+        pollService.UpsertVoteToPoll(User.GetUserId(), votes);
     }
 }

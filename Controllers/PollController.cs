@@ -6,25 +6,18 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/poll")]
-public class PollController(HiveMimeContext context) : ControllerBase
+public class PollController(IPollService pollService) : ControllerBase
 {
     [HttpGet("browse")]
     public List<ListPollDto> BrowsePolls()
     {
-        List<Poll> polls = context.Polls
-            .Include(p => p.Options)
-            .Include(p => p.SubPolls)
-            .Where(p => p.ParentPollId == null)
-            .ToList();
-
-        return polls.Select(p => p.ToListPollDto()).ToList();
+        return pollService.BrowsePolls();
     }
 
     [HttpPost("create")]
-    public bool CreatePoll([FromBody] CreatePollDto pollDto)
+    [Authorize]
+    public void CreatePoll([FromBody] CreatePollDto pollDto)
     {
-        context.Polls.Add(pollDto.ToPoll());
-
-        return context.SaveChanges() > 0;
+        pollService.CreatePoll(User.GetUserId(), pollDto);
     }
 }

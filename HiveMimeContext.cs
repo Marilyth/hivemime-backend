@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 public class HiveMimeContext : DbContext
 {
@@ -12,5 +13,19 @@ public class HiveMimeContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Define relationships and constraints here if needed.
+        foreach (var entity in modelBuilder.Model.GetEntityTypes())
+        {
+            SetEntityRules(entity);
+        }
+    }
+
+    private void SetEntityRules(IMutableEntityType entityType)
+    {
+        // Set default string length to 1000 for all string properties.
+        foreach (var property in entityType.GetProperties()
+            .Where(p => p.ClrType == typeof(string)))
+        {
+            property.SetMaxLength(1000);
+        }
     }
 }

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -11,18 +12,19 @@ public class Program
     public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        var services = builder.Services;
 
         // Add services to the container.
-        builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
-        builder.Services.AddControllers();
+        services.AddEndpointsApiExplorer();
+        services.AddSwaggerGen();
+        services.AddControllers();
 
         // For testing purposes, use this command.
         // sudo docker run -d --name my-postgres -e POSTGRES_USER=myuser -e POSTGRES_PASSWORD=mypassword -e POSTGRES_DB=mydb -p 5432:5432 postgres:17
-        builder.Services.AddDbContext<HiveMimeContext>(options =>
+        services.AddDbContext<HiveMimeContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("TestConnection")));
 
-        builder.Services.AddAuthentication("Bearer")
+        services.AddAuthentication("Bearer")
             .AddJwtBearer("Bearer", options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
@@ -36,9 +38,9 @@ public class Program
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
                 };
             });
-        builder.Services.AddAuthorization();
+        services.AddAuthorization();
 
-        builder.Services.AddSwaggerGen(setup =>
+        services.AddSwaggerGen(setup =>
         {
             var jwtSecurityScheme = new OpenApiSecurityScheme
             {
@@ -62,8 +64,14 @@ public class Program
             {
                 { jwtSecurityScheme, Array.Empty<string>() }
             });
-
         });
+
+        services.AddHttpContextAccessor();
+
+        // Add custom services.
+        services.AddScoped<IPollService, PollService>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
 
         _app = builder.Build();
 

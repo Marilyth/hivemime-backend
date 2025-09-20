@@ -8,9 +8,8 @@ public abstract class EntityWithIdentifier : Entity
 
 public abstract class Entity
 {
-    public bool IsDeleted { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset DeletedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 
     [Timestamp]
     public uint RowVersion { get; set; }
