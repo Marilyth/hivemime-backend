@@ -1,8 +1,12 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "hivemime-backend", "hivemime-backend.csproj", "{8FF4D14A-B3AA-C016-E7EC-A53016BB6F68}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "hivemime-backend", "src\hivemime-backend.csproj", "{8FF4D14A-B3AA-C016-E7EC-A53016BB6F68}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{1CFBAF2C-4ADA-4C0B-8549-DB29252D8A10}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HiveMime.Tests", "Tests\HiveMime.Tests\HiveMime.Tests.csproj", "{B195AA3F-BF04-4C67-B335-20C47986CB7A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,11 +18,18 @@ Global
 		{8FF4D14A-B3AA-C016-E7EC-A53016BB6F68}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8FF4D14A-B3AA-C016-E7EC-A53016BB6F68}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8FF4D14A-B3AA-C016-E7EC-A53016BB6F68}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B195AA3F-BF04-4C67-B335-20C47986CB7A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B195AA3F-BF04-4C67-B335-20C47986CB7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B195AA3F-BF04-4C67-B335-20C47986CB7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B195AA3F-BF04-4C67-B335-20C47986CB7A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {BF8EB980-FE32-40E2-BFEE-DFC3F92D55A9}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B195AA3F-BF04-4C67-B335-20C47986CB7A} = {1CFBAF2C-4ADA-4C0B-8549-DB29252D8A10}
 	EndGlobalSection
 EndGlobal
