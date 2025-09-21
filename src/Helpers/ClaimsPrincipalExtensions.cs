@@ -6,13 +6,13 @@ public static class ClaimsPrincipalExtensions
     {
         int userId = user.GetUserId();
 
-        return context.Users.Find(userId);
+        return userId == -1 ? null : context.Users.Find(userId);
     }
 
     public static int GetUserId(this ClaimsPrincipal user)
     {
         Claim userIdClaim = user.FindFirst("UserId")!;
 
-        return int.Parse(userIdClaim.Value);
+        return userIdClaim is null ? -1 : int.Parse(userIdClaim.Value);
     }
 }

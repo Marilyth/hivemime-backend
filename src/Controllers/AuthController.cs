@@ -11,6 +11,6 @@ public class AuthController(IUserService userService, HiveMimeContext context) :
     [HttpGet("login")]
     public LoginDto Login()
     {
-        return userService.Login(User?.GetUser(context));
+        return userService.Login(User.GetUser(context));
     }
 }
