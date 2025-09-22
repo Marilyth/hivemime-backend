@@ -69,7 +69,7 @@ public class Program
         services.AddHttpContextAccessor();
 
         // Add custom services.
-        services.AddScoped<IPollService, PollService>();
+        services.AddScoped<IPostService, PostService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
 

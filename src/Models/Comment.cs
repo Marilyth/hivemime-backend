@@ -11,9 +11,9 @@ public class Comment : EntityWithIdentifier
     public int UserId { get; set; }
     public User? User { get; set; }
 
-    [ForeignKey(nameof(Poll))]
-    public int PollId { get; set; }
-    public Poll? Poll { get; set; }
+    [ForeignKey(nameof(Post))]
+    public int PostId { get; set; }
+    public Post? Post { get; set; }
 
     [ForeignKey(nameof(ParentComment))]
     public int? ParentCommentId { get; set; }
