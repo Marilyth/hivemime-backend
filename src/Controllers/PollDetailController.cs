@@ -6,10 +6,10 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/poll/{pollId}")]
-public class PollDetailController(IPollService pollService, HiveMimeContext context) : ControllerBase
+public class PollDetailController(IPostService pollService, HiveMimeContext context) : ControllerBase
 {
     [HttpGet]
-    public PollResultsDto GetPollDetails(int pollId)
+    public PollResultsDto GetPollResults(int pollId)
     {
         return pollService.GetPollDetails(pollId);
     }

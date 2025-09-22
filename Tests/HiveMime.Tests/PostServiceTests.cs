@@ -5,6 +5,7 @@ namespace HiveMime.Tests;
 public class PollServiceTests : IClassFixture<DatabaseFixture>
 {
     private readonly DatabaseFixture _fixture;
+    private Post _defaultPost;
 
     public PollServiceTests(DatabaseFixture fixture)
     {
@@ -21,53 +22,45 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         // we need to clean up the database before each test.
         context.Database.EnsureDeleted();
         context.Database.EnsureCreated();
+
+        SeedDatabase(context);
+
         return context;
     }
 
-    [Fact]
-    public async Task BrowsePolls_NoPolls_ReturnsEmptyList()
+    private void SeedDatabase(HiveMimeContext context)
     {
-        // Arrange
-        await using var context = CreateContext();
-        var service = new PollService(context);
+        _defaultPost = new()
+        {
+            Title = "Default Post",
+            Description = "This is a default post.",
+            Creator = new User { Username = "defaultuser" },
+            Polls = new List<Poll>()
+        };
 
-        // Act
-        var result = service.BrowsePolls();
-
-        // Assert
-        Assert.Empty(result);
+        context.Posts.Add(_defaultPost);
+        context.SaveChanges();
     }
 
     [Fact]
-    public async Task BrowsePolls_WithPolls_ReturnsOnlyParentPolls()
+    public async Task BrowsePosts_WithPosts_ReturnsPosts()
     {
         // Arrange
         await using var context = CreateContext();
-        var user = new User { Username = "testuser" };
-        context.Users.Add(user);
-        await context.SaveChangesAsync();
 
-        var parentPoll = new Poll { Title = "Parent Poll", Description = "Parent Poll Description", CreatorId = user.Id };
-        context.Polls.Add(parentPoll);
-        await context.SaveChangesAsync();
-
-        var childPoll = new Poll { Title = "Child Poll", Description = "Child Poll Description", CreatorId = user.Id, ParentPollId = parentPoll.Id };
-        context.Polls.Add(childPoll);
-        await context.SaveChangesAsync();
-
-        var service = new PollService(context);
+        var service = new PostService(context);
 
         // Act
-        var result = service.BrowsePolls();
+        var result = service.BrowsePosts();
 
         // Assert
         Assert.Single(result);
-        Assert.Equal(parentPoll.Id, result[0].Id);
-        Assert.Equal("Parent Poll", result[0].Title);
+        Assert.Equal(_defaultPost.Id, result[0].Id);
+        Assert.Equal("Default Post", result[0].Title);
     }
 
     [Fact]
-    public async Task CreatePoll_ValidPoll_AddsToDatabase()
+    public async Task CreatePost_ValidPost_AddsToDatabase()
     {
         // Arrange
         await using var context = CreateContext();
@@ -75,31 +68,44 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         context.Users.Add(user);
         await context.SaveChangesAsync();
 
-        var service = new PollService(context);
-        var pollDto = new CreatePollDto
+        var service = new PostService(context);
+        var postDto = new CreatePostDto
         {
-            Title = "New Poll",
-            Description = "New poll description",
-            Options = new List<PollOptionDto>
-            {
-                new PollOptionDto { Name = "Option 1" },
-                new PollOptionDto { Name = "Option 2" }
-            },
-            SubPolls = new()
+            Title = "New Post",
+            Description = "New post description",
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Poll 1",
+                    Description = "Description 1",
+                    AllowCustomAnswer = false,
+                    AnswerType = PollAnswerType.SingleChoice,
+                    Options = new List<PollOptionDto>
+                    {
+                        new PollOptionDto { Name = "Option 1", Description = "Option 1 Description" },
+                        new PollOptionDto { Name = "Option 2", Description = "Option 2 Description" }
+                    }
+                }
+            ]
         };
 
         // Act
-        service.CreatePoll(user.Id, pollDto);
+        service.CreatePost(user.Id, postDto);
 
         // Assert
-        var poll = await context.Polls.Include(p => p.Options).FirstOrDefaultAsync(p => p.Title == "New Poll");
-        Assert.NotNull(poll);
-        Assert.Equal("New Poll", poll.Title);
-        Assert.Equal("New poll description", poll.Description);
-        Assert.Equal(user.Id, poll.CreatorId);
-        Assert.Equal(2, poll.Options.Count);
-        Assert.Equal("Option 1", poll.Options[0].Name);
-        Assert.Equal("Option 2", poll.Options[1].Name);
+        var post = await context.Posts.Include(p => p.Polls).FirstOrDefaultAsync(p => p.Title == "New Post");
+        Assert.NotNull(post);
+        Assert.Equal("New Post", post.Title);
+        Assert.Equal("New post description", post.Description);
+        Assert.Equal(user.Id, post.CreatorId);
+        Assert.Single(post.Polls);
+        Assert.Equal("Poll 1", post.Polls[0].Title);
+        Assert.Equal("Description 1", post.Polls[0].Description);
+        Assert.Equal(PollAnswerType.SingleChoice, post.Polls[0].AnswerType);
+        Assert.Equal(2, post.Polls[0].Options.Count);
+        Assert.Equal("Option 1", post.Polls[0].Options[0].Name);
+        Assert.Equal("Option 2", post.Polls[0].Options[1].Name);
     }
 
     [Fact]
@@ -115,7 +121,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         {
             Title = "Test Poll",
             Description = "Test Poll Description",
-            CreatorId = user.Id,
+            PostId = _defaultPost.Id,
             Options = new List<PollOption>
             {
                 new PollOption { Name = "Option 1" },
@@ -125,7 +131,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         context.Polls.Add(poll);
         await context.SaveChangesAsync();
 
-        var service = new PollService(context);
+        var service = new PostService(context);
 
         // Act
         var result = service.GetPollDetails(poll.Id);
@@ -143,7 +149,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
     {
         // Arrange
         await using var context = CreateContext();
-        var service = new PollService(context);
+        var service = new PostService(context);
 
         // Act & Assert
         Assert.Throws<InvalidOperationException>(() => service.GetPollDetails(999));
@@ -154,25 +160,29 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
     {
         // Arrange
         await using var context = CreateContext();
-        var user = new User { Username = "testuser" };
         var pollOption = new PollOption { Name = "Option 1" };
-        var poll = new Poll { Title = "Test Poll", Description = "Test Poll Description", Creator = user, Options = new List<PollOption> { pollOption } };
+        var poll = new Poll {
+            Title = "Test Poll",
+            PostId = _defaultPost.Id,
+            Description = "Test Poll Description",
+            Options = new List<PollOption> { pollOption }
+        };
         context.Polls.Add(poll);
         await context.SaveChangesAsync();
 
-        var service = new PollService(context);
+        var service = new PostService(context);
         var votes = new[]
         {
             new UpsertVoteToPollDto { PollOptionId = pollOption.Id, Value = 1 }
         };
 
         // Act
-        service.UpsertVoteToPoll(user.Id, votes);
+        service.UpsertVoteToPoll(_defaultPost.CreatorId, votes);
 
         // Assert
         var vote = await context.Votes.FirstOrDefaultAsync();
         Assert.NotNull(vote);
-        Assert.Equal(user.Id, vote.UserId);
+        Assert.Equal(_defaultPost.CreatorId, vote.UserId);
         Assert.Equal(pollOption.Id, vote.PollOptionId);
         Assert.Equal(1, vote.Value);
     }
@@ -182,22 +192,26 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
     {
         // Arrange
         await using var context = CreateContext();
-        var user = new User { Username = "testuser" };
         var pollOption = new PollOption { Name = "Option 1" };
-        var poll = new Poll { Title = "Test Poll", Description = "Test Poll Description", Creator = user, Options = new List<PollOption> { pollOption } };
-        var existingVote = new Vote { User = user, PollOption = pollOption, Value = 1 };
+        var poll = new Poll {
+            Title = "Test Poll",
+            Description = "Test Poll Description",
+            PostId = _defaultPost.Id,
+            Options = new List<PollOption> { pollOption }
+        };
+        var existingVote = new Vote { User = _defaultPost.Creator, PollOption = pollOption, Value = 1 };
         context.Polls.Add(poll);
         context.Votes.Add(existingVote);
         await context.SaveChangesAsync();
 
-        var service = new PollService(context);
+        var service = new PostService(context);
         var votes = new[]
         {
             new UpsertVoteToPollDto { PollOptionId = pollOption.Id, Value = 2 }
         };
 
         // Act
-        service.UpsertVoteToPoll(user.Id, votes);
+        service.UpsertVoteToPoll(_defaultPost.CreatorId, votes);
 
         // Assert
         var vote = await context.Votes.FirstOrDefaultAsync();

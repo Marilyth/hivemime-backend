@@ -1,24 +1,23 @@
 using Microsoft.EntityFrameworkCore;
 
-public class PollService(HiveMimeContext context) : IPollService
+public class PostService(HiveMimeContext context) : IPostService
 {
-    public List<ListPollDto> BrowsePolls()
+    public List<ListPostDto> BrowsePosts()
     {
-        List<Poll> polls = context.Polls
-            .Include(p => p.Options)
-            .Include(p => p.SubPolls)
-            .Where(p => p.ParentPollId == null)
+        List<Post> posts = context.Posts
+            .Include(p => p.Polls)
+                .ThenInclude(o => o.Options)
             .ToList();
 
-        return polls.Select(p => p.ToListPollDto()).ToList();
+        return posts.Select(p => p.ToListPostDto()).ToList();
     }
 
-    public void CreatePoll(int userId, CreatePollDto pollDto)
+    public void CreatePost(int userId, CreatePostDto postDto)
     {
-        Poll newPoll = pollDto.ToPoll();
-        newPoll.CreatorId = userId;
+        Post newPost = postDto.ToPost();
+        newPost.CreatorId = userId;
 
-        context.Polls.Add(newPoll);
+        context.Posts.Add(newPost);
         context.SaveChanges();
     }
 

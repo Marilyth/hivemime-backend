@@ -5,6 +5,7 @@ public class HiveMimeContext : DbContext
 {
     public HiveMimeContext(DbContextOptions<HiveMimeContext> options) : base(options) { }
 
+    public DbSet<Post> Posts { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<Poll> Polls { get; set; }
     public DbSet<PollOption> PollOptions { get; set; }
