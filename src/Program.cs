@@ -67,6 +67,13 @@ public class Program
         });
 
         services.AddHttpContextAccessor();
+        services.AddCors(options =>
+        {
+            options.AddPolicy("AllowAll", policy =>
+                policy.AllowAnyOrigin()
+                    .AllowAnyMethod()
+                    .AllowAnyHeader());
+        });
 
         // Add custom services.
         services.AddScoped<IPostService, PostService>();
@@ -74,6 +81,8 @@ public class Program
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
 
         _app = builder.Build();
+
+        _app.UseCors("AllowAll");
 
         // Configure the HTTP request pipeline.
         if (_app.Environment.IsDevelopment())
