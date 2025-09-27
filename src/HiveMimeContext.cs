@@ -8,7 +8,7 @@ public class HiveMimeContext : DbContext
     public DbSet<Post> Posts { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<Poll> Polls { get; set; }
-    public DbSet<PollOption> PollOptions { get; set; }
+    public DbSet<Candidate> PollOptions { get; set; }
     public DbSet<Vote> Votes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

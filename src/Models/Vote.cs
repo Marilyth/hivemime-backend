@@ -10,7 +10,7 @@ public class Vote : Entity
 
     [ForeignKey(nameof(PollOption))]
     public int PollOptionId { get; set; }
-    public PollOption? PollOption { get; set; }
+    public Candidate? PollOption { get; set; }
 
     public int Value { get; set; }
 }

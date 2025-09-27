@@ -17,8 +17,8 @@ public static class PollExtensions
             Title = dto.Title,
             Description = dto.Description,
             AllowCustomAnswer = dto.AllowCustomAnswer,
-            AnswerType = dto.AnswerType,
-            Options = dto.Options.Select(option => new PollOption { Name = option.Name, Description = option.Description }).ToList()
+            AnswerType = dto.PollType,
+            Candidates = dto.Candidates.Select(option => new Candidate { Name = option.Name, Description = option.Description }).ToList()
         };
     }
 
@@ -41,7 +41,7 @@ public static class PollExtensions
             Title = poll.Title,
             Description = poll.Description,
             PollType = poll.AnswerType,
-            Options = poll.Options.Select(option => option.ToPollOptionDto()).ToList()
+            Candidates = poll.Candidates.Select(option => option.ToPollCandidateDto()).ToList()
         };
     }
 
@@ -52,7 +52,7 @@ public static class PollExtensions
             Title = poll.Title,
             Description = poll.Description,
             PollType = poll.AnswerType,
-            PollOption = poll.Options.Select(option => option.ToPollOptionResultDto()).ToList()
+            Candidates = poll.Candidates.Select(option => option.ToPollOptionResultDto()).ToList()
         };
     }
 }
