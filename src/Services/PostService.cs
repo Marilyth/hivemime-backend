@@ -6,7 +6,7 @@ public class PostService(HiveMimeContext context) : IPostService
     {
         List<Post> posts = context.Posts
             .Include(p => p.Polls)
-                .ThenInclude(o => o.Options)
+                .ThenInclude(o => o.Candidates)
             .ToList();
 
         return posts.Select(p => p.ToListPostDto()).ToList();
@@ -24,33 +24,48 @@ public class PostService(HiveMimeContext context) : IPostService
     public PollResultsDto GetPollDetails(int pollId)
     {
         Poll poll = context.Polls
-            .Include(p => p.Options)
+            .Include(p => p.Candidates)
                 .ThenInclude(o => o.Votes)
             .First(p => p.Id == pollId);
 
         return poll.ToPollResultsDto();
     }
 
-    public void UpsertVoteToPoll(int userId, UpsertVoteToPollDto[] votes)
+    public void UpsertVoteToPost(int userId, UpsertVoteToPostDto vote)
     {
-        foreach (UpsertVoteToPollDto vote in votes)
+        foreach (UpsertVoteToPollDto pollVote in vote.Polls)
         {
-            // Either update the vote if one already exists, or create a new one.
-            Vote dbVote = context.Votes
-                .FirstOrDefault(o => o.PollOptionId == vote.PollOptionId && o.UserId == userId);
-
-            if (dbVote is null)
+            foreach (UpsertVoteToCandidateDto candidateVote in pollVote.Candidates)
             {
-                dbVote = new Vote
+                // Either update the vote if one already exists, or create a new one.
+                Vote dbVote = context.Votes
+                    .FirstOrDefault(o => o.PollOptionId == candidateVote.CandidateId && o.UserId == userId);
+
+                bool wasVoted = dbVote is not null;
+
+                if (dbVote is null)
                 {
-                    PollOptionId = vote.PollOptionId,
-                    UserId = userId
-                };
+                    if (!wasVoted)
+                        return;
 
-                context.Votes.Add(dbVote);
+                    dbVote = new Vote
+                    {
+                        PollOptionId = candidateVote.CandidateId,
+                        UserId = userId
+                    };
+
+                    context.Votes.Add(dbVote);
+                }
+
+                if (!wasVoted)
+                {
+                    // If the value is null, it means the user did not vote for this option, so we remove any existing vote.
+                    context.Votes.Remove(dbVote);
+                    continue;
+                }
+
+                dbVote.Value = candidateVote.Value.Value;
             }
-
-            dbVote.Value = vote.Value;
         }
 
         context.SaveChanges();

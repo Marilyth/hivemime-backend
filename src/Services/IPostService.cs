@@ -21,9 +21,9 @@ public interface IPostService
     PollResultsDto GetPollDetails(int pollId);
 
     /// <summary>
-    /// Inserts or updates a user's votes on a poll.
+    /// Inserts or updates a user's votes on a post.
     /// </summary>
     /// <param name="userId">The ID of the user voting.</param>
-    /// <param name="votes">The votes to insert or update.</param>
-    void UpsertVoteToPoll(int userId, UpsertVoteToPollDto[] votes);
+    /// <param name="vote">The vote to insert or update.</param>
+    void UpsertVoteToPost(int userId, UpsertVoteToPostDto vote);
 }
