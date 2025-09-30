@@ -4,7 +4,8 @@ public interface IPostService
     /// Fetches and returns a pre selection of hot posts to show in the browse section.
     /// </summary>
     /// <returns>The list of posts to show in the browse section.</returns>
-    List<ListPostDto> BrowsePosts();
+    /// <param name="userId">The ID of the user browsing posts, for individual feeds.</param>
+    List<ListPostDto> BrowsePosts(int userId);
 
     /// <summary>
     /// Creates a new post.

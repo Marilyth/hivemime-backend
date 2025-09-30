@@ -1,6 +1,6 @@
-public static class AnswerOptionExtensions
+public static class CandidateExtensions
 {
-    public static Candidate ToPollOption(this PollCandidateDto option)
+    public static Candidate ToCandidate(this PollCandidateDto option)
     {
         return new Candidate
         {
@@ -9,7 +9,7 @@ public static class AnswerOptionExtensions
         };
     }
 
-    public static Candidate ToPollOption(this string option)
+    public static Candidate ToCandidate(this string option)
     {
         return new Candidate
         {
@@ -18,7 +18,7 @@ public static class AnswerOptionExtensions
         };
     }
 
-    public static PollCandidateDto ToPollCandidateDto(this Candidate option)
+    public static PollCandidateDto ToCandidateDto(this Candidate option)
     {
         return new PollCandidateDto
         {
@@ -28,7 +28,7 @@ public static class AnswerOptionExtensions
         };
     }
 
-    public static PollCandidateResultDto ToPollOptionResultDto(this Candidate option)
+    public static PollCandidateResultDto ToCandidateResultDto(this Candidate option)
     {
         return new PollCandidateResultDto
         {

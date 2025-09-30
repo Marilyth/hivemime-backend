@@ -11,7 +11,7 @@ public class PostController(IPostService postService) : ControllerBase
     [HttpGet("browse")]
     public List<ListPostDto> BrowsePosts()
     {
-        return postService.BrowsePosts();
+        return postService.BrowsePosts(User.GetUserId());
     }
 
     [HttpPost("create")]
