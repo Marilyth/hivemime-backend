@@ -1,4 +1,4 @@
-public class PollCandidateDto
+public class PollCategoryDto
 {
     public int Id { get; set; }
     public string Name { get; set; }

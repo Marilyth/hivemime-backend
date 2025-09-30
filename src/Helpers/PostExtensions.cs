@@ -41,7 +41,7 @@ public static class PollExtensions
             Title = poll.Title,
             Description = poll.Description,
             PollType = poll.AnswerType,
-            Candidates = poll.Candidates.Select(option => option.ToPollCandidateDto()).ToList()
+            Candidates = poll.Candidates.Select(option => option.ToCandidateDto()).ToList()
         };
     }
 
@@ -49,10 +49,8 @@ public static class PollExtensions
     {
         return new PollResultsDto
         {
-            Title = poll.Title,
-            Description = poll.Description,
             PollType = poll.AnswerType,
-            Candidates = poll.Candidates.Select(option => option.ToPollOptionResultDto()).ToList()
+            Candidates = poll.Candidates.Select(option => option.ToCandidateResultDto()).ToList()
         };
     }
 }

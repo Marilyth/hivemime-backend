@@ -64,7 +64,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         var service = new PostService(context);
 
         // Act
-        var result = service.BrowsePosts();
+        var result = service.BrowsePosts(_defaultPost.CreatorId);
 
         // Assert
         Assert.Single(result);
@@ -151,7 +151,6 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("Test Poll", result.Title);
         Assert.Equal(2, result.Candidates.Count);
         Assert.Equal("Option 1", result.Candidates[0].Name);
         Assert.Equal(0, result.Candidates[0].VoterAmount);

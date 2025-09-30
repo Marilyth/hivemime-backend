@@ -17,6 +17,8 @@ public class Program
         // Add services to the container.
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen();
+        services.AddResponseCompression();
+        services.AddRequestDecompression();
         services.AddControllers()
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -84,6 +86,7 @@ public class Program
         _app = builder.Build();
 
         _app.UseCors("AllowAll");
+        _app.UseResponseCompression();
 
         // Configure the HTTP request pipeline.
         if (_app.Environment.IsDevelopment())

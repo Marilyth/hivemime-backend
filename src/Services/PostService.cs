@@ -2,13 +2,9 @@ using Microsoft.EntityFrameworkCore;
 
 public class PostService(HiveMimeContext context) : IPostService
 {
-    public List<ListPostDto> BrowsePosts()
+    public List<ListPostDto> BrowsePosts(int userId)
     {
-        List<Post> posts = context.Posts
-            .Include(p => p.Polls)
-                .ThenInclude(o => o.Candidates)
-            .ToList();
-
+        List<Post> posts = GetSuggestedPosts(userId);
         return posts.Select(p => p.ToListPostDto()).ToList();
     }
 
@@ -69,5 +65,16 @@ public class PostService(HiveMimeContext context) : IPostService
         }
 
         context.SaveChanges();
+    }
+
+    private List<Post> GetSuggestedPosts(int userId)
+    {
+        List<Post> posts = context.Posts.Include(p => p.Polls)
+                                            .ThenInclude(o => o.Candidates)
+                                        .OrderByDescending(p => p.CreatedAt)
+                                        .Take(20)
+                                        .ToList();
+
+        return posts;
     }
 }
