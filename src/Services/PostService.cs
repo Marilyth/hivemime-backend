@@ -71,6 +71,8 @@ public class PostService(HiveMimeContext context) : IPostService
     {
         List<Post> posts = context.Posts.Include(p => p.Polls)
                                             .ThenInclude(o => o.Candidates)
+                                        .Include(p => p.Polls)
+                                            .ThenInclude(o => o.Categories)
                                         .OrderByDescending(p => p.CreatedAt)
                                         .Take(20)
                                         .ToList();
