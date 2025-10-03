@@ -41,7 +41,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
                     Title = "Default Poll",
                     Description = "This is a default poll.",
                     AllowCustomAnswer = false,
-                    AnswerType = PollType.SingleChoice,
+                    PollType = PollType.SingleChoice,
                     Candidates = new List<Candidate>
                     {
                         new Candidate { Name = "Option 1", Description = "Option 1 Description" },
@@ -115,7 +115,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         Assert.Single(post.Polls);
         Assert.Equal("Poll 1", post.Polls[0].Title);
         Assert.Equal("Description 1", post.Polls[0].Description);
-        Assert.Equal(PollType.SingleChoice, post.Polls[0].AnswerType);
+        Assert.Equal(PollType.SingleChoice, post.Polls[0].PollType);
         Assert.Equal(2, post.Polls[0].Candidates.Count);
         Assert.Equal("Option 1", post.Polls[0].Candidates[0].Name);
         Assert.Equal("Option 2", post.Polls[0].Candidates[1].Name);
