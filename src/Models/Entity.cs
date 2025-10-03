@@ -8,7 +8,7 @@ public abstract class EntityWithIdentifier : Entity
 
 public abstract class Entity
 {
-    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? DeletedAt { get; set; }
 
     [Timestamp]
