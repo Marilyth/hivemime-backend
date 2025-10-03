@@ -17,8 +17,15 @@ public static class PollExtensions
             Title = dto.Title,
             Description = dto.Description,
             AllowCustomAnswer = dto.AllowCustomAnswer,
-            AnswerType = dto.PollType,
-            Candidates = dto.Candidates.Select(option => new Candidate { Name = option.Name, Description = option.Description }).ToList()
+            IsShuffled = dto.IsShuffled,
+            PollType = dto.PollType,
+            MinValue = dto.MinValue,
+            MaxValue = dto.MaxValue,
+            StepValue = dto.StepValue,
+            MinVotes = dto.MinVotes,
+            MaxVotes = dto.MaxVotes,
+            Categories = dto.Categories.Select(category => category.ToCategory()).ToList(),
+            Candidates = dto.Candidates.Select(candidate => candidate.ToCandidate()).ToList()
         };
     }
 
@@ -40,7 +47,15 @@ public static class PollExtensions
             Id = poll.Id,
             Title = poll.Title,
             Description = poll.Description,
-            PollType = poll.AnswerType,
+            PollType = poll.PollType,
+            AllowCustomAnswer = poll.AllowCustomAnswer,
+            IsShuffled = poll.IsShuffled,
+            MinValue = poll.MinValue,
+            MaxValue = poll.MaxValue,
+            StepValue = poll.StepValue,
+            MinVotes = poll.MinVotes,
+            MaxVotes = poll.MaxVotes,
+            Categories = poll.Categories.Select(category => category.ToCategoryDto()).ToList(),
             Candidates = poll.Candidates.Select(option => option.ToCandidateDto()).ToList()
         };
     }
@@ -49,7 +64,7 @@ public static class PollExtensions
     {
         return new PollResultsDto
         {
-            PollType = poll.AnswerType,
+            PollType = poll.PollType,
             Candidates = poll.Candidates.Select(option => option.ToCandidateResultDto()).ToList()
         };
     }
