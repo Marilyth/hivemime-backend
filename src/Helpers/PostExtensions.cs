@@ -12,18 +12,19 @@ public static class PollExtensions
 
     public static Poll ToPoll(this CreatePollDto dto)
     {
-        return new Poll
+        return new()
         {
             Title = dto.Title,
             Description = dto.Description,
             AllowCustomAnswer = dto.AllowCustomAnswer,
             IsShuffled = dto.IsShuffled,
+            IsOptional = dto.IsOptional,
             PollType = dto.PollType,
-            MinValue = dto.MinValue,
-            MaxValue = dto.MaxValue,
+            MinValue = dto.MinValue!.Value,
+            MaxValue = dto.MaxValue!.Value,
             StepValue = dto.StepValue,
-            MinVotes = dto.MinVotes,
-            MaxVotes = dto.MaxVotes,
+            MinVotes = dto.MinVotes!.Value,
+            MaxVotes = dto.MaxVotes!.Value,
             Categories = dto.Categories.Select(category => category.ToCategory()).ToList(),
             Candidates = dto.Candidates.Select(candidate => candidate.ToCandidate()).ToList()
         };
@@ -44,12 +45,12 @@ public static class PollExtensions
     {
         return new ListPollDto
         {
-            Id = poll.Id,
             Title = poll.Title,
             Description = poll.Description,
             PollType = poll.PollType,
             AllowCustomAnswer = poll.AllowCustomAnswer,
             IsShuffled = poll.IsShuffled,
+            IsOptional = poll.IsOptional,
             MinValue = poll.MinValue,
             MaxValue = poll.MaxValue,
             StepValue = poll.StepValue,

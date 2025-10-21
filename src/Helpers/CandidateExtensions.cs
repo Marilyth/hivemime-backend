@@ -22,9 +22,8 @@ public static class CandidateExtensions
     {
         return new PollCandidateDto
         {
-            Id = option.Id,
             Name = option.Name,
-            Description = option.Description ?? string.Empty,
+            Description = option.Description,
         };
     }
 
@@ -33,7 +32,7 @@ public static class CandidateExtensions
         return new PollCandidateResultDto
         {
             Name = option.Name,
-            Description = option.Description ?? string.Empty,
+            Description = option.Description,
             VoterAmount = option.Votes.Count,
             Score = option.Votes.Sum(vote => vote.Value)
         };

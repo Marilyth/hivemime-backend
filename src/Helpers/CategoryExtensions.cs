@@ -22,9 +22,9 @@ public static class CategoryExtensions
     {
         return new PollCategoryDto
         {
-            Id = option.Id,
             Name = option.Name,
-            Description = option.Description ?? string.Empty,
+            Description = option.Description,
+            Color = option.Color
         };
     }
 }
