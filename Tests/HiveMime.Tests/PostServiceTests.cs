@@ -178,10 +178,8 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
             Polls = [
                 new UpsertVoteToPollDto
                 {
-                    PollId = _defaultPost.Polls[0].Id,
                     Candidates = [
                         new UpsertVoteToCandidateDto {
-                            CandidateId = _defaultPost.Polls[0].Candidates[0].Id,
                             Value = 1
                         }
                     ]
@@ -210,9 +208,8 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
             Polls = [
                 new UpsertVoteToPollDto
                 {
-                    PollId = _defaultPost.Polls[0].Id,
                     Candidates = [
-                        new UpsertVoteToCandidateDto { CandidateId = _defaultPost.Polls[0].Candidates[0].Id, Value = 1 }
+                        new UpsertVoteToCandidateDto { Value = 1 }
                     ]
                 }
             ]

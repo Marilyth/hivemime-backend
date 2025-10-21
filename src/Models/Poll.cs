@@ -6,10 +6,11 @@ public class Poll : EntityWithIdentifier
     public string? Description { get; set; }
     public bool AllowCustomAnswer { get; set; }
     public bool IsShuffled { get; set; }
+    public bool IsOptional { get; set; }
 
     public int MinValue { get; set; }
     public int MaxValue { get; set; }
-    public double StepValue { get; set; }
+    public double? StepValue { get; set; }
 
     /// <summary>
     /// Gets or sets the minimum number of votes a user must cast in this poll.

@@ -6,12 +6,10 @@ public class UpsertVoteToPostDto
 
 public class UpsertVoteToPollDto
 {
-    public int PollId { get; set; }
     public List<UpsertVoteToCandidateDto> Candidates { get; set; }
 }
 
 public class UpsertVoteToCandidateDto
 {
-    public int CandidateId { get; set; }
     public int? Value { get; set; }
 }
