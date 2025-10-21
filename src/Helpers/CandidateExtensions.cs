@@ -5,16 +5,7 @@ public static class CandidateExtensions
         return new Candidate
         {
             Name = option.Name,
-            Description = string.Empty
-        };
-    }
-
-    public static Candidate ToCandidate(this string option)
-    {
-        return new Candidate
-        {
-            Name = option,
-            Description = string.Empty
+            Description = option.Description
         };
     }
 

@@ -5,16 +5,8 @@ public static class CategoryExtensions
         return new Category
         {
             Name = option.Name,
-            Description = string.Empty
-        };
-    }
-
-    public static Category ToCategory(this string option)
-    {
-        return new Category
-        {
-            Name = option,
-            Description = string.Empty
+            Description = string.Empty,
+            Color = option.Color
         };
     }
 
