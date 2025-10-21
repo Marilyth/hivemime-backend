@@ -117,6 +117,13 @@ public class PostService(HiveMimeContext context) : IPostService
 
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
+        dto.MinVotes = Math.Clamp(dto.MinVotes ?? 1, 1, dto.Candidates.Count);
+
+        if (dto.MaxVotes is null)
+            dto.MaxVotes = dto.PollType == PollType.SingleChoice ? 1 : dto.Candidates.Count;
+
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes.Value, 1, dto.Candidates.Count);
+
         if (dto.PollType == PollType.Scoring)
         {
             if (dto.MinValue is null || dto.MaxValue is null || dto.StepValue is null)
@@ -138,13 +145,6 @@ public class PostService(HiveMimeContext context) : IPostService
                 _ => 1
             };
         }
-
-        dto.MinVotes = Math.Clamp(dto.MinVotes ?? 1, 1, dto.Candidates.Count);
-
-        if (dto.MaxVotes is null)
-            dto.MaxVotes = dto.PollType == PollType.SingleChoice ? 1 : dto.Candidates.Count;
-
-        dto.MaxVotes = Math.Clamp(dto.MaxVotes.Value, 1, dto.Candidates.Count);
 
         if (string.IsNullOrWhiteSpace(dto.Title))
             yield return "Poll title is required.";
