@@ -22,6 +22,17 @@ public class PostService(HiveMimeContext context) : IPostService
         context.SaveChanges();
     }
 
+    public PostResultsDto GetPostDetails(int postId)
+    {
+        Post post = context.Posts
+            .Include(p => p.Polls.OrderBy(p => p.Id))
+                .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
+                    .ThenInclude(o => o.Votes)
+            .First(p => p.Id == postId);
+
+        return post.ToPostResultsDto();
+    }
+
     public PollResultsDto GetPollDetails(int pollId)
     {
         Poll poll = context.Polls

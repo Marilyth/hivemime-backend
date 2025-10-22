@@ -61,6 +61,14 @@ public static class PollExtensions
         };
     }
 
+    public static PostResultsDto ToPostResultsDto(this Post post)
+    {
+        return new PostResultsDto
+        {
+            Polls = post.Polls.Select(poll => poll.ToPollResultsDto()).ToList()
+        };
+    }
+
     public static PollResultsDto ToPollResultsDto(this Poll poll)
     {
         return new PollResultsDto
