@@ -4,13 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 namespace HiveMime.Controllers;
 
 [ApiController]
-[Route("api/poll/{pollId}")]
-public class PollDetailController(IPostService postService, HiveMimeContext context) : ControllerBase
+[Route("api/post/{postId}")]
+public class VoteController(IPostService postService, HiveMimeContext context) : ControllerBase
 {
     [HttpGet]
-    public PollResultsDto GetPollResults(int pollId)
+    public PostResultsDto GetPostResults(int postId)
     {
-        return postService.GetPollDetails(pollId);
+        return postService.GetPostDetails(postId);
     }
 
     [HttpPost("vote")]

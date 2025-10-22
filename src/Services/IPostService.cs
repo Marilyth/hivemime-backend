@@ -15,6 +15,12 @@ public interface IPostService
     void CreatePost(int userId, CreatePostDto postDto);
 
     /// <summary>
+    /// Fetches and returns the results of a post, including all its polls.
+    /// </summary>
+    /// <param name="postId">The ID of the post to fetch details for.</param>
+    PostResultsDto GetPostDetails(int postId);
+
+    /// <summary>
     /// Fetches and returns the details of a post, including its options and votes.
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch details for.</param>
