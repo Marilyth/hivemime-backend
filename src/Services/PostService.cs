@@ -25,9 +25,11 @@ public class PostService(HiveMimeContext context) : IPostService
     public PostResultsDto GetPostDetails(int postId)
     {
         Post post = context.Posts
+            .Include(p => p.PostVotes)
             .Include(p => p.Polls.OrderBy(p => p.Id))
                 .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
                     .ThenInclude(o => o.Votes)
+            .AsSplitQuery()
             .First(p => p.Id == postId);
 
         return post.ToPostResultsDto();
@@ -43,7 +45,7 @@ public class PostService(HiveMimeContext context) : IPostService
         return poll.ToPollResultsDto();
     }
 
-    public void UpsertVoteToPost(int userId, UpsertVoteToPostDto vote)
+    public void UpsertVoteToPost(int userId, UpsertVoteToPostDto vote, string country)
     {
         Post post = context.Posts
             .Include(p => p.Polls.OrderBy(p => p.Id))
@@ -57,22 +59,35 @@ public class PostService(HiveMimeContext context) : IPostService
         if (validationErrors.Any())
             throw new InvalidOperationException("Vote validation failed: " + string.Join("; ", validationErrors));
 
-        Dictionary<int, Vote> existingVotes = context.Votes
-            .Where(v => v.UserId == userId && v.PostId == vote.PostId)
-            .ToDictionary(v => v.CandidateId, v => v);
+        PostVote postVote = context.PostVotes
+            .Include(pv => pv.Votes)
+            .FirstOrDefault(pv => pv.UserId == userId && pv.PostId == vote.PostId);
+
+        if (postVote is null)
+        {
+            postVote = new PostVote
+            {
+                UserId = userId,
+                PostId = post.Id,
+                Country = country,
+                Votes = new List<CandidateVote>()
+            };
+
+            context.PostVotes.Add(postVote);
+        }
 
         foreach ((Poll poll, UpsertVoteToPollDto pollVote) in post.Polls.Zip(vote.Polls))
         {
             foreach ((Candidate candidate, UpsertVoteToCandidateDto candidateVote) in poll.Candidates.Zip(pollVote.Candidates))
             {
                 // Either update the vote if one already exists, or create a new one.
-                Vote dbVote = existingVotes.GetValueOrDefault(candidate.Id);
+                CandidateVote dbVote = postVote.Votes.FirstOrDefault(v => v.CandidateId == candidate.Id);
 
                 // The user did not vote for the candidate.
                 if (candidateVote.Value is null)
                 {
                     if (dbVote is not null)
-                        context.Votes.Remove(dbVote);
+                        context.CandidateVotes.Remove(dbVote);
 
                     continue;
                 }
@@ -80,15 +95,11 @@ public class PostService(HiveMimeContext context) : IPostService
                 // The user voted for the candidate.
                 if (dbVote is null)
                 {
-                    dbVote = new Vote
+                    dbVote = new CandidateVote
                     {
-                        UserId = userId,
-                        PostId = post.Id,
                         CandidateId = candidate.Id,
-                        PollId = poll.Id
+                        PostVote = postVote
                     };
-
-                    context.Votes.Add(dbVote);
                 }
 
                 dbVote.Value = candidateVote.Value.Value;

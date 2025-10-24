@@ -5,7 +5,7 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/post/{postId}")]
-public class VoteController(IPostService postService, HiveMimeContext context) : ControllerBase
+public class VoteController(GeoIPService geoIPService, IPostService postService, HiveMimeContext context) : ControllerBase
 {
     [HttpGet]
     public PostResultsDto GetPostResults(int postId)
@@ -15,8 +15,11 @@ public class VoteController(IPostService postService, HiveMimeContext context) :
 
     [HttpPost("vote")]
     [Authorize]
-    public void UpsertVoteToPost([FromBody] UpsertVoteToPostDto vote)
+    public async Task UpsertVoteToPost([FromBody] UpsertVoteToPostDto vote)
     {
-        postService.UpsertVoteToPost(User.GetUserId(), vote);
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        string country = await geoIPService.GetCountryOfIPAsync(ipAddress);
+
+        postService.UpsertVoteToPost(User.GetUserId(), vote, country);
     }
 }

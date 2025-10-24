@@ -32,5 +32,5 @@ public interface IPostService
     /// </summary>
     /// <param name="userId">The ID of the user voting.</param>
     /// <param name="vote">The vote to insert or update.</param>
-    void UpsertVoteToPost(int userId, UpsertVoteToPostDto vote);
+    void UpsertVoteToPost(int userId, UpsertVoteToPostDto vote, string country);
 }

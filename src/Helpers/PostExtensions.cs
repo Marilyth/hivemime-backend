@@ -63,9 +63,42 @@ public static class PollExtensions
 
     public static PostResultsDto ToPostResultsDto(this Post post)
     {
+        // Add meta data polls.
+        Dictionary<string, Candidate> datePollCandidates = new();
+        Dictionary<string, Candidate> countryPollCandidates = new();
+
+        foreach (PostVote postVote in post.PostVotes)
+        {
+            string country = postVote.Country ?? "Unknown";
+            string date = postVote.CreatedAt.ToString("yyyy-MM-dd");
+
+            if (!datePollCandidates.ContainsKey(date))
+                datePollCandidates[date] = new Candidate { Name = date, Votes = [] };
+
+            if (!countryPollCandidates.ContainsKey(country))
+                countryPollCandidates[country] = new Candidate { Name = country, Votes = [] };
+
+            datePollCandidates[date].Votes.Add(new CandidateVote { Value = 1 });
+            countryPollCandidates[country].Votes.Add(new CandidateVote { Value = 1 });
+        }
+
         return new PostResultsDto
         {
-            Polls = post.Polls.Select(poll => poll.ToPollResultsDto()).ToList()
+            Polls = post.Polls.Select(poll => poll.ToPollResultsDto()).ToList(),
+
+            CountryPoll = new Poll()
+            {
+                Title = "Where are you from?",
+                PollType = PollType.SingleChoice,
+                Candidates = countryPollCandidates.Values.ToList()
+            }.ToPollResultsDto(),
+
+            DatePoll = new Poll()
+            {
+                Title = "When did you vote?",
+                PollType = PollType.SingleChoice,
+                Candidates = datePollCandidates.Values.ToList()
+            }.ToPollResultsDto()
         };
     }
 
