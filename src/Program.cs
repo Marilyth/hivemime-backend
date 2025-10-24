@@ -83,6 +83,7 @@ public class Program
         services.AddScoped<IUserService, UserService>();
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
         services.AddSingleton<GeoIPService>();
+        services.AddHttpClient();
 
         _app = builder.Build();
 
