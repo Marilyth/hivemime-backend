@@ -10,8 +10,12 @@ public class GeoIPService(IHttpClientFactory httpClientFactory)
     public async Task<string> GetCountryOfIPAsync(string ipAddress)
     {
         await DownloadCountryDatabaseAsync();
+        string country = "Unknown";
 
-        return _dbReader?.Country(ipAddress).Country.Name ?? "Unknown";
+        try { country = _dbReader?.Country(ipAddress).Country.Name ?? "Unknown"; }
+        catch { }
+        
+        return country;
     }
 
     private async Task DownloadCountryDatabaseAsync()

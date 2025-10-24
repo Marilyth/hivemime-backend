@@ -1,8 +1,8 @@
 public class PostResultsDto
 {
     public List<PollResultsDto> Polls { get; set; }
-    public PollResultsDto CountryPoll { get; set; }
-    public PollResultsDto DatePoll { get; set; }
+    public PollResultsDto Country { get; set; }
+    public PollResultsDto Date { get; set; }
 }
 
 public class PollResultsDto

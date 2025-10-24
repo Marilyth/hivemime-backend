@@ -86,14 +86,14 @@ public static class PollExtensions
         {
             Polls = post.Polls.Select(poll => poll.ToPollResultsDto()).ToList(),
 
-            CountryPoll = new Poll()
+            Country = new Poll()
             {
                 Title = "Where are you from?",
                 PollType = PollType.SingleChoice,
                 Candidates = countryPollCandidates.Values.ToList()
             }.ToPollResultsDto(),
 
-            DatePoll = new Poll()
+            Date = new Poll()
             {
                 Title = "When did you vote?",
                 PollType = PollType.SingleChoice,
