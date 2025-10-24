@@ -100,6 +100,8 @@ public class PostService(HiveMimeContext context) : IPostService
                         CandidateId = candidate.Id,
                         PostVote = postVote
                     };
+
+                    postVote.Votes.Add(dbVote);
                 }
 
                 dbVote.Value = candidateVote.Value.Value;
