@@ -31,7 +31,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration) 
             issuer: configuration["Jwt:Issuer"],
             audience: configuration["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(1),
+            expires: DateTime.UtcNow.AddDays(999),
             signingCredentials: creds
         );
 

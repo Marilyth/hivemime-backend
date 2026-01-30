@@ -141,17 +141,17 @@ public class PostService(HiveMimeContext context) : IPostService
 
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
-        dto.MinVotes = Math.Clamp(dto.MinVotes ?? 1, 1, dto.Candidates.Count);
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 1, dto.Candidates.Count);
 
-        if (dto.MaxVotes is null)
-            dto.MaxVotes = dto.PollType == PollType.SingleChoice ? 1 : dto.Candidates.Count;
+        if (dto.MaxVotes == -1)
+            dto.MaxVotes = dto.Candidates.Count;
+        else
+            dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, dto.Candidates.Count);
 
-        dto.MaxVotes = Math.Clamp(dto.MaxVotes.Value, 1, dto.Candidates.Count);
-
-        if (dto.PollType == PollType.Scoring)
+        if (dto.PollType == PollType.Score)
         {
-            if (dto.MinValue is null || dto.MaxValue is null || dto.StepValue is null)
-                throw new InvalidOperationException("MinValue, MaxValue and StepValue must be set for scoring polls.");
+            if (dto.StepValue is null)
+                throw new InvalidOperationException("StepValue must be set for scoring polls.");
 
             if (dto.StepValue <= 0)
                 yield return "StepValue must be greater than 0.";
@@ -164,8 +164,8 @@ public class PostService(HiveMimeContext context) : IPostService
             dto.MinValue = 1;
             dto.MaxValue = dto.PollType switch
             {
-                PollType.Ranking => Math.Min(dto.Candidates.Count, dto.MaxVotes!.Value),
-                PollType.Categorization => dto.Categories.Count,
+                PollType.Rank => dto.MaxVotes,
+                PollType.Category => dto.Categories.Count,
                 _ => 1
             };
         }
@@ -173,10 +173,13 @@ public class PostService(HiveMimeContext context) : IPostService
         if (string.IsNullOrWhiteSpace(dto.Title))
             yield return "Poll title is required.";
 
+        else if (dto.Title.Trim().Length < 3)
+            yield return "Poll title must be at least 3 characters long.";
+
         if (dto.Candidates is null || !dto.Candidates.Any())
             yield return "A poll must contain at least one candidate.";
 
-        if (dto.PollType == PollType.Categorization)
+        if (dto.PollType == PollType.Category)
         {
             if (dto.Categories is null || !dto.Categories.Any())
                 yield return "A categorization poll must contain at least one category.";
@@ -195,12 +198,9 @@ public class PostService(HiveMimeContext context) : IPostService
         {
             if (!poll.IsOptional && pollVote.Candidates.All(v => !v.Value.HasValue))
             {
-                yield return $"Poll is required.";
+                yield return $"Voting on the poll is required.";
                 continue;
             }
-
-            if (pollVote is null)
-                continue;
 
             foreach (string error in ValidateVote(poll, pollVote!))
                 yield return error;
@@ -230,7 +230,7 @@ public class PostService(HiveMimeContext context) : IPostService
         // Poll type specific validation.
         switch (poll.PollType)
         {
-            case PollType.Ranking:
+            case PollType.Rank:
                 foreach (string error in ValidateRankingPoll(poll, pollVote))
                     yield return error;
                 break;

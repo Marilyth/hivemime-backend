@@ -13,13 +13,13 @@ public class CreatePollDto
     public bool IsShuffled { get; set; }
     public bool IsOptional { get; set; }
 
-    public int? MinValue { get; set; }
-    public int? MaxValue { get; set; }
+    public int MinValue { get; set; }
+    public int MaxValue { get; set; }
     public double? StepValue { get; set; }
 
     // For polls where multiple answers are allowed.
-    public int? MinVotes { get; set; }
-    public int? MaxVotes { get; set; }
+    public int MinVotes { get; set; }
+    public int MaxVotes { get; set; }
 
     public PollType PollType { get; set; }
     public List<PollCandidateDto> Candidates { get; set; }

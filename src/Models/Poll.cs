@@ -30,9 +30,8 @@ public class Poll : EntityWithIdentifier
 
 public enum PollType
 {
-    SingleChoice,
-    MultipleChoice,
-    Scoring,
-    Ranking,
-    Categorization
+    Choice,
+    Score,
+    Rank,
+    Category
 }
