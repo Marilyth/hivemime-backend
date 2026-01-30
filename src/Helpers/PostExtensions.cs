@@ -20,11 +20,11 @@ public static class PollExtensions
             IsShuffled = dto.IsShuffled,
             IsOptional = dto.IsOptional,
             PollType = dto.PollType,
-            MinValue = dto.MinValue!.Value,
-            MaxValue = dto.MaxValue!.Value,
+            MinValue = dto.MinValue,
+            MaxValue = dto.MaxValue,
             StepValue = dto.StepValue,
-            MinVotes = dto.MinVotes!.Value,
-            MaxVotes = dto.MaxVotes!.Value,
+            MinVotes = dto.MinVotes,
+            MaxVotes = dto.MaxVotes,
             Categories = dto.Categories.Select(category => category.ToCategory()).ToList(),
             Candidates = dto.Candidates.Select(candidate => candidate.ToCandidate()).ToList()
         };
@@ -89,14 +89,18 @@ public static class PollExtensions
             Country = new Poll()
             {
                 Title = "Where are you from?",
-                PollType = PollType.SingleChoice,
+                PollType = PollType.Choice,
+                MaxVotes = 1,
+                MinVotes = 1,
                 Candidates = countryPollCandidates.Values.ToList()
             }.ToPollResultsDto(),
 
             Date = new Poll()
             {
                 Title = "When did you vote?",
-                PollType = PollType.SingleChoice,
+                PollType = PollType.Choice,
+                MaxVotes = 1,
+                MinVotes = 1,
                 Candidates = datePollCandidates.Values.ToList()
             }.ToPollResultsDto()
         };
