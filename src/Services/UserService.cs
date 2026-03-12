@@ -1,24 +1,15 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 public class UserService(HiveMimeContext context, IConfiguration configuration) : IUserService
 {
-    public LoginDto Login(User? user)
+    public LoginDto Login(string username)
     {
-        // For now, we use anonymous users.
-        // If the user doesn't already have a token, create a new user.
-        if (user is null)
-        {
-            user = new()
-            {
-                Username = "Anonymous"
-            };
-
-            context.Users.Add(user);
-            context.SaveChanges();
-        }
+        // TODO: Add security measures / actual login.
+        User user = context.Users.FirstOrDefault(u => u.Username == username) ?? CreateUser(username);
 
         Claim[] claims = [
             new Claim("UserId", user.Id.ToString())
@@ -38,5 +29,26 @@ public class UserService(HiveMimeContext context, IConfiguration configuration) 
         string tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
         return new LoginDto { Token = tokenString, Username = user.Username };
+    }
+
+    public UserDetailsDto GetUserDetails(int userId)
+    {
+        var user = context.Users.AsNoTracking().Where(u => u.Id == userId).Include(u => u.Settings).First();
+        return user.ToDetailsDto();
+    }
+
+    public User CreateUser(string username)
+    {
+        // TODO: Add support for registration using password / emails / OAuth, etc.
+        var user = new User()
+        {
+            Username = username,
+            Settings = new()
+        };
+
+        context.Users.Add(user);
+        context.SaveChanges();
+
+        return user;
     }
 }

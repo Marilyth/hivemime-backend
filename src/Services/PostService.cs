@@ -2,9 +2,9 @@ using Microsoft.EntityFrameworkCore;
 
 public class PostService(HiveMimeContext context) : IPostService
 {
-    public List<ListPostDto> BrowsePosts(int userId)
+    public List<PostDto> BrowsePosts(int userId, string filter)
     {
-        List<Post> posts = GetSuggestedPosts(userId);
+        List<Post> posts = GetSuggestedPosts(userId, filter);
         return posts.Select(p => p.ToListPostDto()).ToList();
     }
 
@@ -22,10 +22,14 @@ public class PostService(HiveMimeContext context) : IPostService
         context.SaveChanges();
     }
 
-    public PostResultsDto GetPostDetails(int postId)
+    public PostResultDto GetPostDetails(int postId, string filter)
     {
+        // TODO 9: Apply filter to post details.
         Post post = context.Posts
+            .AsNoTracking()
             .Include(p => p.PostVotes)
+                .ThenInclude(v => v.User)
+                    .ThenInclude(u => u.Settings)
             .Include(p => p.Polls.OrderBy(p => p.Id))
                 .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
                     .ThenInclude(o => o.Votes)
@@ -35,17 +39,7 @@ public class PostService(HiveMimeContext context) : IPostService
         return post.ToPostResultsDto();
     }
 
-    public PollResultsDto GetPollDetails(int pollId)
-    {
-        Poll poll = context.Polls
-            .Include(p => p.Candidates.OrderBy(c => c.Id))
-                .ThenInclude(o => o.Votes)
-            .First(p => p.Id == pollId);
-
-        return poll.ToPollResultsDto();
-    }
-
-    public void UpsertVoteToPost(int userId, UpsertVoteToPostDto vote, string country)
+    public void VoteOnPost(int userId, VoteOnPostDto vote, string country)
     {
         Post post = context.Posts
             .Include(p => p.Polls.OrderBy(p => p.Id))
@@ -58,7 +52,7 @@ public class PostService(HiveMimeContext context) : IPostService
 
         if (validationErrors.Any())
             throw new InvalidOperationException("Vote validation failed: " + string.Join("; ", validationErrors));
-
+            
         PostVote postVote = context.PostVotes
             .Include(pv => pv.Votes)
             .FirstOrDefault(pv => pv.UserId == userId && pv.PostId == vote.PostId);
@@ -69,16 +63,15 @@ public class PostService(HiveMimeContext context) : IPostService
             {
                 UserId = userId,
                 PostId = post.Id,
-                Country = country,
                 Votes = new List<CandidateVote>()
             };
 
             context.PostVotes.Add(postVote);
         }
 
-        foreach ((Poll poll, UpsertVoteToPollDto pollVote) in post.Polls.Zip(vote.Polls))
+        foreach ((Poll poll, VoteOnPollDto pollVote) in post.Polls.Zip(vote.Polls))
         {
-            foreach ((Candidate candidate, UpsertVoteToCandidateDto candidateVote) in poll.Candidates.Zip(pollVote.Candidates))
+            foreach ((Candidate candidate, VoteOnCandidateDto candidateVote) in poll.Candidates.Zip(pollVote.Candidates))
             {
                 // Either update the vote if one already exists, or create a new one.
                 CandidateVote dbVote = postVote.Votes.FirstOrDefault(v => v.CandidateId == candidate.Id);
@@ -111,15 +104,22 @@ public class PostService(HiveMimeContext context) : IPostService
         context.SaveChanges();
     }
 
-    private List<Post> GetSuggestedPosts(int userId)
+    private List<Post> GetSuggestedPosts(int userId, string filter)
     {
-        List<Post> posts = context.Posts.Include(p => p.Polls.OrderBy(p => p.Id))
-                                            .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
-                                        .Include(p => p.Polls.OrderBy(p => p.Id))
-                                            .ThenInclude(o => o.Categories.OrderBy(c => c.Id))
-                                        .OrderByDescending(p => p.CreatedAt)
-                                        .Take(20)
-                                        .ToList();
+        // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
+        List<Post> posts = context.Posts
+            .AsNoTracking()
+            .Where(p => p.Title.Contains(filter)
+                    || p.Description.Contains(filter)
+                    || p.Polls.Any(poll => poll.Title.Contains(filter)
+                                        || poll.Description.Contains(filter)))
+            .Include(p => p.Polls.OrderBy(p => p.Id))
+                .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
+            .Include(p => p.Polls.OrderBy(p => p.Id))
+                .ThenInclude(o => o.Categories.OrderBy(c => c.Id))
+            .OrderByDescending(p => p.CreatedAt)
+            .Take(20)
+            .ToList();
 
         return posts;
     }
@@ -186,7 +186,7 @@ public class PostService(HiveMimeContext context) : IPostService
         }
     }
 
-    private IEnumerable<string> ValidatePostVotes(Post post, UpsertVoteToPostDto postVote)
+    private IEnumerable<string> ValidatePostVotes(Post post, VoteOnPostDto postVote)
     {
         if (post.Polls.Count != postVote.Polls.Count)
         {
@@ -194,7 +194,7 @@ public class PostService(HiveMimeContext context) : IPostService
             yield break;
         }
 
-        foreach ((Poll poll, UpsertVoteToPollDto pollVote) in post.Polls.Zip(postVote.Polls))
+        foreach ((Poll poll, VoteOnPollDto pollVote) in post.Polls.Zip(postVote.Polls))
         {
             if (!poll.IsOptional && pollVote.Candidates.All(v => !v.Value.HasValue))
             {
@@ -207,7 +207,7 @@ public class PostService(HiveMimeContext context) : IPostService
         }
     }
 
-    private IEnumerable<string> ValidateVote(Poll poll, UpsertVoteToPollDto pollVote)
+    private IEnumerable<string> ValidateVote(Poll poll, VoteOnPollDto pollVote)
     {
         int votesCount = pollVote.Candidates.Count(v => v.Value.HasValue);
 
@@ -239,7 +239,7 @@ public class PostService(HiveMimeContext context) : IPostService
         }
     }
 
-    private IEnumerable<string> ValidateRankingPoll(Poll poll, UpsertVoteToPollDto pollVote)
+    private IEnumerable<string> ValidateRankingPoll(Poll poll, VoteOnPollDto pollVote)
     {
         List<int> assignedRanks = pollVote.Candidates
             .Where(v => v.Value.HasValue)

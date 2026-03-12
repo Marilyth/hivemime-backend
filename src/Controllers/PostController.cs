@@ -6,12 +6,12 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/post")]
-public class PostController(IPostService postService) : ControllerBase
+public class PostController(IPostService postService, GeoIPService geoIPService) : ControllerBase
 {
     [HttpGet("browse")]
-    public List<ListPostDto> BrowsePosts()
+    public List<PostDto> BrowsePosts(string filter)
     {
-        return postService.BrowsePosts(User.GetUserId());
+        return postService.BrowsePosts(User.GetUserId(), filter);
     }
 
     [HttpPost("create")]
@@ -19,5 +19,21 @@ public class PostController(IPostService postService) : ControllerBase
     public void CreatePost([FromBody] CreatePostDto postDto)
     {
         postService.CreatePost(User.GetUserId(), postDto);
+    }
+
+    [HttpGet("results")]
+    public PostResultDto GetPostResults(int postId, string filter)
+    {
+        return postService.GetPostDetails(postId, filter);
+    }
+
+    [HttpPost("vote")]
+    [Authorize]
+    public async Task UpsertVoteToPost([FromBody] VoteOnPostDto vote)
+    {
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        string country = await geoIPService.GetCountryOfIPAsync(ipAddress);
+
+        postService.VoteOnPost(User.GetUserId(), vote, country);
     }
 }

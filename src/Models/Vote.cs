@@ -25,7 +25,4 @@ public class PostVote : EntityWithIdentifier
     public Post? Post { get; set; }
 
     public List<CandidateVote> Votes { get; set; }
-
-    [MaxLength(100)]
-    public string Country { get; set; }
 }

@@ -7,7 +7,7 @@ public class HiveMimeContext : DbContext
 
     public DbSet<Post> Posts { get; set; }
     public DbSet<User> Users { get; set; }
-    public DbSet<Poll> Polls { get; set; }
+    public DbSet<Post> Polls { get; set; }
     public DbSet<Candidate> PollOptions { get; set; }
     public DbSet<PostVote> PostVotes { get; set; }
     public DbSet<CandidateVote> CandidateVotes { get; set; }

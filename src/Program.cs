@@ -110,7 +110,7 @@ public class Program
     {
         using (var scope = _app.Services.CreateScope())
         {
-            // Ensure the database is created.
+            // During development, reset the databse on restart.
             var db = scope.ServiceProvider.GetRequiredService<HiveMimeContext>();
             db.Database.EnsureDeleted();
             db.Database.EnsureCreated();

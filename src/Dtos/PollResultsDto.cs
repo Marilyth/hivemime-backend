@@ -1,11 +1,9 @@
-public class PostResultsDto
+public class PostResultDto
 {
-    public List<PollResultsDto> Polls { get; set; }
-    public PollResultsDto Country { get; set; }
-    public PollResultsDto Date { get; set; }
+    public List<PollResultDto> Polls { get; set; }
 }
 
-public class PollResultsDto
+public class PollResultDto
 {
     public PollType PollType { get; set; }
     public List<PollCandidateResultDto> Candidates { get; set; }
