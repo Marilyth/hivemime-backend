@@ -16,7 +16,6 @@ public static class PollExtensions
         {
             Title = dto.Title,
             Description = dto.Description,
-            AllowCustomAnswer = dto.AllowCustomAnswer,
             IsShuffled = dto.IsShuffled,
             IsOptional = dto.IsOptional,
             PollType = dto.PollType,
@@ -30,9 +29,9 @@ public static class PollExtensions
         };
     }
 
-    public static ListPostDto ToListPostDto(this Post post)
+    public static PostDto ToListPostDto(this Post post)
     {
-        return new ListPostDto
+        return new PostDto
         {
             Id = post.Id,
             Title = post.Title,
@@ -41,14 +40,13 @@ public static class PollExtensions
         };
     }
 
-    public static ListPollDto ToListPollDto(this Poll poll)
+    public static PollDto ToListPollDto(this Poll poll)
     {
-        return new ListPollDto
+        return new PollDto
         {
             Title = poll.Title,
             Description = poll.Description,
             PollType = poll.PollType,
-            AllowCustomAnswer = poll.AllowCustomAnswer,
             IsShuffled = poll.IsShuffled,
             IsOptional = poll.IsOptional,
             MinValue = poll.MinValue,
@@ -61,54 +59,122 @@ public static class PollExtensions
         };
     }
 
-    public static PostResultsDto ToPostResultsDto(this Post post)
+    public static PostResultDto ToPostResultsDto(this Post post)
     {
         // Add meta data polls.
+        Dictionary<string, Candidate> genderPollCandidates = new();
+        Dictionary<string, Candidate> agePollCandidates = new();
         Dictionary<string, Candidate> datePollCandidates = new();
         Dictionary<string, Candidate> countryPollCandidates = new();
 
         foreach (PostVote postVote in post.PostVotes)
         {
-            string country = postVote.Country ?? "Unknown";
+            // The user can opt out of sharing demographic data. Check for each kind.
+            UserSettings settings = postVote.User.Settings;
+
+            // Include country of the user.
+            if (settings.ShowCountryOnVote && !string.IsNullOrEmpty(postVote.User.Country))
+            {
+                string country = postVote.User.Country;
+
+                if (!countryPollCandidates.ContainsKey(country))
+                    countryPollCandidates[country] = new Candidate { Name = country, Votes = [] };
+                
+                countryPollCandidates[country].Votes.Add(new CandidateVote { Value = 1 });
+            }
+
+            // Include gender of the user.
+            if (settings.ShowGenderOnVote && postVote.User.Gender.HasValue)
+            {
+                string gender = postVote.User.Gender.ToString();
+
+                if (!genderPollCandidates.ContainsKey(gender))
+                    genderPollCandidates[gender] = new Candidate { Name = gender, Votes = [] };
+
+                genderPollCandidates[gender].Votes.Add(new CandidateVote { Value = 1 });
+            }
+
+            // Include age of the user.
+            if (settings.ShowAgeOnVote && postVote.User.DateOfBirth.HasValue)
+            {
+                // Determine the age at the time of voting.
+                int ageValue = postVote.CreatedAt.Year - postVote.User.DateOfBirth.Value.Year;
+
+                if (postVote.CreatedAt < postVote.User.DateOfBirth.Value.AddYears(ageValue))
+                    ageValue--;
+
+                string age = ageValue.ToString();
+
+                // Bucket it up for now.
+                if (ageValue < 18)
+                    age = "Under 18";
+                else if (ageValue < 30)
+                    age = "18-29";
+                else if (ageValue < 45)
+                    age = "30-44";
+                else if (ageValue < 60)
+                    age = "45-59";
+                else
+                    age = "60+";
+
+                if (!agePollCandidates.ContainsKey(age))
+                    agePollCandidates[age] = new Candidate { Name = age, Votes = [] };
+
+                agePollCandidates[age].Votes.Add(new CandidateVote { Value = 1 });
+            }
+            
+            // Include the date of the vote.
             string date = postVote.CreatedAt.ToString("yyyy-MM-dd");
 
             if (!datePollCandidates.ContainsKey(date))
                 datePollCandidates[date] = new Candidate { Name = date, Votes = [] };
 
-            if (!countryPollCandidates.ContainsKey(country))
-                countryPollCandidates[country] = new Candidate { Name = country, Votes = [] };
-
             datePollCandidates[date].Votes.Add(new CandidateVote { Value = 1 });
-            countryPollCandidates[country].Votes.Add(new CandidateVote { Value = 1 });
         }
 
-        return new PostResultsDto
+        List<Poll> polls = [.. post.Polls,
+        new()
         {
-            Polls = post.Polls.Select(poll => poll.ToPollResultsDto()).ToList(),
+            Title = "Where are you from? (Automatic)",
+            PollType = PollType.Choice,
+            MaxVotes = 1,
+            MinVotes = 1,
+            Candidates = countryPollCandidates.Values.ToList()
+        },
+        new()
+        {
+            Title = "When did you vote? (Automatic)",
+            PollType = PollType.Choice,
+            MaxVotes = 1,
+            MinVotes = 1,
+            Candidates = datePollCandidates.Values.ToList()
+        },
+        new()
+        {
+            Title = "What is your gender? (Automatic)",
+            PollType = PollType.Choice,
+            MaxVotes = 1,
+            MinVotes = 1,
+            Candidates = genderPollCandidates.Values.ToList()
+        },
+        new()
+        {   
+            Title = "What is your age group? (Automatic)",
+            PollType = PollType.Choice,
+            MaxVotes = 1,
+            MinVotes = 1,
+            Candidates = agePollCandidates.Values.ToList()
+        }];
 
-            Country = new Poll()
-            {
-                Title = "Where are you from?",
-                PollType = PollType.Choice,
-                MaxVotes = 1,
-                MinVotes = 1,
-                Candidates = countryPollCandidates.Values.ToList()
-            }.ToPollResultsDto(),
-
-            Date = new Poll()
-            {
-                Title = "When did you vote?",
-                PollType = PollType.Choice,
-                MaxVotes = 1,
-                MinVotes = 1,
-                Candidates = datePollCandidates.Values.ToList()
-            }.ToPollResultsDto()
+        return new PostResultDto
+        {
+            Polls = polls.Select(ToPollResultsDto).ToList()
         };
     }
 
-    public static PollResultsDto ToPollResultsDto(this Poll poll)
+    public static PollResultDto ToPollResultsDto(this Poll poll)
     {
-        return new PollResultsDto
+        return new PollResultDto
         {
             PollType = poll.PollType,
             Candidates = poll.Candidates.Select(option => option.ToCandidateResultDto()).ToList()

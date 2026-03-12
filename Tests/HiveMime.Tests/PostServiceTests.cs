@@ -36,7 +36,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
             Description = "This is a default post.",
             Creator = new User { Username = "defaultuser" },
             Polls = [
-                new Poll
+                new Post
                 {
                     Title = "Default Poll",
                     Description = "This is a default poll.",
@@ -130,7 +130,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         context.Users.Add(user);
         await context.SaveChangesAsync();
 
-        var poll = new Poll
+        var poll = new Post
         {
             Title = "Test Poll",
             Description = "Test Poll Description",
@@ -172,14 +172,14 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
     {
         // Arrange
         await using var context = CreateContext();
-        var createVoteDto = new UpsertVoteToPostDto()
+        var createVoteDto = new VoteOnPostDto()
         {
             PostId = _defaultPost.Id,
             Polls = [
-                new UpsertVoteToPollDto
+                new VoteOnPollDto
                 {
                     Candidates = [
-                        new UpsertVoteToCandidateDto {
+                        new VoteOnCandidateDto {
                             Value = 1
                         }
                     ]
@@ -202,14 +202,14 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
     {
         // Arrange.
         await using var context = CreateContext();
-        var createVoteDto = new UpsertVoteToPostDto()
+        var createVoteDto = new VoteOnPostDto()
         {
             PostId = _defaultPost.Id,
             Polls = [
-                new UpsertVoteToPollDto
+                new VoteOnPollDto
                 {
                     Candidates = [
-                        new UpsertVoteToCandidateDto { Value = 1 }
+                        new VoteOnCandidateDto { Value = 1 }
                     ]
                 }
             ]

@@ -7,12 +7,10 @@ public class Post : EntityWithIdentifier
 
     public List<Poll> Polls { get; set; }
     public List<Comment> Comments { get; set; }
-    public List<Tag> Tags { get; set; }
+    public Hive Hive { get; set; }
     public List<PostVote> PostVotes { get; set; }
 
     [ForeignKey(nameof(Creator))]
     public int CreatorId { get; set; }
     public User? Creator { get; set; }
-
-    // TODO: Add hives (communities)
 }

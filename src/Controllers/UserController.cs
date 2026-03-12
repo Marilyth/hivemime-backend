@@ -3,18 +3,19 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/[controller]")]
-public class UserController(HiveMimeContext context) : ControllerBase
+public class UserController(IUserService userService) : ControllerBase
 {
+    [HttpGet("login")]
+    public LoginDto Login(string username)
+    {
+        return userService.Login(username);
+    }
+
     [HttpGet]
     [Authorize]
-    public IActionResult GetUserDetails()
+    public UserDetailsDto GetUserDetails()
     {
-        var user = User.GetUser(context);
-
-        return Ok(new
-        {
-            Id = user.Id,
-            Username = user.Username
-        });
+        var userId = User.GetUserId();
+        return userService.GetUserDetails(userId);
     }
 }
