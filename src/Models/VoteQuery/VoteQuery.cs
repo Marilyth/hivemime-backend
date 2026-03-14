@@ -3,11 +3,10 @@
 /// </summary>
 public class VoteQuery : VoteQueryBase
 {
-    public int PollIndex { get; set; }
-    public int CandidateIndex { get; set; }
+    public int CandidateId { get; set; }
     public ValueOperator ValueOperator { get; set; }
     public object Value { get; set; }
 
     protected override string GetQueryExpression()
-        => $"{PollIndex}:{CandidateIndex}{ValueOperator.OperatorToSymbol()}{Value}";
+        => $"{CandidateId}{ValueOperator.OperatorToSymbol()}{Value}";
 }
