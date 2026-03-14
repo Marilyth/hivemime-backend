@@ -70,7 +70,7 @@ public class UserServiceTests : IClassFixture<DatabaseFixture>
         var service = new UserService(context, configuration);
 
         // Act
-        var result = service.Login(user);
+        var result = service.Login("testuser");
 
         // Assert
         Assert.NotNull(result);

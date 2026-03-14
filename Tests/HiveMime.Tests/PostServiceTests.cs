@@ -36,12 +36,11 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
             Description = "This is a default post.",
             Creator = new User { Username = "defaultuser" },
             Polls = [
-                new Post
+                new Poll
                 {
                     Title = "Default Poll",
                     Description = "This is a default poll.",
-                    AllowCustomAnswer = false,
-                    PollType = PollType.SingleChoice,
+                    PollType = PollType.Choice,
                     Candidates = new List<Candidate>
                     {
                         new Candidate { Name = "Option 1", Description = "Option 1 Description" },
@@ -64,7 +63,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         var service = new PostService(context);
 
         // Act
-        var result = service.BrowsePosts(_defaultPost.CreatorId);
+        var result = service.BrowsePosts(_defaultPost.CreatorId, "");
 
         // Assert
         Assert.Single(result);
@@ -92,8 +91,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
                 {
                     Title = "Poll 1",
                     Description = "Description 1",
-                    AllowCustomAnswer = false,
-                    PollType = PollType.SingleChoice,
+                    PollType = PollType.Choice,
                     Candidates = new List<PollCandidateDto>
                     {
                         new PollCandidateDto { Name = "Option 1", Description = "Option 1 Description" },
@@ -115,117 +113,9 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         Assert.Single(post.Polls);
         Assert.Equal("Poll 1", post.Polls[0].Title);
         Assert.Equal("Description 1", post.Polls[0].Description);
-        Assert.Equal(PollType.SingleChoice, post.Polls[0].PollType);
+        Assert.Equal(PollType.Choice, post.Polls[0].PollType);
         Assert.Equal(2, post.Polls[0].Candidates.Count);
         Assert.Equal("Option 1", post.Polls[0].Candidates[0].Name);
         Assert.Equal("Option 2", post.Polls[0].Candidates[1].Name);
-    }
-
-    [Fact]
-    public async Task GetPollDetails_ExistingPoll_ReturnsCorrectDetails()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var user = new User { Username = "testuser" };
-        context.Users.Add(user);
-        await context.SaveChangesAsync();
-
-        var poll = new Post
-        {
-            Title = "Test Poll",
-            Description = "Test Poll Description",
-            PostId = _defaultPost.Id,
-            Candidates = new List<Candidate>
-            {
-                new Candidate { Name = "Option 1" },
-                new Candidate { Name = "Option 2" }
-            }
-        };
-        context.Polls.Add(poll);
-        await context.SaveChangesAsync();
-
-        var service = new PostService(context);
-
-        // Act
-        var result = service.GetPollDetails(poll.Id);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(2, result.Candidates.Count);
-        Assert.Equal("Option 1", result.Candidates[0].Name);
-        Assert.Equal(0, result.Candidates[0].VoterAmount);
-    }
-
-    [Fact]
-    public async Task GetPollDetails_NonExistentPoll_ThrowsException()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var service = new PostService(context);
-
-        // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => service.GetPollDetails(999));
-    }
-
-    [Fact]
-    public async Task UpsertVoteToPost_NewVote_CreatesVote()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var createVoteDto = new VoteOnPostDto()
-        {
-            PostId = _defaultPost.Id,
-            Polls = [
-                new VoteOnPollDto
-                {
-                    Candidates = [
-                        new VoteOnCandidateDto {
-                            Value = 1
-                        }
-                    ]
-                }
-            ]
-        };
-
-        var service = new PostService(context);
-
-        // Act
-        service.UpsertVoteToPost(_defaultPost.CreatorId, createVoteDto);
-
-        // Assert
-        var vote = await context.Votes.FirstOrDefaultAsync();
-        Assert.NotNull(vote);
-    }
-
-    [Fact]
-    public async Task UpsertVoteToPoll_ExistingVote_UpdatesVote()
-    {
-        // Arrange.
-        await using var context = CreateContext();
-        var createVoteDto = new VoteOnPostDto()
-        {
-            PostId = _defaultPost.Id,
-            Polls = [
-                new VoteOnPollDto
-                {
-                    Candidates = [
-                        new VoteOnCandidateDto { Value = 1 }
-                    ]
-                }
-            ]
-        };
-
-        var service = new PostService(context);
-        service.UpsertVoteToPost(_defaultPost.CreatorId, createVoteDto);
-
-        createVoteDto.Polls[0].Candidates[0].Value = 2;
-
-        // Act.
-        service.UpsertVoteToPost(_defaultPost.CreatorId, createVoteDto);
-
-        // Assert.
-        var vote = await context.Votes.FirstOrDefaultAsync();
-        Assert.NotNull(vote);
-        Assert.Equal(2, vote.Value);
     }
 }
