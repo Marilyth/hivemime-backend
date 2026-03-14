@@ -24,7 +24,7 @@ public class PostController(IPostService postService, GeoIPService geoIPService)
     [HttpGet("results")]
     public PostResultDto GetPostResults(int postId, string? filter)
     {
-        return postService.GetPostDetails(postId, filter);
+        return postService.GetPostResult(postId, filter);
     }
 
     [HttpPost("vote")]

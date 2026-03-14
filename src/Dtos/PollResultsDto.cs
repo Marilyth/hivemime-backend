@@ -5,7 +5,6 @@ public class PostResultDto
 
 public class PollResultDto
 {
-    public PollType PollType { get; set; }
     public List<PollCandidateResultDto> Candidates { get; set; }
 }
 

@@ -15,9 +15,6 @@ public static class UserExtensions
         {
             Id = user.Id,
             Username = user.Username,
-
-            Gender = user.Gender,
-            Country = user.Country,
             DateOfBirth = user.DateOfBirth,
 
             Settings = user.Settings.ToSettingsDto()
@@ -28,9 +25,9 @@ public static class UserExtensions
     {
         return new UserSettingsDto
         {
-            ShowAgeOnVote = settings.ShowAgeOnVote,
-            ShowCountryOnVote = settings.ShowCountryOnVote,
-            ShowGenderOnVote = settings.ShowGenderOnVote
+            ShareDateOfVote = settings.ShareDateOfVote,
+            ShareCountryOfVote = settings.ShareCountryOfVote,
+            ShareAgeOfVote = settings.ShareAgeOfVote
         };
     }
 }
