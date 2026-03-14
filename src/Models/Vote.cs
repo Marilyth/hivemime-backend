@@ -24,5 +24,9 @@ public class PostVote : EntityWithIdentifier
     public int PostId { get; set; }
     public Post? Post { get; set; }
 
+    // Automatically deduced demographic data.
+    [MaxLength(100)]
+    public string? Country { get; set; }
+
     public List<CandidateVote> Votes { get; set; }
 }

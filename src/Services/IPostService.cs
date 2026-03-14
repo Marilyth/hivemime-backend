@@ -20,7 +20,7 @@ public interface IPostService
     /// </summary>
     /// <param name="postId">The ID of the post to fetch details for.</param>
     /// <param name="filter">The filter to apply to the post details.</param>
-    PostResultDto GetPostDetails(int postId, string filter);
+    PostResultDto GetPostResult(int postId, string filter);
 
     /// <summary>
     /// Inserts or updates a user's votes on a post.

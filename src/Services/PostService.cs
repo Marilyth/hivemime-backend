@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 
 public class PostService(HiveMimeContext context) : IPostService
@@ -22,19 +23,41 @@ public class PostService(HiveMimeContext context) : IPostService
         context.SaveChanges();
     }
 
-    public PostResultDto GetPostDetails(int postId, string filter)
+    public PostResultDto GetPostResult(int postId, string filter)
     {
-        // TODO 9: Apply filter to post details.
+        VoteQueryBase voteQuery = filter.ToVoteQuery();
+        Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
+
+        // Fetch post and filtered votes seperately for better performance.
+        List<PostVote> filteredVotes = context.PostVotes
+            .AsNoTracking()
+            .Where(v => v.PostId == postId)
+            .Where(voteExpression)
+            .Include(v => v.User)
+            .AsSplitQuery()
+            .ToList();
+
         Post post = context.Posts
             .AsNoTracking()
-            .Include(p => p.PostVotes)
-                .ThenInclude(v => v.User)
-                    .ThenInclude(u => u.Settings)
             .Include(p => p.Polls.OrderBy(p => p.Id))
                 .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
-                    .ThenInclude(o => o.Votes)
-            .AsSplitQuery()
             .First(p => p.Id == postId);
+
+        Dictionary<int, Candidate> candidateLookup = post.Polls
+            .SelectMany(p => p.Candidates)
+            .ToList()
+            .ToDictionary(c => c.Id);
+
+        // Add the filtered votes to the candidates.
+        foreach (CandidateVote vote in filteredVotes.SelectMany(v => v.Votes))
+        {
+            Candidate candidate = candidateLookup[vote.CandidateId];
+            candidate.Votes ??= [];
+
+            candidate.Votes.Add(vote);
+        }
+
+        post.PostVotes = filteredVotes;
 
         return post.ToPostResultsDto();
     }
