@@ -63,7 +63,7 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
         var service = new PostService(context);
 
         // Act
-        var result = service.BrowsePosts(_defaultPost.CreatorId, "");
+        var result = service.BrowsePosts(_defaultPost.CreatorId, null, null);
 
         // Assert
         Assert.Single(result);
