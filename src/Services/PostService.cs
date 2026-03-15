@@ -2,9 +2,9 @@ using Microsoft.EntityFrameworkCore;
 
 public class PostService(HiveMimeContext context) : IPostService
 {
-    public List<PostDto> BrowsePosts(int userId, string filter)
+    public List<PostDto> BrowsePosts(int userId, int? afterId, string filter)
     {
-        List<Post> posts = GetSuggestedPosts(userId, filter);
+        List<Post> posts = GetSuggestedPosts(userId, afterId, filter);
         return posts.Select(p => p.ToListPostDto()).ToList();
     }
 
@@ -104,24 +104,32 @@ public class PostService(HiveMimeContext context) : IPostService
         context.SaveChanges();
     }
 
-    private List<Post> GetSuggestedPosts(int userId, string filter)
+    private List<Post> GetSuggestedPosts(int userId, int? afterId, string? filter)
     {
         // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
-        List<Post> posts = context.Posts
-            .AsNoTracking()
-            .Where(p => p.Title.Contains(filter)
-                    || p.Description.Contains(filter)
-                    || p.Polls.Any(poll => poll.Title.Contains(filter)
-                                        || poll.Description.Contains(filter)))
-            .Include(p => p.Polls.OrderBy(p => p.Id))
-                .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
-            .Include(p => p.Polls.OrderBy(p => p.Id))
-                .ThenInclude(o => o.Categories.OrderBy(c => c.Id))
-            .OrderByDescending(p => p.CreatedAt)
-            .Take(20)
-            .ToList();
+        IQueryable<Post> posts = context.Posts.AsNoTracking();
 
-        return posts;
+        if (afterId.HasValue)
+        {
+            posts = posts.Where(p => p.Id < afterId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter))
+        {
+            filter = filter.Trim().ToLower();
+
+            posts = posts.Where(p => p.Title.ToLower().Contains(filter)
+                                    || p.Description.ToLower().Contains(filter)
+                                    || p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
+                                        || poll.Description.ToLower().Contains(filter)));
+        }
+
+        return posts.Include(p => p.Polls.OrderBy(p => p.Id))
+                        .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
+                    .Include(p => p.Polls.OrderBy(p => p.Id))
+                        .ThenInclude(o => o.Categories.OrderBy(c => c.Id))
+                    .OrderByDescending(p => p.CreatedAt)
+                    .Take(20).ToList();
     }
 
     private IEnumerable<string> ValidateCreatePost(CreatePostDto postDto)

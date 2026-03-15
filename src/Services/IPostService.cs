@@ -5,8 +5,9 @@ public interface IPostService
     /// </summary>
     /// <returns>The list of posts to show in the browse section.</returns>
     /// <param name="userId">The ID of the user browsing posts, for individual feeds.</param>
+    /// <param name="afterId">The ID of the last post seen, for pagination.</param>
     /// <param name="filter">The filter to apply to the posts.</param>
-    List<PostDto> BrowsePosts(int userId, string filter);
+    List<PostDto> BrowsePosts(int userId, int? afterId, string filter);
 
     /// <summary>
     /// Creates a new post.

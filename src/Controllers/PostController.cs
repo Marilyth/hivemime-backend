@@ -9,9 +9,9 @@ namespace HiveMime.Controllers;
 public class PostController(IPostService postService, GeoIPService geoIPService) : ControllerBase
 {
     [HttpGet("browse")]
-    public List<PostDto> BrowsePosts(string filter)
+    public List<PostDto> BrowsePosts(int? afterId, string? filter)
     {
-        return postService.BrowsePosts(User.GetUserId(), filter);
+        return postService.BrowsePosts(User.GetUserId(), afterId, filter);
     }
 
     [HttpPost("create")]
@@ -22,7 +22,7 @@ public class PostController(IPostService postService, GeoIPService geoIPService)
     }
 
     [HttpGet("results")]
-    public PostResultDto GetPostResults(int postId, string filter)
+    public PostResultDto GetPostResults(int postId, string? filter)
     {
         return postService.GetPostDetails(postId, filter);
     }
