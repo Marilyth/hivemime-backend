@@ -33,7 +33,8 @@ public class PostService(HiveMimeContext context) : IPostService
             .AsNoTracking()
             .Where(v => v.PostId == postId)
             .Where(voteExpression)
-            .Include(v => v.User)
+            .Include(v => v.User.Settings)
+            .Include(v => v.Votes)
             .AsSplitQuery()
             .ToList();
 
@@ -45,15 +46,13 @@ public class PostService(HiveMimeContext context) : IPostService
 
         Dictionary<int, Candidate> candidateLookup = post.Polls
             .SelectMany(p => p.Candidates)
-            .ToList()
             .ToDictionary(c => c.Id);
 
         // Add the filtered votes to the candidates.
+        candidateLookup.Values.ToList().ForEach(c => c.Votes = []);
         foreach (CandidateVote vote in filteredVotes.SelectMany(v => v.Votes))
         {
             Candidate candidate = candidateLookup[vote.CandidateId];
-            candidate.Votes ??= [];
-
             candidate.Votes.Add(vote);
         }
 
