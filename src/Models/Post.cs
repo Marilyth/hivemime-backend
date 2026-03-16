@@ -1,8 +1,11 @@
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 public class Post : EntityWithIdentifier
 {
+    [MaxLength(128)]
     public string? Title { get; set; }
+    [MaxLength(1024)]
     public string? Description { get; set; }
 
     public List<Poll> Polls { get; set; }

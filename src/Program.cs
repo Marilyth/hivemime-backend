@@ -71,6 +71,7 @@ public class Program
         // Add custom services.
         services.AddScoped<IPostService, PostService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IHiveService, HiveService>();
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
         services.AddSingleton<GeoIPService>();
         services.AddHttpClient();

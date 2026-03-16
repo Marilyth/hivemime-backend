@@ -3,24 +3,61 @@ using Microsoft.EntityFrameworkCore;
 
 public class PostService(HiveMimeContext context) : IPostService
 {
-    public List<PostDto> BrowsePosts(int userId, int? afterId, string filter)
+    public PostDto GetPostById(int postId)
     {
-        List<Post> posts = GetSuggestedPosts(userId, afterId, filter);
-        return posts.Select(p => p.ToListPostDto()).ToList();
+        Post post = context.Posts
+            .AsNoTracking()
+            .IncludeForBrowse()
+            .FirstOrException(p => p.Id == postId);
+
+        return post.ToPostDto();
     }
 
-    public void CreatePost(int userId, CreatePostDto postDto)
+    public List<PostDto> BrowsePosts(int userId, int? hiveId, int? afterId, string filter)
+    {
+        // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
+        IQueryable<Post> posts = context.Posts.AsNoTracking();
+
+        if (afterId.HasValue)
+            posts = posts.Where(p => p.Id < afterId);
+
+        if (hiveId.HasValue)
+            posts = posts.Where(p => p.HiveId == hiveId.Value);
+
+        if (!string.IsNullOrWhiteSpace(filter))
+        {
+            filter = filter.Trim().ToLower();
+
+            posts = posts.Where(p => p.Title.ToLower().Contains(filter)
+                                    || p.Description.ToLower().Contains(filter)
+                                    || p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
+                                        || poll.Description.ToLower().Contains(filter)));
+        }
+
+        return posts.IncludeForBrowse()
+                    .OrderByDescending(p => p.CreatedAt)
+                    .Take(20).Select(p => p.ToPostDto()).ToList();
+    }
+
+    public PostDto CreatePost(int userId, CreatePostDto postDto)
     {
         IEnumerable<string> validationErrors = ValidateCreatePost(postDto);
+        Hive hive = null;
+
+        if (postDto.HiveId.HasValue)
+            hive = context.Hives.FirstOrException(h => h.Id == postDto.HiveId.Value);
 
         if (validationErrors.Any())
             throw new InvalidOperationException("Post validation failed: " + string.Join("; ", validationErrors));
 
         Post newPost = postDto.ToPost();
         newPost.CreatorId = userId;
+        newPost.Hive = hive;
 
         context.Posts.Add(newPost);
         context.SaveChanges();
+
+        return newPost.ToPostDto();
     }
 
     public PostResultDto GetPostResult(int postId, string filter)
@@ -124,34 +161,6 @@ public class PostService(HiveMimeContext context) : IPostService
         }
 
         context.SaveChanges();
-    }
-
-    private List<Post> GetSuggestedPosts(int userId, int? afterId, string? filter)
-    {
-        // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
-        IQueryable<Post> posts = context.Posts.AsNoTracking();
-
-        if (afterId.HasValue)
-        {
-            posts = posts.Where(p => p.Id < afterId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter))
-        {
-            filter = filter.Trim().ToLower();
-
-            posts = posts.Where(p => p.Title.ToLower().Contains(filter)
-                                    || p.Description.ToLower().Contains(filter)
-                                    || p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
-                                        || poll.Description.ToLower().Contains(filter)));
-        }
-
-        return posts.Include(p => p.Polls.OrderBy(p => p.Id))
-                        .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
-                    .Include(p => p.Polls.OrderBy(p => p.Id))
-                        .ThenInclude(o => o.Categories.OrderBy(c => c.Id))
-                    .OrderByDescending(p => p.CreatedAt)
-                    .Take(20).ToList();
     }
 
     private IEnumerable<string> ValidateCreatePost(CreatePostDto postDto)

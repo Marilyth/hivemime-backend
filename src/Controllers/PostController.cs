@@ -1,31 +1,28 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace HiveMime.Controllers;
 
 [ApiController]
-[Route("api/post")]
+[Route("api/[controller]")]
 public class PostController(IPostService postService, GeoIPService geoIPService) : ControllerBase
 {
+    [HttpGet("get")]
+    public PostDto GetPostById(int postId)
+        => postService.GetPostById(postId);
+
     [HttpGet("browse")]
-    public List<PostDto> BrowsePosts(int? afterId, string? filter)
-    {
-        return postService.BrowsePosts(User.GetUserId(), afterId, filter);
-    }
+    public List<PostDto> BrowsePosts(int? afterId, int? hiveId, string? filter)
+        => postService.BrowsePosts(User.GetUserId(), afterId, hiveId, filter);
 
     [HttpPost("create")]
     [Authorize]
-    public void CreatePost([FromBody] CreatePostDto postDto)
-    {
-        postService.CreatePost(User.GetUserId(), postDto);
-    }
+    public PostDto CreatePost([FromBody] CreatePostDto postDto)
+        => postService.CreatePost(User.GetUserId(), postDto);
 
     [HttpGet("results")]
     public PostResultDto GetPostResults(int postId, string? filter)
-    {
-        return postService.GetPostResult(postId, filter);
-    }
+        => postService.GetPostResult(postId, filter);
 
     [HttpPost("vote")]
     [Authorize]

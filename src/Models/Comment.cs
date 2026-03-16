@@ -1,7 +1,9 @@
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 public class Comment : EntityWithIdentifier
 {
+    [MaxLength(1024)]
     public string Content { get; set; }
     public List<Comment> Replies { get; set; }
 

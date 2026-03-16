@@ -1,20 +1,25 @@
 public interface IPostService
 {
     /// <summary>
+    /// Fetches and returns a post by its ID, including all its polls and candidates.
+    /// </summary>
+    /// <param name="postId">The ID of the post to fetch.</param>
+    PostDto GetPostById(int postId);
+
+    /// <summary>
     /// Fetches and returns a pre selection of hot posts to show in the browse section.
     /// </summary>
-    /// <returns>The list of posts to show in the browse section.</returns>
     /// <param name="userId">The ID of the user browsing posts, for individual feeds.</param>
     /// <param name="afterId">The ID of the last post seen, for pagination.</param>
     /// <param name="filter">The filter to apply to the posts.</param>
-    List<PostDto> BrowsePosts(int userId, int? afterId, string filter);
+    List<PostDto> BrowsePosts(int userId, int? hiveId, int? afterId, string filter);
 
     /// <summary>
-    /// Creates a new post.
+    /// Creates and returns a new post based on the provided data.
     /// </summary>
     /// <param name="userId">The ID of the user creating the post.</param>
     /// <param name="postDto">The post to create.</param>
-    void CreatePost(int userId, CreatePostDto postDto);
+    PostDto CreatePost(int userId, CreatePostDto postDto);
 
     /// <summary>
     /// Fetches and returns the results of a post, including all its polls.

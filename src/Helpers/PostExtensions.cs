@@ -1,5 +1,16 @@
-public static class PollExtensions
+using Microsoft.EntityFrameworkCore;
+
+public static class PostExtensions
 {
+    public static IQueryable<Post> IncludeForBrowse(this IQueryable<Post> query)
+    {
+        return query
+            .Include(post => post.Polls)
+                .ThenInclude(poll => poll.Categories)
+            .Include(post => post.Polls)
+                .ThenInclude(poll => poll.Candidates);
+    }
+
     public static Post ToPost(this CreatePostDto dto)
     {
         return new Post
@@ -29,18 +40,18 @@ public static class PollExtensions
         };
     }
 
-    public static PostDto ToListPostDto(this Post post)
+    public static PostDto ToPostDto(this Post post)
     {
         return new PostDto
         {
             Id = post.Id,
             Title = post.Title,
             Description = post.Description,
-            Polls = post.Polls.Select(poll => poll.ToListPollDto()).ToList()
+            Polls = post.Polls.Select(poll => poll.ToPollDto()).ToList()
         };
     }
 
-    public static PollDto ToListPollDto(this Poll poll)
+    public static PollDto ToPollDto(this Poll poll)
     {
         return new PollDto
         {

@@ -1,8 +1,11 @@
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 public class Poll : EntityWithIdentifier
 {
+    [MaxLength(128)]
     public string Title { get; set; }
+    [MaxLength(1024)]
     public string? Description { get; set; }
     public bool AllowCustomAnswer { get; set; }
     public bool IsShuffled { get; set; }
