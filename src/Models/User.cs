@@ -12,5 +12,6 @@ public class User : EntityWithIdentifier
     public List<Post> CreatedPosts { get; set; }
     public List<Comment> Comments { get; set; }
     public List<Hive> FollowedHives { get; set; }
+    public List<Hive> CreatedHives { get; set; }
     public UserSettings Settings { get; set; }
 }

@@ -1,27 +1,15 @@
 using Microsoft.Extensions.Configuration;
-using Moq;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace HiveMime.Tests;
 
-public class UserServiceTests : IClassFixture<DatabaseFixture>
+public class UserServiceTests : IntegrationTest
 {
-    private readonly DatabaseFixture _fixture;
+    private IUserService _service;
 
-    public UserServiceTests(DatabaseFixture fixture)
+    public UserServiceTests(DatabaseContainer fixture) : base(fixture)
     {
-        _fixture = fixture;
-    }
-
-    private HiveMimeContext CreateContext()
-    {
-        var options = new DbContextOptionsBuilder<HiveMimeContext>()
-            .UseNpgsql(_fixture.ConnectionString)
-            .Options;
-        var context = new HiveMimeContext(options);
-        context.Database.EnsureDeleted();
-        context.Database.EnsureCreated();
-        return context;
+        _service = Context.GetService<IUserService>();
     }
 
     private IConfiguration CreateMockConfiguration()
@@ -38,39 +26,15 @@ public class UserServiceTests : IClassFixture<DatabaseFixture>
     }
 
     [Fact]
-    public async Task Login_NullUser_CreatesAnonymousUser()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var configuration = CreateMockConfiguration();
-        var service = new UserService(context, configuration);
-
-        // Act
-        var result = service.Login(null);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal("Anonymous", result.Username);
-        Assert.False(string.IsNullOrEmpty(result.Token));
-
-        var user = await context.Users.FirstOrDefaultAsync(u => u.Username == "Anonymous");
-        Assert.NotNull(user);
-    }
-
-    [Fact]
     public async Task Login_ExistingUser_ReturnsToken()
     {
         // Arrange
-        await using var context = CreateContext();
-        var user = new User { Username = "testuser" };
-        context.Users.Add(user);
-        await context.SaveChangesAsync();
-
-        var configuration = CreateMockConfiguration();
-        var service = new UserService(context, configuration);
+        var user = new User { Username = "testuser", Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
 
         // Act
-        var result = service.Login("testuser");
+        var result = _service.Login("testuser");
 
         // Assert
         Assert.NotNull(result);

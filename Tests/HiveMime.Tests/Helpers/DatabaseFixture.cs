@@ -1,11 +1,12 @@
-using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
-using Xunit;
 
 namespace HiveMime.Tests;
 
-public class DatabaseFixture : IAsyncLifetime
+public class DatabaseContainer : IAsyncLifetime
 {
+    // Docker requires sudo per default. Add yourself to the docker group to avoid this. For example:
+    // sudo usermod -aG docker $USER
+    // newgrp docker
     private readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder()
         .WithDatabase("hivemime_test")
         .WithUsername("testuser")
@@ -17,13 +18,6 @@ public class DatabaseFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await _dbContainer.StartAsync();
-
-        var options = new DbContextOptionsBuilder<HiveMimeContext>()
-            .UseNpgsql(ConnectionString)
-            .Options;
-
-        await using var context = new HiveMimeContext(options);
-        await context.Database.EnsureCreatedAsync();
     }
 
     public async Task DisposeAsync()

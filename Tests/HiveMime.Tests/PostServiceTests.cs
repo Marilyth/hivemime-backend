@@ -1,40 +1,82 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace HiveMime.Tests;
 
-public class PollServiceTests : IClassFixture<DatabaseFixture>
+public class PostServiceTests : IntegrationTest
 {
-    private readonly DatabaseFixture _fixture;
     private Post _defaultPost;
+    private User _defaultUser;
 
-    public PollServiceTests(DatabaseFixture fixture)
+    private IPostService _service;
+
+    public PostServiceTests(DatabaseContainer fixture) : base(fixture)
     {
-        _fixture = fixture;
+        _service = Context.GetService<IPostService>();
     }
 
-    private HiveMimeContext CreateContext()
+    [Fact]
+    public async Task BrowsePosts_WithPosts_ReturnsPosts()
     {
-        var options = new DbContextOptionsBuilder<HiveMimeContext>()
-            .UseNpgsql(_fixture.ConnectionString)
-            .Options;
-        var context = new HiveMimeContext(options);
-        // Since we are using the same database for all tests in this class,
-        // we need to clean up the database before each test.
-        context.Database.EnsureDeleted();
-        context.Database.EnsureCreated();
+        // Act
+        var result = _service.BrowsePosts(_defaultPost.CreatorId, null, null, null);
 
-        SeedDatabase(context);
-
-        return context;
+        // Assert
+        Assert.Single(result);
+        Assert.Equal(_defaultPost.Id, result[0].Id);
+        Assert.Equal("Default Post", result[0].Title);
     }
 
-    private void SeedDatabase(HiveMimeContext context)
+    [Fact]
+    public async Task CreatePost_ValidPost_AddsToDatabase()
     {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Title = "New Post",
+            Description = "New post description",
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Poll 1",
+                    Description = "Description 1",
+                    PollType = PollType.Choice,
+                    Candidates = [
+                        new PollCandidateDto { Name = "Option 1", Description = "Option 1 Description" },
+                        new PollCandidateDto { Name = "Option 2", Description = "Option 2 Description" }
+                    ],
+                    Categories = []
+                }
+            ]
+        };
+
+        // Act
+        _service.CreatePost(_defaultUser.Id, postDto);
+
+        // Assert
+        var post = await Context.Posts.Include(p => p.Polls).FirstOrDefaultAsync(p => p.Title == "New Post");
+        Assert.NotNull(post);
+        Assert.Equal("New Post", post.Title);
+        Assert.Equal("New post description", post.Description);
+        Assert.Equal(_defaultUser.Id, post.CreatorId);
+        Assert.Single(post.Polls);
+        Assert.Equal("Poll 1", post.Polls[0].Title);
+        Assert.Equal("Description 1", post.Polls[0].Description);
+        Assert.Equal(PollType.Choice, post.Polls[0].PollType);
+        Assert.Equal(2, post.Polls[0].Candidates.Count);
+        Assert.Equal("Option 1", post.Polls[0].Candidates[0].Name);
+        Assert.Equal("Option 2", post.Polls[0].Candidates[1].Name);
+    }
+
+    protected override void SeedDatabase()
+    {
+        _defaultUser = new User { Username = "defaultuser", Settings = new() };
         _defaultPost = new()
         {
             Title = "Default Post",
             Description = "This is a default post.",
-            Creator = new User { Username = "defaultuser" },
+            Creator = _defaultUser,
             Polls = [
                 new Poll
                 {
@@ -50,72 +92,6 @@ public class PollServiceTests : IClassFixture<DatabaseFixture>
             ]
         };
 
-        context.Posts.Add(_defaultPost);
-        context.SaveChanges();
-    }
-
-    [Fact]
-    public async Task BrowsePosts_WithPosts_ReturnsPosts()
-    {
-        // Arrange
-        await using var context = CreateContext();
-
-        var service = new PostService(context);
-
-        // Act
-        var result = service.BrowsePosts(_defaultPost.CreatorId, null, null, null);
-
-        // Assert
-        Assert.Single(result);
-        Assert.Equal(_defaultPost.Id, result[0].Id);
-        Assert.Equal("Default Post", result[0].Title);
-    }
-
-    [Fact]
-    public async Task CreatePost_ValidPost_AddsToDatabase()
-    {
-        // Arrange
-        await using var context = CreateContext();
-        var user = new User { Username = "testuser" };
-        context.Users.Add(user);
-        await context.SaveChangesAsync();
-
-        var service = new PostService(context);
-        var postDto = new CreatePostDto
-        {
-            Title = "New Post",
-            Description = "New post description",
-            Polls =
-            [
-                new CreatePollDto
-                {
-                    Title = "Poll 1",
-                    Description = "Description 1",
-                    PollType = PollType.Choice,
-                    Candidates = new List<PollCandidateDto>
-                    {
-                        new PollCandidateDto { Name = "Option 1", Description = "Option 1 Description" },
-                        new PollCandidateDto { Name = "Option 2", Description = "Option 2 Description" }
-                    }
-                }
-            ]
-        };
-
-        // Act
-        service.CreatePost(user.Id, postDto);
-
-        // Assert
-        var post = await context.Posts.Include(p => p.Polls).FirstOrDefaultAsync(p => p.Title == "New Post");
-        Assert.NotNull(post);
-        Assert.Equal("New Post", post.Title);
-        Assert.Equal("New post description", post.Description);
-        Assert.Equal(user.Id, post.CreatorId);
-        Assert.Single(post.Polls);
-        Assert.Equal("Poll 1", post.Polls[0].Title);
-        Assert.Equal("Description 1", post.Polls[0].Description);
-        Assert.Equal(PollType.Choice, post.Polls[0].PollType);
-        Assert.Equal(2, post.Polls[0].Candidates.Count);
-        Assert.Equal("Option 1", post.Polls[0].Candidates[0].Name);
-        Assert.Equal("Option 2", post.Polls[0].Candidates[1].Name);
+        Context.Posts.Add(_defaultPost);
     }
 }

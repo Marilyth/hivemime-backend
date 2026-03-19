@@ -20,6 +20,14 @@ public class HiveMimeContext : DbContext
         {
             SetEntityRules(entity);
         }
+
+        modelBuilder.Entity<User>()
+            .HasMany(u => u.CreatedHives)
+            .WithOne(h => h.Creator);
+
+        modelBuilder.Entity<Hive>()
+            .HasMany(h => h.Followers)
+            .WithMany(u => u.FollowedHives);
     }
 
     private void SetEntityRules(IMutableEntityType entityType)
