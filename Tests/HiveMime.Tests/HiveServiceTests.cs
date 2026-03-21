@@ -1,22 +1,76 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace HiveMime.Tests;
 
 public class HiveServiceTests : IntegrationTest
 {
-    private IHiveService _service;
+    private HiveService _service;
     private Hive? _defaultHive;
 
     public HiveServiceTests(DatabaseContainer fixture) : base(fixture)
     {
-        _service = Context.GetService<IHiveService>();
+        _service = Context.GetService<HiveService>();
     }
 
     [Fact]
-    public void GetHiveById_WithValidId_ReturnsHive()
+    public async Task JoinHive_WithNewFollow_JoinsUser()
+    {
+        // Arrange
+        var user = new User { Username = "newuser", Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+
+        var hive = Context.Hives.First();
+        Context.ChangeTracker.Clear();
+
+        // Act
+        await _service.JoinHiveAsync(user.Id, hive.Id);
+        bool isFollower = await Context.Hives.Where(h => h.Id == hive.Id)
+            .SelectMany(h => h.Followers)
+            .AnyAsync(u => u.Id == user.Id);
+
+        // Assert
+        Assert.True(isFollower);
+    }
+
+    [Fact]
+    public async Task LeaveHive_WithExistingFollow_RemovesUser()
+    {
+        // Arrange
+        var hive = Context.Hives.First();
+        var user = Context.Users.First();
+        Context.ChangeTracker.Clear();
+
+        // Act
+        await _service.LeaveHiveAsync(user.Id, hive.Id);
+        bool isFollower = await Context.Hives.Where(h => h.Id == hive.Id)
+            .SelectMany(h => h.Followers)
+            .AnyAsync(u => u.Id == user.Id);
+
+        // Assert
+        Assert.False(isFollower);
+    }
+
+    [Fact]
+    public async Task GetFollowedHives_WithExistingFollow_ReturnsExpected()
+    {
+        // Arrange
+        var user = Context.Users.First();
+        Context.ChangeTracker.Clear();
+
+        // Act
+        var hives = await _service.GetFollowedHivesAsync(user.Id);
+
+        // Assert
+        Assert.Equal(_defaultHive!.Id, hives.Single().Id);
+    }
+
+    [Fact]
+    public async Task GetHive_WithValidId_ReturnsHive()
     {
         // Act
-        var result = _service.GetHiveById(_defaultHive!.Id);
+        var result = await _service.GetHiveAsync(_defaultHive!.Id);
 
         // Assert
         Assert.NotNull(result);
@@ -25,10 +79,10 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public void BrowseHives_WithHives_ReturnsHives()
+    public async Task BrowseHives_WithHives_ReturnsHives()
     {
         // Act
-        var result = _service.BrowseHives(null, "");
+        var result = await _service.BrowseHivesAsync(null, "");
 
         // Assert
         Assert.Single(result);
@@ -37,7 +91,7 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public void CreateHive_ValidHive_AddsToDatabase()
+    public async Task CreateHive_ValidHive_AddsToDatabase()
     {
         // Arrange
         var user = Context.Users.First();
@@ -49,7 +103,7 @@ public class HiveServiceTests : IntegrationTest
         var service = _service;
 
         // Act
-        var result = service.CreateHive(user.Id, hiveDto);
+        var result = await service.CreateHiveAsync(user.Id, hiveDto);
         var hive = Context.Hives.FirstOrDefault(h => h.Name == "New Hive");
 
         // Assert
@@ -60,7 +114,7 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public void CreateHive_InvalidName_ThrowsException()
+    public async Task CreateHive_InvalidName_ThrowsException()
     {
         // Arrange
         var user = Context.Users.First();
@@ -72,11 +126,11 @@ public class HiveServiceTests : IntegrationTest
         };
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => service.CreateHive(user.Id, hiveDto));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateHiveAsync(user.Id, hiveDto));
     }
 
     [Fact]
-    public void CreateHive_DuplicateName_ThrowsException()
+    public async Task CreateHive_DuplicateName_ThrowsException()
     {
         // Arrange
         var user = Context.Users.First();
@@ -88,7 +142,7 @@ public class HiveServiceTests : IntegrationTest
         };
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => service.CreateHive(user.Id, hiveDto));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateHiveAsync(user.Id, hiveDto));
     }
     
     protected override void SeedDatabase()

@@ -1,19 +1,29 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 
-public class PostService(HiveMimeContext context) : IPostService
+public class PostService(HiveMimeContext context)
 {
-    public PostDto GetPostById(int postId)
+    /// <summary>
+    /// Fetches and returns a post by its ID, including all its polls and candidates.
+    /// </summary>
+    /// <param name="postId">The ID of the post to fetch.</param>
+    public async Task<PostDto> GetPostAsync(int postId)
     {
-        Post post = context.Posts
+        Post post = await context.Posts
             .AsNoTracking()
             .IncludeForBrowse()
-            .FirstOrException(p => p.Id == postId);
+            .FirstOrExceptionAsync(p => p.Id == postId);
 
         return post.ToPostDto();
     }
 
-    public List<PostDto> BrowsePosts(int userId, int? hiveId, int? afterId, string filter)
+    /// <summary>
+    /// Fetches and returns a pre selection of hot posts to show in the browse section.
+    /// </summary>
+    /// <param name="userId">The ID of the user browsing posts, for individual feeds.</param>
+    /// <param name="afterId">The ID of the last post seen, for pagination.</param>
+    /// <param name="filter">The filter to apply to the posts.</param>
+    public async Task<List<PostDto>> BrowsePostsAsync(int userId, int? hiveId, int? afterId, string filter)
     {
         // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
         IQueryable<Post> posts = context.Posts.AsNoTracking();
@@ -34,18 +44,23 @@ public class PostService(HiveMimeContext context) : IPostService
                                         || poll.Description.ToLower().Contains(filter)));
         }
 
-        return posts.IncludeForBrowse()
+        return await posts.IncludeForBrowse()
                     .OrderByDescending(p => p.CreatedAt)
-                    .Take(20).Select(p => p.ToPostDto()).ToList();
+                    .Take(20).Select(p => p.ToPostDto()).ToListAsync();
     }
 
-    public PostDto CreatePost(int userId, CreatePostDto postDto)
+    /// <summary>
+    /// Creates and returns a new post based on the provided data.
+    /// </summary>
+    /// <param name="userId">The ID of the user creating the post.</param>
+    /// <param name="postDto">The post to create.</param>
+    public async Task<PostDto> CreatePostAsync(int userId, CreatePostDto postDto)
     {
         IEnumerable<string> validationErrors = ValidateCreatePost(postDto);
         Hive hive = null;
 
         if (postDto.HiveId.HasValue)
-            hive = context.Hives.FirstOrException(h => h.Id == postDto.HiveId.Value);
+            hive = await context.Hives.FirstOrExceptionAsync(h => h.Id == postDto.HiveId.Value);
 
         if (validationErrors.Any())
             throw new InvalidOperationException("Post validation failed: " + string.Join("; ", validationErrors));
@@ -55,31 +70,36 @@ public class PostService(HiveMimeContext context) : IPostService
         newPost.Hive = hive;
 
         context.Posts.Add(newPost);
-        context.SaveChanges();
+        await context.SaveChangesAsync();
 
         return newPost.ToPostDto();
     }
 
-    public PostResultDto GetPostResult(int postId, string filter)
+    /// <summary>
+    /// Fetches and returns the results of a post, including all its polls.
+    /// </summary>
+    /// <param name="postId">The ID of the post to fetch details for.</param>
+    /// <param name="filter">The filter to apply to the post details.</param>
+    public async Task<PostResultDto> GetPostResultAsync(int postId, string filter)
     {
         VoteQueryBase voteQuery = filter.ToVoteQuery();
         Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
 
         // Fetch post and filtered votes seperately for better performance.
-        List<PostVote> filteredVotes = context.PostVotes
+        List<PostVote> filteredVotes = await context.PostVotes
             .AsNoTracking()
             .Where(v => v.PostId == postId)
             .Where(voteExpression)
             .Include(v => v.User.Settings)
             .Include(v => v.Votes)
             .AsSplitQuery()
-            .ToList();
+            .ToListAsync();
 
-        Post post = context.Posts
+        Post post = await context.Posts
             .AsNoTracking()
             .Include(p => p.Polls.OrderBy(p => p.Id))
                 .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
-            .First(p => p.Id == postId);
+            .FirstAsync(p => p.Id == postId);
 
         Dictionary<int, Candidate> candidateLookup = post.Polls
             .SelectMany(p => p.Candidates)
@@ -98,23 +118,29 @@ public class PostService(HiveMimeContext context) : IPostService
         return post.ToPostResultsDto();
     }
 
-    public void VoteOnPost(int userId, VoteOnPostDto vote, string country)
+    /// <summary>
+    /// Inserts or updates a user's votes on a post.
+    /// </summary>
+    /// <param name="userId">The ID of the user voting.</param>
+    /// <param name="vote">The vote to insert or update.</param>
+    /// <param name="country">The country of the user voting, for analytics.</param>
+    public async Task VoteOnPostAsync(int userId, VoteOnPostDto vote, string country)
     {
-        Post post = context.Posts
+        Post post = await context.Posts
             .Include(p => p.Polls.OrderBy(p => p.Id))
                 .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
             .Include(p => p.Polls.OrderBy(p => p.Id))
                 .ThenInclude(o => o.Categories.OrderBy(c => c.Id))
-            .First(p => p.Id == vote.PostId);
+            .FirstAsync(p => p.Id == vote.PostId);
 
         IEnumerable<string> validationErrors = ValidatePostVotes(post, vote);
 
         if (validationErrors.Any())
             throw new InvalidOperationException("Vote validation failed: " + string.Join("; ", validationErrors));
             
-        PostVote postVote = context.PostVotes
+        PostVote postVote = await context.PostVotes
             .Include(pv => pv.Votes)
-            .FirstOrDefault(pv => pv.UserId == userId && pv.PostId == vote.PostId);
+            .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.PostId);
 
         if (postVote is null)
         {
@@ -160,7 +186,7 @@ public class PostService(HiveMimeContext context) : IPostService
             }
         }
 
-        context.SaveChanges();
+        await context.SaveChangesAsync();
     }
 
     private IEnumerable<string> ValidateCreatePost(CreatePostDto postDto)

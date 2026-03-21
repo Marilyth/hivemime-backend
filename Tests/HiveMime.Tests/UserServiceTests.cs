@@ -5,11 +5,11 @@ namespace HiveMime.Tests;
 
 public class UserServiceTests : IntegrationTest
 {
-    private IUserService _service;
+    private UserService _service;
 
     public UserServiceTests(DatabaseContainer fixture) : base(fixture)
     {
-        _service = Context.GetService<IUserService>();
+        _service = Context.GetService<UserService>();
     }
 
     private IConfiguration CreateMockConfiguration()
@@ -34,7 +34,7 @@ public class UserServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act
-        var result = _service.Login("testuser");
+        var result = await _service.LoginAsync("testuser");
 
         // Assert
         Assert.NotNull(result);

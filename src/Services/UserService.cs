@@ -4,12 +4,17 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
-public class UserService(HiveMimeContext context, IConfiguration configuration) : IUserService
+public class UserService(HiveMimeContext context, IConfiguration configuration)
 {
-    public LoginDto Login(string username)
+    /// <summary>
+    /// Creates a JWT token for the user.
+    /// </summary>
+    /// <param name="username">The username of the user to create a token for.</param>
+    /// <returns>A LoginDto containing the JWT token and username.</returns>
+    public async Task<LoginDto> LoginAsync(string username)
     {
         // TODO: Add security measures / actual login.
-        User user = context.Users.FirstOrDefault(u => u.Username == username) ?? CreateUser(username);
+        User user = await context.Users.FirstOrDefaultAsync(u => u.Username == username) ?? await CreateUserAsync(username);
 
         Claim[] claims = [
             new Claim("UserId", user.Id.ToString())
@@ -31,13 +36,21 @@ public class UserService(HiveMimeContext context, IConfiguration configuration) 
         return new LoginDto { Token = tokenString, Username = user.Username };
     }
 
-    public UserDetailsDto GetUserDetails(int userId)
+    /// <summary>
+    /// Returns the details of a user, including their settings.
+    /// </summary>
+    /// <param name="userId">The ID of the user to retrieve details for.</param>
+    public async Task<UserDetailsDto> GetUserDetailsAsync(int userId)
     {
-        var user = context.Users.AsNoTracking().Where(u => u.Id == userId).Include(u => u.Settings).First();
+        var user = await context.Users.AsNoTracking().Where(u => u.Id == userId).Include(u => u.Settings).FirstAsync();
         return user.ToDetailsDto();
     }
 
-    public User CreateUser(string username)
+    /// <summary>
+    /// Creates a new user with the given username.
+    /// </summary>
+    /// <param name="username">The username of the user to create.</param>
+    public async Task<User> CreateUserAsync(string username)
     {
         // TODO: Add support for registration using password / emails / OAuth, etc.
         var user = new User()
@@ -47,7 +60,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration) 
         };
 
         context.Users.Add(user);
-        context.SaveChanges();
+        await context.SaveChangesAsync();
 
         return user;
     }

@@ -3,14 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/[controller]")]
-public class UserController(IUserService userService) : ControllerBase
+public class UserController(UserService userService) : ControllerBase
 {
     [HttpGet("login")]
-    public LoginDto Login(string username)
-        => userService.Login(username);
+    public async Task<LoginDto> Login(string username)
+        => await userService.LoginAsync(username);
 
-    [HttpGet]
+    [HttpGet("details")]
     [Authorize]
-    public UserDetailsDto GetUserDetails()
-        => userService.GetUserDetails(User.GetUserId());
+    public async Task<UserDetailsDto> GetUserDetails()
+        => await userService.GetUserDetailsAsync(User.GetUserId());
 }

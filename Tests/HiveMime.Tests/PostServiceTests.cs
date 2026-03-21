@@ -8,18 +8,18 @@ public class PostServiceTests : IntegrationTest
     private Post _defaultPost;
     private User _defaultUser;
 
-    private IPostService _service;
+    private PostService _service;
 
     public PostServiceTests(DatabaseContainer fixture) : base(fixture)
     {
-        _service = Context.GetService<IPostService>();
+        _service = Context.GetService<PostService>();
     }
 
     [Fact]
     public async Task BrowsePosts_WithPosts_ReturnsPosts()
     {
         // Act
-        var result = _service.BrowsePosts(_defaultPost.CreatorId, null, null, null);
+        var result = await _service.BrowsePostsAsync(_defaultPost.CreatorId, null, null, null);
 
         // Assert
         Assert.Single(result);
@@ -52,7 +52,7 @@ public class PostServiceTests : IntegrationTest
         };
 
         // Act
-        _service.CreatePost(_defaultUser.Id, postDto);
+        await _service.CreatePostAsync(_defaultUser.Id, postDto);
 
         // Assert
         var post = await Context.Posts.Include(p => p.Polls).FirstOrDefaultAsync(p => p.Title == "New Post");

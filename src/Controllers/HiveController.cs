@@ -5,18 +5,33 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class HiveController(IHiveService hiveService) : ControllerBase
+public class HiveController(HiveService hiveService) : ControllerBase
 {
     [HttpGet("get")]
-    public HiveDto GetHiveById(int hiveId)
-        => hiveService.GetHiveById(hiveId);
+    public async Task<HiveDto> GetHiveById(int hiveId)
+        => await hiveService.GetHiveAsync(hiveId);
+
+    [HttpGet("followed")]
+    [Authorize]
+    public async Task<List<HiveDto>> GetFollowedHives()
+        => await hiveService.GetFollowedHivesAsync(User.GetUserId());
+
+    [HttpPost("join")]
+    [Authorize]
+    public async Task JoinHive(int hiveId)
+        => await hiveService.JoinHiveAsync(User.GetUserId(), hiveId);
+        
+    [HttpPost("leave")]
+    [Authorize]
+    public async Task LeaveHive(int hiveId)
+        => await hiveService.LeaveHiveAsync(User.GetUserId(), hiveId);
 
     [HttpGet("browse")]
-    public List<HiveDto> BrowseHives(int? afterId, string? filter)
-        => hiveService.BrowseHives(afterId, filter);
+    public async Task<List<HiveDto>> BrowseHives(int? afterId, string? filter)
+        => await hiveService.BrowseHivesAsync(afterId, filter);
 
     [HttpPost("create")]
     [Authorize]
-    public HiveDto CreateHive([FromBody] CreateHiveDto hiveDto)
-        => hiveService.CreateHive(User.GetUserId(), hiveDto);
+    public async Task<HiveDto> CreateHive([FromBody] CreateHiveDto hiveDto)
+        => await hiveService.CreateHiveAsync(User.GetUserId(), hiveDto);
 }

@@ -5,24 +5,24 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class PostController(IPostService postService, GeoIPService geoIPService) : ControllerBase
+public class PostController(PostService postService, GeoIPService geoIPService) : ControllerBase
 {
     [HttpGet("get")]
-    public PostDto GetPostById(int postId)
-        => postService.GetPostById(postId);
+    public async Task<PostDto> GetPostById(int postId)
+        => await postService.GetPostAsync(postId);
 
     [HttpGet("browse")]
-    public List<PostDto> BrowsePosts(int? afterId, int? hiveId, string? filter)
-        => postService.BrowsePosts(User.GetUserId(), afterId, hiveId, filter);
+    public async Task<List<PostDto>> BrowsePosts(int? afterId, int? hiveId, string? filter)
+        => await postService.BrowsePostsAsync(User.GetUserId(), afterId, hiveId, filter);
 
     [HttpPost("create")]
     [Authorize]
-    public PostDto CreatePost([FromBody] CreatePostDto postDto)
-        => postService.CreatePost(User.GetUserId(), postDto);
+    public async Task<PostDto> CreatePost([FromBody] CreatePostDto postDto)
+        => await postService.CreatePostAsync(User.GetUserId(), postDto);
 
     [HttpGet("results")]
-    public PostResultDto GetPostResults(int postId, string? filter)
-        => postService.GetPostResult(postId, filter);
+    public async Task<PostResultDto> GetPostResults(int postId, string? filter)
+        => await postService.GetPostResultAsync(postId, filter);
 
     [HttpPost("vote")]
     [Authorize]
@@ -31,6 +31,6 @@ public class PostController(IPostService postService, GeoIPService geoIPService)
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         string country = await geoIPService.GetCountryOfIPAsync(ipAddress);
 
-        postService.VoteOnPost(User.GetUserId(), vote, country);
+        await postService.VoteOnPostAsync(User.GetUserId(), vote, country);
     }
 }
