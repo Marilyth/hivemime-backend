@@ -15,7 +15,6 @@ public class CommentServiceTests : IntegrationTest
         _service = Context.GetService<CommentService>();
     }
 
-
     [Fact]
     public async Task AddCommentAsync_ValidComment_AddsToDatabase()
     {
@@ -36,7 +35,6 @@ public class CommentServiceTests : IntegrationTest
         Assert.Equal(_defaultPost!.Id, comment.PostId);
         Assert.Equal("Newly added comment", comment.Content);
     }
-
 
     [Fact]
     public async Task EditCommentAsync_ValidEdit_UpdatesContent()
@@ -60,7 +58,6 @@ public class CommentServiceTests : IntegrationTest
         Assert.NotNull(updated.UpdatedAt);
     }
 
-
     [Fact]
     public async Task EditCommentAsync_UnauthorizedUser_ThrowsException()
     {
@@ -81,7 +78,6 @@ public class CommentServiceTests : IntegrationTest
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.EditCommentAsync(otherUser.Id, dto));
     }
 
-
     [Fact]
     public async Task DeleteCommentAsync_ValidUser_DeletesComment()
     {
@@ -95,7 +91,6 @@ public class CommentServiceTests : IntegrationTest
         // Assert
         Assert.Null(deleted);
     }
-
 
     [Fact]
     public async Task DeleteCommentAsync_UnauthorizedUser_ThrowsException()
@@ -111,7 +106,6 @@ public class CommentServiceTests : IntegrationTest
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.DeleteCommentAsync(otherUser.Id, _defaultComment!.Id));
     }
 
-
     [Fact]
     public async Task GetCommentsForPostAsync_WithComments_ReturnsComments()
     {
@@ -126,7 +120,7 @@ public class CommentServiceTests : IntegrationTest
         Assert.Equal(_defaultComment!.Content, comments[0].Content);
         Assert.Equal(_defaultUser!.Id, comments[0].UserId);
     }
-
+    
     protected override void SeedDatabase()
     {
         _defaultUser = new User { Username = "defaultuser", Settings = new() };

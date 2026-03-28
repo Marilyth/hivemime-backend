@@ -4,7 +4,7 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class PostController(PostService postService, GeoIPService geoIPService) : ControllerBase
+public class PostController(PostService postService) : ControllerBase
 {
     [HttpGet("get")]
     public async Task<PostDto> GetPostById(int postId)
