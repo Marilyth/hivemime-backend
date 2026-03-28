@@ -7,12 +7,12 @@ public class GeoIPService(IHttpClientFactory httpClientFactory)
     private const string CountryDbPath = "GeoLite2-Country.mmdb";
     private SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
 
-    public async Task<string> GetCountryOfIPAsync(string ipAddress)
+    public async Task<string?> GetCountryOfIPAsync(string ipAddress)
     {
         await DownloadCountryDatabaseAsync();
-        string country = "Unknown";
+        string? country = null;
 
-        try { country = _dbReader?.Country(ipAddress).Country.Name ?? "Unknown"; }
+        try { country = _dbReader?.Country(ipAddress).Country.Name; }
         catch { }
         
         return country;

@@ -13,7 +13,6 @@ public static class UserExtensions
     {
         return new UserDetailsDto
         {
-            Id = user.Id,
             Username = user.Username,
             DateOfBirth = user.DateOfBirth,
 
@@ -25,9 +24,10 @@ public static class UserExtensions
     {
         return new UserSettingsDto
         {
-            ShareDateOfVote = settings.ShareDateOfVote,
-            ShareCountryOfVote = settings.ShareCountryOfVote,
-            ShareAgeOfVote = settings.ShareAgeOfVote
+            Country = settings.Country,
+            ShareDateOnVote = settings.ShareDateOnVote,
+            ShareCountryOnVote = settings.ShareCountryOnVote,
+            ShareAgeOnVote = settings.ShareAgeOnVote
         };
     }
 }

@@ -6,6 +6,7 @@ public class User : EntityWithIdentifier
     public string Username { get; set; }
     [MaxLength(256)]
     public string? Email { get; set; }
+
     public DateTimeOffset? DateOfBirth { get; set; }
 
     public List<CandidateVote> Votes { get; set; }

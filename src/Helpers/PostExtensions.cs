@@ -82,10 +82,10 @@ public static class PostExtensions
             // The user can opt out of sharing demographic data. Check for each kind.
             UserSettings settings = postVote.User.Settings;
 
-            // Include country the vote came from.
-            if (!string.IsNullOrEmpty(postVote.Country))
+            // Include country of the voter.
+            if (settings.ShareCountryOnVote && !string.IsNullOrEmpty(settings.Country))
             {
-                string country = postVote.Country;
+                string country = settings.Country;
 
                 if (!countryPollCandidates.ContainsKey(country))
                     countryPollCandidates[country] = new Candidate { Name = country, Votes = [] };
@@ -94,7 +94,7 @@ public static class PostExtensions
             }
 
             // Include age of the user.
-            if (settings.ShareAgeOfVote && postVote.User.DateOfBirth.HasValue)
+            if (settings.ShareAgeOnVote && postVote.User.DateOfBirth.HasValue)
             {
                 // Determine the age at the time of voting.
                 int ageValue = postVote.CreatedAt.Year - postVote.User.DateOfBirth.Value.Year;
@@ -123,7 +123,7 @@ public static class PostExtensions
             }
             
             // Include the date of the vote.
-            if (settings.ShareDateOfVote)
+            if (settings.ShareDateOnVote)
             {
                 string date = postVote.CreatedAt.ToString("yyyy-MM-dd");
 

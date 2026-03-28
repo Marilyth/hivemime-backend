@@ -123,8 +123,7 @@ public class PostService(HiveMimeContext context)
     /// </summary>
     /// <param name="userId">The ID of the user voting.</param>
     /// <param name="vote">The vote to insert or update.</param>
-    /// <param name="country">The country of the user voting, for analytics.</param>
-    public async Task VoteOnPostAsync(int userId, VoteOnPostDto vote, string country)
+    public async Task VoteOnPostAsync(int userId, VoteOnPostDto vote)
     {
         Post post = await context.Posts
             .Include(p => p.Polls.OrderBy(p => p.Id))
