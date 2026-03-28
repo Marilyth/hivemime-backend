@@ -8,7 +8,8 @@ public static class PostExtensions
             .Include(post => post.Polls)
                 .ThenInclude(poll => poll.Categories)
             .Include(post => post.Polls)
-                .ThenInclude(poll => poll.Candidates);
+                .ThenInclude(poll => poll.Candidates)
+            .Include(post => post.Creator);
     }
 
     public static Post ToPost(this CreatePostDto dto)
@@ -47,7 +48,12 @@ public static class PostExtensions
             Id = post.Id,
             Title = post.Title,
             Description = post.Description,
-            Polls = post.Polls.Select(poll => poll.ToPollDto()).ToList()
+            Polls = post.Polls.Select(poll => poll.ToPollDto()).ToList(),
+            Creator = new UserDto
+            {
+                Id = post.Creator.Id,
+                Username = post.Creator.Username,
+            }
         };
     }
 

@@ -25,6 +25,7 @@ public class PostServiceTests : IntegrationTest
         Assert.Single(result);
         Assert.Equal(_defaultPost.Id, result[0].Id);
         Assert.Equal("Default Post", result[0].Title);
+        Assert.Equal(_defaultUser.Id, result[0].Creator.Id);
     }
 
     [Fact]
@@ -52,14 +53,13 @@ public class PostServiceTests : IntegrationTest
         };
 
         // Act
-        await _service.CreatePostAsync(_defaultUser.Id, postDto);
+        var post = await _service.CreatePostAsync(_defaultUser.Id, postDto);
 
         // Assert
-        var post = await Context.Posts.Include(p => p.Polls).FirstOrDefaultAsync(p => p.Title == "New Post");
         Assert.NotNull(post);
         Assert.Equal("New Post", post.Title);
         Assert.Equal("New post description", post.Description);
-        Assert.Equal(_defaultUser.Id, post.CreatorId);
+        Assert.Equal(_defaultUser.Id, post.Creator.Id);
         Assert.Single(post.Polls);
         Assert.Equal("Poll 1", post.Polls[0].Title);
         Assert.Equal("Description 1", post.Polls[0].Description);

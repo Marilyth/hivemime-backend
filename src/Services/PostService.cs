@@ -44,9 +44,9 @@ public class PostService(HiveMimeContext context)
                                         || poll.Description.ToLower().Contains(filter)));
         }
 
-        return await posts.IncludeForBrowse()
+        return (await posts.IncludeForBrowse()
                     .OrderByDescending(p => p.CreatedAt)
-                    .Take(20).Select(p => p.ToPostDto()).ToListAsync();
+                    .Take(20).ToListAsync()).Select(p => p.ToPostDto()).ToList();
     }
 
     /// <summary>

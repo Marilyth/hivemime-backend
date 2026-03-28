@@ -9,12 +9,16 @@ public class CommentService(HiveMimeContext context)
 
         await context.SaveChangesAsync();
 
+        comment.User = await context.Users.FindAsync(userId);
+        
         return comment.ToDto();
     }
 
     public async Task<CommentDto> EditCommentAsync(int userId, EditCommentDto dto)
     {
-        var comment = await context.Comments.FindAsync(dto.CommentId);
+        var comment = await context.Comments.Where(c => c.Id == dto.CommentId)
+            .Include(c => c.User)
+            .FirstOrDefaultAsync();
 
         if (comment == null || comment.UserId != userId)
             throw new UnauthorizedAccessException("You do not have permission to edit this comment.");

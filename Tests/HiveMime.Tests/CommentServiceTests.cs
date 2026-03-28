@@ -27,13 +27,11 @@ public class CommentServiceTests : IntegrationTest
 
         // Act
         var result = await _service.AddCommentAsync(_defaultUser!.Id, dto);
-        var comment = await Context.Comments.FirstOrDefaultAsync(c => c.Content == "Newly added comment");
 
         // Assert
-        Assert.NotNull(comment);
-        Assert.Equal(_defaultUser!.Id, comment.UserId);
-        Assert.Equal(_defaultPost!.Id, comment.PostId);
-        Assert.Equal("Newly added comment", comment.Content);
+        Assert.NotNull(result);
+        Assert.Equal(_defaultUser!.Id, result.User.Id);
+        Assert.Equal("Newly added comment", result.Content);
     }
 
     [Fact]
@@ -50,12 +48,11 @@ public class CommentServiceTests : IntegrationTest
 
         // Act
         var result = await _service.EditCommentAsync(_defaultUser!.Id, dto);
-        var updated = await Context.Comments.FindAsync(_defaultComment.Id);
 
         // Assert
-        Assert.NotNull(updated);
-        Assert.Equal("Edited content", updated.Content);
-        Assert.NotNull(updated.UpdatedAt);
+        Assert.NotNull(result);
+        Assert.Equal("Edited content", result.Content);
+        Assert.NotNull(result.UpdatedAt);
     }
 
     [Fact]
@@ -118,7 +115,7 @@ public class CommentServiceTests : IntegrationTest
         // Assert
         Assert.Single(comments);
         Assert.Equal(_defaultComment!.Content, comments[0].Content);
-        Assert.Equal(_defaultUser!.Id, comments[0].UserId);
+        Assert.Equal(_defaultUser!.Id, comments[0].User.Id);
     }
     
     protected override void SeedDatabase()
