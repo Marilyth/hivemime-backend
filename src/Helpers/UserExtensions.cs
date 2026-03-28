@@ -1,33 +1,24 @@
 public static class UserExtensions
 {
-    public static UserDto ToDto(this User user)
+    public static UserDto ToDto(this User user) => new()
     {
-        return new UserDto
-        {
-            Id = user.Id,
-            Username = user.Username
-        };
-    }
+        Id = user.Id,
+        Username = user.Username
+    };
 
-    public static UserDetailsDto ToDetailsDto(this User user)
+    public static UserDetailsDto ToDetailsDto(this User user) => new()
     {
-        return new UserDetailsDto
-        {
-            Id = user.Id,
-            Username = user.Username,
-            DateOfBirth = user.DateOfBirth,
+        Username = user.Username,
+        DateOfBirth = user.DateOfBirth,
 
-            Settings = user.Settings.ToSettingsDto()
-        };
-    }
+        Settings = user.Settings.ToSettingsDto()
+    };
 
-    public static UserSettingsDto ToSettingsDto(this UserSettings settings)
+    public static UserSettingsDto ToSettingsDto(this UserSettings settings) => new()
     {
-        return new UserSettingsDto
-        {
-            ShareDateOfVote = settings.ShareDateOfVote,
-            ShareCountryOfVote = settings.ShareCountryOfVote,
-            ShareAgeOfVote = settings.ShareAgeOfVote
-        };
-    }
+        Country = settings.Country,
+        ShareDateOnVote = settings.ShareDateOnVote,
+        ShareCountryOnVote = settings.ShareCountryOnVote,
+        ShareAgeOnVote = settings.ShareAgeOnVote
+    };
 }

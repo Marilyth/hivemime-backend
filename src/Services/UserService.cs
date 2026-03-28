@@ -2,9 +2,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.IdentityModel.Tokens;
 
-public class UserService(HiveMimeContext context, IConfiguration configuration)
+public class UserService(HiveMimeContext context, IConfiguration configuration, GeoIPService geoIPService)
 {
     /// <summary>
     /// Creates a JWT token for the user.
@@ -52,11 +53,17 @@ public class UserService(HiveMimeContext context, IConfiguration configuration)
     /// <param name="username">The username of the user to create.</param>
     public async Task<User> CreateUserAsync(string username)
     {
+        var ipAddress = context.GetService<IHttpContextAccessor>()?.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+        string? country = await geoIPService.GetCountryOfIPAsync(ipAddress);
+
         // TODO: Add support for registration using password / emails / OAuth, etc.
         var user = new User()
         {
             Username = username,
             Settings = new()
+            {
+                Country = country
+            }
         };
 
         context.Users.Add(user);

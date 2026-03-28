@@ -44,9 +44,9 @@ public class PostService(HiveMimeContext context)
                                         || poll.Description.ToLower().Contains(filter)));
         }
 
-        return await posts.IncludeForBrowse()
+        return (await posts.IncludeForBrowse()
                     .OrderByDescending(p => p.CreatedAt)
-                    .Take(20).Select(p => p.ToPostDto()).ToListAsync();
+                    .Take(20).ToListAsync()).Select(p => p.ToPostDto()).ToList();
     }
 
     /// <summary>
@@ -123,8 +123,7 @@ public class PostService(HiveMimeContext context)
     /// </summary>
     /// <param name="userId">The ID of the user voting.</param>
     /// <param name="vote">The vote to insert or update.</param>
-    /// <param name="country">The country of the user voting, for analytics.</param>
-    public async Task VoteOnPostAsync(int userId, VoteOnPostDto vote, string country)
+    public async Task VoteOnPostAsync(int userId, VoteOnPostDto vote)
     {
         Post post = await context.Posts
             .Include(p => p.Polls.OrderBy(p => p.Id))

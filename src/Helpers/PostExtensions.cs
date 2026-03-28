@@ -8,7 +8,8 @@ public static class PostExtensions
             .Include(post => post.Polls)
                 .ThenInclude(poll => poll.Categories)
             .Include(post => post.Polls)
-                .ThenInclude(poll => poll.Candidates);
+                .ThenInclude(poll => poll.Candidates)
+            .Include(post => post.Creator);
     }
 
     public static Post ToPost(this CreatePostDto dto)
@@ -47,7 +48,12 @@ public static class PostExtensions
             Id = post.Id,
             Title = post.Title,
             Description = post.Description,
-            Polls = post.Polls.Select(poll => poll.ToPollDto()).ToList()
+            Polls = post.Polls.Select(poll => poll.ToPollDto()).ToList(),
+            Creator = new UserDto
+            {
+                Id = post.Creator.Id,
+                Username = post.Creator.Username,
+            }
         };
     }
 
@@ -82,10 +88,10 @@ public static class PostExtensions
             // The user can opt out of sharing demographic data. Check for each kind.
             UserSettings settings = postVote.User.Settings;
 
-            // Include country the vote came from.
-            if (!string.IsNullOrEmpty(postVote.Country))
+            // Include country of the voter.
+            if (settings.ShareCountryOnVote && !string.IsNullOrEmpty(settings.Country))
             {
-                string country = postVote.Country;
+                string country = settings.Country;
 
                 if (!countryPollCandidates.ContainsKey(country))
                     countryPollCandidates[country] = new Candidate { Name = country, Votes = [] };
@@ -94,7 +100,7 @@ public static class PostExtensions
             }
 
             // Include age of the user.
-            if (settings.ShareAgeOfVote && postVote.User.DateOfBirth.HasValue)
+            if (settings.ShareAgeOnVote && postVote.User.DateOfBirth.HasValue)
             {
                 // Determine the age at the time of voting.
                 int ageValue = postVote.CreatedAt.Year - postVote.User.DateOfBirth.Value.Year;
@@ -123,7 +129,7 @@ public static class PostExtensions
             }
             
             // Include the date of the vote.
-            if (settings.ShareDateOfVote)
+            if (settings.ShareDateOnVote)
             {
                 string date = postVote.CreatedAt.ToString("yyyy-MM-dd");
 

@@ -1,6 +1,5 @@
 public class UserDetailsDto
 {
-    public int Id { get; set; }
     public string Username { get; set; }
     public DateTimeOffset? DateOfBirth { get; set; }
 
@@ -9,8 +8,8 @@ public class UserDetailsDto
 
 public class UserSettingsDto
 {
-    public int Id { get; set; }
-    public bool ShareDateOfVote { get; set; }
-    public bool ShareCountryOfVote { get; set; }
-    public bool ShareAgeOfVote { get; set; }
+    public string? Country { get; set; }
+    public bool ShareDateOnVote { get; set; }
+    public bool ShareCountryOnVote { get; set; }
+    public bool ShareAgeOnVote { get; set; }
 }

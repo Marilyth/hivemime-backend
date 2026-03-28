@@ -12,17 +12,14 @@ public class HiveController(HiveService hiveService) : ControllerBase
         => await hiveService.GetHiveAsync(hiveId);
 
     [HttpGet("followed")]
-    [Authorize]
     public async Task<List<HiveDto>> GetFollowedHives()
         => await hiveService.GetFollowedHivesAsync(User.GetUserId());
 
     [HttpPost("join")]
-    [Authorize]
     public async Task JoinHive(int hiveId)
         => await hiveService.JoinHiveAsync(User.GetUserId(), hiveId);
         
     [HttpPost("leave")]
-    [Authorize]
     public async Task LeaveHive(int hiveId)
         => await hiveService.LeaveHiveAsync(User.GetUserId(), hiveId);
 
@@ -31,7 +28,6 @@ public class HiveController(HiveService hiveService) : ControllerBase
         => await hiveService.BrowseHivesAsync(afterId, filter);
 
     [HttpPost("create")]
-    [Authorize]
     public async Task<HiveDto> CreateHive([FromBody] CreateHiveDto hiveDto)
         => await hiveService.CreateHiveAsync(User.GetUserId(), hiveDto);
 }

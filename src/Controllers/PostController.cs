@@ -1,11 +1,10 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class PostController(PostService postService, GeoIPService geoIPService) : ControllerBase
+public class PostController(PostService postService) : ControllerBase
 {
     [HttpGet("get")]
     public async Task<PostDto> GetPostById(int postId)
@@ -16,7 +15,6 @@ public class PostController(PostService postService, GeoIPService geoIPService) 
         => await postService.BrowsePostsAsync(User.GetUserId(), afterId, hiveId, filter);
 
     [HttpPost("create")]
-    [Authorize]
     public async Task<PostDto> CreatePost([FromBody] CreatePostDto postDto)
         => await postService.CreatePostAsync(User.GetUserId(), postDto);
 
@@ -25,12 +23,6 @@ public class PostController(PostService postService, GeoIPService geoIPService) 
         => await postService.GetPostResultAsync(postId, filter);
 
     [HttpPost("vote")]
-    [Authorize]
     public async Task UpsertVoteToPost([FromBody] VoteOnPostDto vote)
-    {
-        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        string country = await geoIPService.GetCountryOfIPAsync(ipAddress);
-
-        await postService.VoteOnPostAsync(User.GetUserId(), vote, country);
-    }
+        => await postService.VoteOnPostAsync(User.GetUserId(), vote);
 }

@@ -18,4 +18,6 @@ public class Comment : EntityWithIdentifier
     [ForeignKey(nameof(ParentComment))]
     public int? ParentCommentId { get; set; }
     public Comment? ParentComment { get; set; }
+
+    public DateTimeOffset? UpdatedAt { get; set; }
 }
