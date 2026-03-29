@@ -14,7 +14,13 @@ public class PostService(HiveMimeContext context)
             .IncludeForBrowse()
             .FirstOrExceptionAsync(p => p.Id == postId);
 
-        return post.ToPostDto();
+        int commentCount = await context.Comments
+            .CountAsync(c => c.PostId == postId && c.ParentCommentId == null);
+
+        int voteCount = await context.PostVotes
+            .CountAsync(v => v.PostId == postId);
+
+        return post.ToPostDto(commentCount, voteCount);
     }
 
     /// <summary>
@@ -46,7 +52,10 @@ public class PostService(HiveMimeContext context)
 
         return (await posts.IncludeForBrowse()
                     .OrderByDescending(p => p.CreatedAt)
-                    .Take(20).ToListAsync()).Select(p => p.ToPostDto()).ToList();
+                    .Take(20)
+                    .Select(p => new {p, CommentCount = p.Comments.Count(c => c.ParentCommentId == null), VoteCount = p.PostVotes.Count})
+                    .ToListAsync())
+                    .Select(a => a.p.ToPostDto(a.CommentCount, a.VoteCount)).ToList();
     }
 
     /// <summary>
@@ -72,7 +81,7 @@ public class PostService(HiveMimeContext context)
         context.Posts.Add(newPost);
         await context.SaveChangesAsync();
 
-        return newPost.ToPostDto();
+        return newPost.ToPostDto(0, 0);
     }
 
     /// <summary>

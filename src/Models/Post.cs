@@ -14,7 +14,7 @@ public class Post : EntityWithIdentifier
 
     [ForeignKey(nameof(Creator))]
     public int CreatorId { get; set; }
-    public User? Creator { get; set; }
+    public User Creator { get; set; }
 
     [ForeignKey(nameof(Hive))]
     public int? HiveId { get; set; }

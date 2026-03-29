@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 
 public static class PostExtensions
-{
+{   
     public static IQueryable<Post> IncludeForBrowse(this IQueryable<Post> query)
     {
         return query
@@ -9,7 +9,8 @@ public static class PostExtensions
                 .ThenInclude(poll => poll.Categories)
             .Include(post => post.Polls)
                 .ThenInclude(poll => poll.Candidates)
-            .Include(post => post.Creator);
+            .Include(post => post.Creator)
+            .Include(post => post.Hive);
     }
 
     public static Post ToPost(this CreatePostDto dto)
@@ -41,7 +42,7 @@ public static class PostExtensions
         };
     }
 
-    public static PostDto ToPostDto(this Post post)
+    public static PostDto ToPostDto(this Post post, int commentCount, int voteCount)
     {
         return new PostDto
         {
@@ -49,11 +50,11 @@ public static class PostExtensions
             Title = post.Title,
             Description = post.Description,
             Polls = post.Polls.Select(poll => poll.ToPollDto()).ToList(),
-            Creator = new UserDto
-            {
-                Id = post.Creator.Id,
-                Username = post.Creator.Username,
-            }
+            CreatedAt = post.CreatedAt,
+            CommentCount = commentCount,
+            VoteCount = voteCount,
+            Hive = post.Hive is not null ? post.Hive.ToDto() : null,
+            Creator = post.Creator.ToDto()
         };
     }
 
