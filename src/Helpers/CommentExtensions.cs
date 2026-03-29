@@ -5,6 +5,7 @@ public static class CommentExtensions
     public static readonly Expression<Func<Comment, CommentDto>> ToDtoExpression = comment => new()
     {
         Id = comment.Id,
+        PostId = comment.PostId,
         ParentCommentId = comment.ParentCommentId,
         Content = comment.Content,
         CreatedAt = comment.CreatedAt,
