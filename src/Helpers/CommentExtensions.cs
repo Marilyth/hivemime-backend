@@ -10,6 +10,7 @@ public static class CommentExtensions
         Content = comment.Content,
         CreatedAt = comment.CreatedAt,
         UpdatedAt = comment.UpdatedAt,
+        ReplyCount = comment.Replies.Count,
         User = new UserDto
         {
             Id = comment.User.Id,

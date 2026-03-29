@@ -7,4 +7,5 @@ public class CommentDto
     public string Content { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
+    public int ReplyCount { get; set; }
 }
