@@ -66,7 +66,7 @@ public class PostService(HiveMimeContext context)
             throw new InvalidOperationException("Post validation failed: " + string.Join("; ", validationErrors));
 
         Post newPost = postDto.ToPost();
-        newPost.CreatorId = userId;
+        newPost.Creator = await context.Users.FindAsync(userId);
         newPost.Hive = hive;
 
         context.Posts.Add(newPost);

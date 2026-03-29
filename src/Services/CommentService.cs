@@ -43,13 +43,14 @@ public class CommentService(HiveMimeContext context)
         await context.SaveChangesAsync();
     }
 
-    public async Task<List<CommentDto>> GetCommentsForPostAsync(int postId)
+    public async Task<List<CommentDto>> GetCommentsAsync(int postId, int? parentCommentId, DateTimeOffset? beforeDate)
     {
-        // Might want to paginate this in the future. Though it is a tree structure.
-        return await context.Comments
-            .Where(c => c.PostId == postId)
-            .OrderByDescending(c => c.ParentCommentId)
-            .ToDto()
-            .ToListAsync();
+        var comments = context.Comments
+            .Where(c => c.PostId == postId && c.ParentCommentId == parentCommentId);
+
+        if (beforeDate.HasValue)
+            comments = comments.Where(c => c.CreatedAt < beforeDate.Value);
+
+        return await comments.OrderByDescending(c => c.CreatedAt).Take(20).ToDto().ToListAsync();
     }
 }

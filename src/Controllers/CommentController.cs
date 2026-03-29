@@ -17,6 +17,6 @@ public class CommentController(CommentService commentService) : ControllerBase
         => await commentService.DeleteCommentAsync(User.GetUserId(), commentId);
 
     [HttpGet("get")]
-    public async Task<List<CommentDto>> GetCommentsForPost(int postId)
-        => await commentService.GetCommentsForPostAsync(postId);
+    public async Task<List<CommentDto>> GetCommentsForPost(int postId, int? parentCommentId, DateTimeOffset? beforeDate)
+        => await commentService.GetCommentsAsync(postId, parentCommentId, beforeDate);
 }

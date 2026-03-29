@@ -5,7 +5,7 @@ public class Comment : EntityWithIdentifier
 {
     [MaxLength(1024)]
     public string Content { get; set; }
-    public List<Comment> Replies { get; set; }
+    public List<Comment> Replies { get; set; } = [];
 
     [ForeignKey(nameof(User))]
     public int UserId { get; set; }
