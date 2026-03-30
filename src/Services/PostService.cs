@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Mapster;
 using Microsoft.EntityFrameworkCore;
 
 public class PostService(HiveMimeContext context)
@@ -9,33 +10,26 @@ public class PostService(HiveMimeContext context)
     /// <param name="postId">The ID of the post to fetch.</param>
     public async Task<PostDto> GetPostAsync(int postId)
     {
-        Post post = await context.Posts
+        return await context.Posts
             .AsNoTracking()
-            .IncludeForBrowse()
-            .FirstOrExceptionAsync(p => p.Id == postId);
-
-        int commentCount = await context.Comments
-            .CountAsync(c => c.PostId == postId && c.ParentCommentId == null);
-
-        int voteCount = await context.PostVotes
-            .CountAsync(v => v.PostId == postId);
-
-        return post.ToPostDto(commentCount, voteCount);
+            .QueryableFind(postId)
+            .ProjectToType<PostDto>()
+            .FirstAsync();
     }
 
     /// <summary>
     /// Fetches and returns a pre selection of hot posts to show in the browse section.
     /// </summary>
-    /// <param name="userId">The ID of the user to fetch posts from.</param>
+    /// <param name="creatorId">The ID of the user to fetch posts from.</param>
     /// <param name="beforeDate">The date before which to fetch posts.</param>
     /// <param name="filter">The filter to apply to the posts.</param>
-    public async Task<List<PostDto>> BrowsePostsAsync(int? userId, int? hiveId, string filter, DateTimeOffset? beforeDate)
+    public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, string filter, DateTimeOffset? beforeDate)
     {
         // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
         IQueryable<Post> posts = context.Posts.AsNoTracking();
 
-        if (userId.HasValue)
-            posts = posts.Where(p => p.CreatorId == userId.Value);
+        if (creatorId.HasValue)
+            posts = posts.Where(p => p.CreatorId == creatorId.Value);
             
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
@@ -53,12 +47,11 @@ public class PostService(HiveMimeContext context)
                                         || poll.Description.ToLower().Contains(filter)));
         }
 
-        return (await posts.IncludeForBrowse()
+        return await posts
                     .OrderByDescending(p => p.CreatedAt)
                     .Take(20)
-                    .Select(p => new {p, CommentCount = p.Comments.Count(c => c.ParentCommentId == null), VoteCount = p.PostVotes.Count})
-                    .ToListAsync())
-                    .Select(a => a.p.ToPostDto(a.CommentCount, a.VoteCount)).ToList();
+                    .ProjectToType<PostDto>()
+                    .ToListAsync();
     }
 
     /// <summary>
@@ -77,14 +70,18 @@ public class PostService(HiveMimeContext context)
         if (validationErrors.Any())
             throw new InvalidOperationException("Post validation failed: " + string.Join("; ", validationErrors));
 
-        Post newPost = postDto.ToPost();
+        Post newPost = postDto.Adapt<Post>();
         newPost.Creator = await context.Users.FindAsync(userId);
         newPost.Hive = hive;
 
         context.Posts.Add(newPost);
         await context.SaveChangesAsync();
 
-        return newPost.ToPostDto(0, 0);
+        return await context.Posts
+            .AsNoTracking()
+            .QueryableFind(newPost.Id)
+            .ProjectToType<PostDto>()
+            .FirstAsync();
     }
 
     /// <summary>

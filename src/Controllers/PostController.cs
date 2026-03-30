@@ -11,8 +11,8 @@ public class PostController(PostService postService) : ControllerBase
         => await postService.GetPostAsync(postId);
 
     [HttpGet("browse")]
-    public async Task<List<PostDto>> BrowsePosts(int? userId, int? hiveId, string? filter, DateTimeOffset? beforeDate)
-        => await postService.BrowsePostsAsync(userId, hiveId, filter, beforeDate);
+    public async Task<List<PostDto>> BrowsePosts(int? creatorId, int? hiveId, string? filter, DateTimeOffset? beforeDate)
+        => await postService.BrowsePostsAsync(creatorId, hiveId, filter, beforeDate);
 
     [HttpPost("create")]
     public async Task<PostDto> CreatePost([FromBody] CreatePostDto postDto)

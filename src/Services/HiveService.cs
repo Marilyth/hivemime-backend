@@ -1,3 +1,4 @@
+using Mapster;
 using Microsoft.EntityFrameworkCore;
 
 public class HiveService(HiveMimeContext context)
@@ -9,8 +10,9 @@ public class HiveService(HiveMimeContext context)
     /// <returns>The hive with the specified ID.</returns>
     public async Task<HiveDto> GetHiveAsync(int hiveId)
         => await context.Hives.AsNoTracking()
-            .ToDto()
-            .FirstOrExceptionAsync(h => h.Id == hiveId);
+            .QueryableFind(hiveId)
+            .ProjectToType<HiveDto>()
+            .FirstAsync();
 
     /// <summary>
     /// Fetches and returns all hives followed by the user.
@@ -21,7 +23,7 @@ public class HiveService(HiveMimeContext context)
             .Where(u => u.Id == userId)
             .SelectMany(u => u.FollowedHives)
             .OrderByDescending(h => h.Id)
-            .ToDto()
+            .ProjectToType<HiveDto>()
             .ToListAsync();
 
     /// <summary>
@@ -84,7 +86,7 @@ public class HiveService(HiveMimeContext context)
             query = query.Where(h => h.Name.ToLower().Contains(filter.Trim().ToLower()));
 
         return await query.OrderBy(h => h.Id)
-            .ToDto()
+            .ProjectToType<HiveDto>()
             .ToListAsync();
     }
 
@@ -117,6 +119,6 @@ public class HiveService(HiveMimeContext context)
         context.Hives.Add(hive);
         await context.SaveChangesAsync();
 
-        return hive.ToDto();
+        return hive.ToQueryable(context).ProjectToType<HiveDto>().First();
     }
 }

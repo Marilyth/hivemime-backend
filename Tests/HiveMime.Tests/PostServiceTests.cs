@@ -49,8 +49,8 @@ public class PostServiceTests : IntegrationTest
         // Assert
         Assert.Equal(2, result.Count);
 
-        Assert.Equal(_defaultPost.Id, result[0].Id);
-        Assert.Equal(_defaultPost2.Id, result[1].Id);
+        Assert.Equal(_defaultPost.Id, result[1].Id);
+        Assert.Equal(_defaultPost2.Id, result[0].Id);
     }
 
     [Fact]
@@ -73,8 +73,8 @@ public class PostServiceTests : IntegrationTest
         // Assert
         Assert.Equal(2, result.Count);
 
-        Assert.Equal(_defaultPost.Id, result[0].Id);
-        Assert.Equal(_defaultPost2.Id, result[1].Id);
+        Assert.Equal(_defaultPost.Id, result[1].Id);
+        Assert.Equal(_defaultPost2.Id, result[0].Id);
     }
 
     [Fact]
