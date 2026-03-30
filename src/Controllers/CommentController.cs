@@ -16,7 +16,11 @@ public class CommentController(CommentService commentService) : ControllerBase
     public async Task DeleteComment(int commentId)
         => await commentService.DeleteCommentAsync(User.GetUserId(), commentId);
 
-    [HttpGet("get")]
-    public async Task<List<CommentDto>> GetCommentsForPost(int postId, int? parentCommentId, DateTimeOffset? beforeDate)
-        => await commentService.GetCommentsAsync(postId, parentCommentId, beforeDate);
+    [HttpGet("getByPost")]
+    public async Task<List<CommentDto>> GetCommentsByPost(int postId, int? parentCommentId, DateTimeOffset? beforeDate)
+        => await commentService.GetCommentsByPostAsync(postId, parentCommentId, beforeDate);
+
+    [HttpGet("getByUser")]
+    public async Task<List<CommentDto>> GetCommentsByUser(int userId, DateTimeOffset? beforeDate)
+        => await commentService.GetCommentsByUserAsync(userId, beforeDate);
 }

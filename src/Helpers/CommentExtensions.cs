@@ -18,7 +18,25 @@ public static class CommentExtensions
         }
     };
 
-    private static readonly Func<Comment, CommentDto> ToDtoFunc = ToDtoExpression.Compile();
+    public static readonly Expression<Func<Comment, UserHistoryCommentDto>> ToUserHistoryCommentDtoExpression = comment => new()
+    {
+        Id = comment.Id,
+        PostId = comment.PostId,
+        ParentCommentId = comment.ParentCommentId,
+        Content = comment.Content,
+        CreatedAt = comment.CreatedAt,
+        UpdatedAt = comment.UpdatedAt,
+        ReplyCount = comment.Replies.Count,
+        User = new UserDto
+        {
+            Id = comment.User.Id,
+            Username = comment.User.Username,
+        },
+        Post = new CommentPostDto
+        {
+            Title = comment.Post.Title
+        }
+    };
     
     public static Comment ToComment(this CreateCommentDto dto, int userId) => new()
     {
@@ -27,9 +45,6 @@ public static class CommentExtensions
         UserId = userId,
         Content = dto.Content
     };
-
-    public static CommentDto ToDto(this Comment comment)
-        => ToDtoFunc(comment);
 
     public static IQueryable<CommentDto> ToDto(this IQueryable<Comment> query)
         => query.Select(ToDtoExpression);

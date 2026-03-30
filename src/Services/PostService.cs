@@ -26,19 +26,22 @@ public class PostService(HiveMimeContext context)
     /// <summary>
     /// Fetches and returns a pre selection of hot posts to show in the browse section.
     /// </summary>
-    /// <param name="userId">The ID of the user browsing posts, for individual feeds.</param>
-    /// <param name="afterId">The ID of the last post seen, for pagination.</param>
+    /// <param name="userId">The ID of the user to fetch posts from.</param>
+    /// <param name="beforeDate">The date before which to fetch posts.</param>
     /// <param name="filter">The filter to apply to the posts.</param>
-    public async Task<List<PostDto>> BrowsePostsAsync(int userId, int? hiveId, int? afterId, string filter)
+    public async Task<List<PostDto>> BrowsePostsAsync(int? userId, int? hiveId, string filter, DateTimeOffset? beforeDate)
     {
         // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
         IQueryable<Post> posts = context.Posts.AsNoTracking();
 
-        if (afterId.HasValue)
-            posts = posts.Where(p => p.Id < afterId);
-
+        if (userId.HasValue)
+            posts = posts.Where(p => p.CreatorId == userId.Value);
+            
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
+
+        if (beforeDate.HasValue)
+            posts = posts.Where(p => p.CreatedAt < beforeDate);
 
         if (!string.IsNullOrWhiteSpace(filter))
         {

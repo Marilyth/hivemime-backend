@@ -12,8 +12,8 @@ public class HiveController(HiveService hiveService) : ControllerBase
         => await hiveService.GetHiveAsync(hiveId);
 
     [HttpGet("followed")]
-    public async Task<List<HiveDto>> GetFollowedHives()
-        => await hiveService.GetFollowedHivesAsync(User.GetUserId());
+    public async Task<List<HiveDto>> GetFollowedHives(int? userId)
+        => await hiveService.GetFollowedHivesAsync(userId ?? User.GetUserId());
 
     [HttpPost("join")]
     public async Task JoinHive(int hiveId)

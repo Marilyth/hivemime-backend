@@ -5,8 +5,11 @@ namespace HiveMime.Tests;
 
 public class PostServiceTests : IntegrationTest
 {
+    private Hive _defaultHive;
     private Post _defaultPost;
+    private Post _defaultPost2;
     private User _defaultUser;
+    private User _defaultUser2;
 
     private PostService _service;
 
@@ -16,7 +19,7 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task BrowsePosts_WithPosts_ReturnsPosts()
+    public async Task BrowsePosts_ByUser_ReturnsPost()
     {
         // Act
         var result = await _service.BrowsePostsAsync(_defaultPost.CreatorId, null, null, null);
@@ -24,8 +27,65 @@ public class PostServiceTests : IntegrationTest
         // Assert
         Assert.Single(result);
         Assert.Equal(_defaultPost.Id, result[0].Id);
-        Assert.Equal("Default Post", result[0].Title);
-        Assert.Equal(_defaultUser.Id, result[0].Creator.Id);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_ByHive_ReturnsPost()
+    {
+        // Act
+        var result = await _service.BrowsePostsAsync(null, _defaultHive.Id, null, null);
+
+        // Assert
+        Assert.Single(result);
+        Assert.Equal(_defaultPost2.Id, result[0].Id);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_WithoutFilter_ReturnsAll()
+    {
+        // Act
+        var result = await _service.BrowsePostsAsync(null, null, null, null);
+
+        // Assert
+        Assert.Equal(2, result.Count);
+
+        Assert.Equal(_defaultPost.Id, result[0].Id);
+        Assert.Equal(_defaultPost2.Id, result[1].Id);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_WithDateFilter_ReturnsExpected()
+    {
+        // Arrange
+        Post newPost = new()
+        {
+            Title = "New Post",
+            Description = "This is a new post.",
+            Creator = _defaultUser
+        };
+
+        Context.Posts.Add(newPost);
+        await Context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.BrowsePostsAsync(null, null, null, newPost.CreatedAt);
+
+        // Assert
+        Assert.Equal(2, result.Count);
+
+        Assert.Equal(_defaultPost.Id, result[0].Id);
+        Assert.Equal(_defaultPost2.Id, result[1].Id);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_WithTextFilter_ReturnsExpected()
+    {
+        // Act
+        var result = await _service.BrowsePostsAsync(null, null, "not a default post", null);
+
+        // Assert
+        Assert.Single(result);
+        Assert.Equal(_defaultPost2.Id, result[0].Id);
     }
 
     [Fact]
@@ -72,6 +132,10 @@ public class PostServiceTests : IntegrationTest
     protected override void SeedDatabase()
     {
         _defaultUser = new User { Username = "defaultuser", Settings = new() };
+        _defaultUser2 = new User { Username = "defaultuser2", Settings = new() };
+
+        _defaultHive = new Hive { Name = "Default Hive", Description = "This is a default hive.", Creator = _defaultUser };
+
         _defaultPost = new()
         {
             Title = "Default Post",
@@ -92,6 +156,28 @@ public class PostServiceTests : IntegrationTest
             ]
         };
 
+        _defaultPost2 = new()
+        {
+            Title = "Not a default post",
+            Description = "This is not a default post.",
+            Creator = _defaultUser2,
+            Hive = _defaultHive,
+            Polls = [
+                new Poll
+                {
+                    Title = "Not a default poll",
+                    Description = "This is not a default poll.",
+                    PollType = PollType.Choice,
+                    Candidates = new List<Candidate>
+                    {
+                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                    }
+                }
+            ]
+        };
+
         Context.Posts.Add(_defaultPost);
+        Context.Posts.Add(_defaultPost2);
     }
 }
