@@ -1,3 +1,4 @@
+using Mapster;
 using Microsoft.EntityFrameworkCore;
 
 public static class PostExtensions
@@ -11,70 +12,6 @@ public static class PostExtensions
                 .ThenInclude(poll => poll.Candidates)
             .Include(post => post.Creator)
             .Include(post => post.Hive);
-    }
-
-    public static Post ToPost(this CreatePostDto dto)
-    {
-        return new Post
-        {
-            Title = dto.Title,
-            Description = dto.Description,
-            Polls = dto.Polls.Select(pollDto => pollDto.ToPoll()).ToList()
-        };
-    }
-
-    public static Poll ToPoll(this CreatePollDto dto)
-    {
-        return new()
-        {
-            Title = dto.Title,
-            Description = dto.Description,
-            IsShuffled = dto.IsShuffled,
-            IsOptional = dto.IsOptional,
-            PollType = dto.PollType,
-            MinValue = dto.MinValue,
-            MaxValue = dto.MaxValue,
-            StepValue = dto.StepValue,
-            MinVotes = dto.MinVotes,
-            MaxVotes = dto.MaxVotes,
-            Categories = dto.Categories.Select(category => category.ToCategory()).ToList(),
-            Candidates = dto.Candidates.Select(candidate => candidate.ToCandidate()).ToList()
-        };
-    }
-
-    public static PostDto ToPostDto(this Post post, int commentCount, int voteCount)
-    {
-        return new PostDto
-        {
-            Id = post.Id,
-            Title = post.Title,
-            Description = post.Description,
-            Polls = post.Polls.Select(poll => poll.ToPollDto()).ToList(),
-            CreatedAt = post.CreatedAt,
-            CommentCount = commentCount,
-            VoteCount = voteCount,
-            Hive = post.Hive is not null ? post.Hive.ToDto() : null,
-            Creator = post.Creator.ToDto()
-        };
-    }
-
-    public static PollDto ToPollDto(this Poll poll)
-    {
-        return new PollDto
-        {
-            Title = poll.Title,
-            Description = poll.Description,
-            PollType = poll.PollType,
-            IsShuffled = poll.IsShuffled,
-            IsOptional = poll.IsOptional,
-            MinValue = poll.MinValue,
-            MaxValue = poll.MaxValue,
-            StepValue = poll.StepValue,
-            MinVotes = poll.MinVotes,
-            MaxVotes = poll.MaxVotes,
-            Categories = poll.Categories.Select(category => category.ToCategoryDto()).ToList(),
-            Candidates = poll.Candidates.Select(option => option.ToCandidateDto()).ToList()
-        };
     }
 
     public static PostResultDto ToPostResultsDto(this Post post)
@@ -170,15 +107,12 @@ public static class PostExtensions
 
         return new PostResultDto
         {
-            Polls = polls.Select(ToPollResultsDto).ToList()
+            Polls = polls.Adapt<List<PollResultDto>>()
         };
     }
 
     public static PollResultDto ToPollResultsDto(this Poll poll)
     {
-        return new PollResultDto
-        {
-            Candidates = poll.Candidates.Select(option => option.ToCandidateResultDto()).ToList()
-        };
+        return poll.Adapt<PollResultDto>();
     }
 }

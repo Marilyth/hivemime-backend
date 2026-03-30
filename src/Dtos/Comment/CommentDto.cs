@@ -9,3 +9,13 @@ public class CommentDto
     public DateTimeOffset? UpdatedAt { get; set; }
     public int ReplyCount { get; set; }
 }
+
+public class UserHistoryCommentDto : CommentDto
+{
+    public CommentPostDto Post { get; set; }
+}
+
+public class CommentPostDto
+{
+    public string? Title { get; set; }
+}

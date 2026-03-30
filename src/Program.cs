@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using Mapster;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -78,6 +79,9 @@ public class Program
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
         services.AddSingleton<GeoIPService>();
         services.AddHttpClient();
+
+        // Configure Mapster.
+        MapsterConfiguration.Configure();
 
         _app = builder.Build();
 

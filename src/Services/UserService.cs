@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.IdentityModel.Tokens;
@@ -44,7 +45,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     public async Task<UserDetailsDto> GetUserDetailsAsync(int userId)
     {
         var user = await context.Users.AsNoTracking().Where(u => u.Id == userId).Include(u => u.Settings).FirstAsync();
-        return user.ToDetailsDto();
+        return user.Adapt<UserDetailsDto>();
     }
 
     /// <summary>
