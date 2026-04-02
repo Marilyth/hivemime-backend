@@ -76,7 +76,7 @@ public class PostService(HiveMimeContext context)
         foreach (Poll poll in newPost.Polls.Where(p => p.PollType == PollType.Category))
         {
             for (int i = 0; i < poll.Categories.Count; i++)
-                poll.Categories[i].Value = i;
+                poll.Categories[i].Value = i + 1;
         }
 
         newPost.Creator = await context.Users.FindAsync(userId);
