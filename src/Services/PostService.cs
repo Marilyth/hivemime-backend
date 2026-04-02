@@ -71,6 +71,14 @@ public class PostService(HiveMimeContext context)
             throw new InvalidOperationException("Post validation failed: " + string.Join("; ", validationErrors));
 
         Post newPost = postDto.Adapt<Post>();
+
+        // Each category requires a value for easier evaluation and filtering.
+        foreach (Poll poll in newPost.Polls.Where(p => p.PollType == PollType.Category))
+        {
+            for (int i = 0; i < poll.Categories.Count; i++)
+                poll.Categories[i].Value = i;
+        }
+
         newPost.Creator = await context.Users.FindAsync(userId);
         newPost.Hive = hive;
 

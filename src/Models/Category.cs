@@ -12,4 +12,6 @@ public class Category : EntityWithIdentifier
     [ForeignKey(nameof(Poll))]
     public int PollId { get; set; }
     public Poll? Poll { get; set; }
+
+    public int Value { get; set; }
 }

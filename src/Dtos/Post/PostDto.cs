@@ -13,9 +13,5 @@ public class PostDto
 
 public class PollDto : CreatePollDto
 {
-    public new int MinValue { get; set; }
-    public new int MaxValue { get; set; }
-
-    public new int MinVotes { get; set; }
-    public new int MaxVotes { get; set; }
+    public int Id { get; set; }
 }

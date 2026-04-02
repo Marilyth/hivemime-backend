@@ -23,6 +23,19 @@ public class CreatePollDto
     public int MaxVotes { get; set; }
 
     public PollType PollType { get; set; }
-    public List<PollCandidateDto> Candidates { get; set; }
-    public List<PollCategoryDto> Categories { get; set; }
+    public List<CreateCandidateDto> Candidates { get; set; }
+    public List<CreateCategoryDto> Categories { get; set; }
+}
+
+public class CreateCandidateDto
+{
+    public string Name { get; set; }
+    public string? Description { get; set; }
+}
+
+public class CreateCategoryDto
+{
+    public string Name { get; set; }
+    public string? Description { get; set; }
+    public int Color { get; set; }
 }
