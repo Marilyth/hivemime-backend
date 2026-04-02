@@ -10,8 +10,3 @@ public class PostDto
     public int VoteCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
-
-public class PollDto : CreatePollDto
-{
-    public int Id { get; set; }
-}
