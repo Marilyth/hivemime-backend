@@ -10,12 +10,3 @@ public class PostDto
     public int VoteCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
-
-public class PollDto : CreatePollDto
-{
-    public new int MinValue { get; set; }
-    public new int MaxValue { get; set; }
-
-    public new int MinVotes { get; set; }
-    public new int MaxVotes { get; set; }
-}

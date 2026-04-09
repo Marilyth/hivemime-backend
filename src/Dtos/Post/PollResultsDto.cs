@@ -8,7 +8,7 @@ public class PollResultDto
     public List<PollCandidateResultDto> Candidates { get; set; }
 }
 
-public class PollCandidateResultDto : PollCandidateDto
+public class PollCandidateResultDto : CandidateDto
 {
     public int VoterAmount { get; set; }
     public int Score { get; set; }

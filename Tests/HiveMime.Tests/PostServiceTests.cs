@@ -104,8 +104,8 @@ public class PostServiceTests : IntegrationTest
                     Description = "Description 1",
                     PollType = PollType.Choice,
                     Candidates = [
-                        new PollCandidateDto { Name = "Option 1", Description = "Option 1 Description" },
-                        new PollCandidateDto { Name = "Option 2", Description = "Option 2 Description" }
+                        new CreateCandidateDto { Name = "Option 1", Description = "Option 1 Description" },
+                        new CreateCandidateDto { Name = "Option 2", Description = "Option 2 Description" }
                     ],
                     Categories = []
                 }
