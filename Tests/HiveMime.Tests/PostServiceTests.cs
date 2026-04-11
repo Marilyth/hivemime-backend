@@ -212,7 +212,7 @@ public class PostServiceTests : IntegrationTest
     private async Task AddVotesToCandidate(int candidateId, int postId, int[] values)
     {
         // Create separate users for each vote to simulate different users voting
-        for (int i = 0; i < values.Length; i++).
+        for (int i = 0; i < values.Length; i++)
         {
             var user = new User 
             { 
@@ -301,7 +301,7 @@ public class PostServiceTests : IntegrationTest
                     Title = "Score Poll",
                     Description = "This is a score poll.",
                     PollType = PollType.Score,
-                    MinValue = 0,
+                    MinValue = 1,
                     MaxValue = 100, // Large range to trigger bucketing
                     Candidates = new List<Candidate>
                     {
