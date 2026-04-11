@@ -136,6 +136,49 @@ public class PostService(HiveMimeContext context)
     }
 
     /// <summary>
+    /// Returns the distribution of votes for a specific candidate. I.e. the number of votes of each of its possible values.
+    /// </summary>
+    /// <param name="candidateId">The ID of the candidate to fetch distribution for.</param>
+    /// <param name="filter">The filter to apply to the candidate votes.</param>
+    public async Task<List<CandidateDistributionDto>> GetCandidateDistributionResultsAsync(int candidateId, string filter)
+    {
+        var candidateInfo = await context.Candidates.Where(c => c.Id == candidateId)
+            .Select(c => new { c.Poll.PostId, c.Poll.MaxValue, c.Poll.MinValue, c.Poll.PollType})
+            .FirstAsync();
+
+        VoteQueryBase voteQuery = filter.ToVoteQuery();
+        Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
+
+        // Fetch post and filtered votes seperately for better performance.
+        IQueryable<CandidateVote> filteredVotes = context.PostVotes
+            .AsNoTracking()
+            .Where(v => v.PostId == candidateInfo.PostId)
+            .Where(voteExpression)
+            .SelectMany(v => v.Votes.Where(cv => cv.CandidateId == candidateId));
+
+        IQueryable<IGrouping<int, CandidateVote>> distributionQuery = null;
+
+        if (candidateInfo.PollType == PollType.Score && candidateInfo.MaxValue - candidateInfo.MinValue > 10)
+        {
+            // Bucket up the votes for score polls because of the large amount of possible values.
+            int stepValue = (int)Math.Ceiling((candidateInfo.MaxValue - candidateInfo.MinValue + 1) / 10.0);
+            distributionQuery = filteredVotes.GroupBy(v => (v.Value - candidateInfo.MinValue) / stepValue);
+        }
+        else
+        {
+             distributionQuery = filteredVotes.GroupBy(v => v.Value);        
+        }
+
+        return await distributionQuery
+            .OrderBy(g => g.Key)
+            .Select(g => new CandidateDistributionDto
+            {
+                Score = g.Count(),
+            })
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// Inserts or updates a user's votes on a post.
     /// </summary>
     /// <param name="userId">The ID of the user voting.</param>

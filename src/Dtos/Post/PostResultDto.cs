@@ -13,3 +13,14 @@ public class PollCandidateResultDto : CandidateDto
     public int VoterAmount { get; set; }
     public int Score { get; set; }
 }
+
+public class CandidateResultDto
+{
+    public int Id { get; set; }
+    public List<CandidateDistributionDto> Distribution { get; set; }
+}
+
+public class CandidateDistributionDto
+{
+    public int Score { get; set; }
+}
