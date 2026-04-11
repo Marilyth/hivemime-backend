@@ -22,6 +22,10 @@ public class PostController(PostService postService) : ControllerBase
     public async Task<PostResultDto> GetPostResults(int postId, string? filter)
         => await postService.GetPostResultAsync(postId, filter);
 
+    [HttpGet("distribution")]
+    public async Task<List<CandidateDistributionDto>> GetCandidateResult(int candidateId, string? filter)
+        => await postService.GetCandidateDistributionResultsAsync(candidateId, filter);
+
     [HttpPost("vote")]
     public async Task UpsertVoteToPost([FromBody] VoteOnPostDto vote)
         => await postService.VoteOnPostAsync(User.GetUserId(), vote);
