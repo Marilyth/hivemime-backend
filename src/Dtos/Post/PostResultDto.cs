@@ -11,7 +11,9 @@ public class PollResultDto
 public class PollCandidateResultDto : CandidateDto
 {
     public int VoterAmount { get; set; }
-    public double Score { get; set; }
+    public double? AverageScore { get; set; }
+    public int? MajorityVote { get; set; }
+    public double? MajorityRatio { get; set; }
 }
 
 public class CandidateResultDto

@@ -111,16 +111,8 @@ public class PostService(HiveMimeContext context)
             .Where(v => v.PostId == postId)
             .Where(voteExpression);
         
-        var candidateResults = await filteredVotes
-            .SelectMany(v => v.Votes)
-            .GroupBy(v => v.CandidateId)
-            .Select(g => new
-            {
-                Id = g.Key,
-                VoterAmount = g.Count(),
-                Score = g.Average(v => v.Value),
-            })
-            .ToDictionaryAsync(g => g.Id);
+        IQueryable<CandidateVote> candidateVotes = filteredVotes.SelectMany(v => v.Votes);
+        Dictionary<int, PollCandidateResultDto> candidateResults = await GetCandidateResultsAsync(candidateVotes);
 
         // Merge the results into the structure.
         foreach (PollCandidateResultDto candidateResult in resultDto.Polls.SelectMany(p => p.Candidates))
@@ -129,7 +121,9 @@ public class PostService(HiveMimeContext context)
             if (candidateResults.TryGetValue(candidateResult.Id, out var dbResult))
             {
                 candidateResult.VoterAmount = dbResult.VoterAmount;
-                candidateResult.Score = dbResult.Score;
+                candidateResult.AverageScore = dbResult.AverageScore;
+                candidateResult.MajorityVote = dbResult.MajorityVote;
+                candidateResult.MajorityRatio = dbResult.MajorityRatio;
             }
         }
 
@@ -384,5 +378,67 @@ public class PostService(HiveMimeContext context)
             if (!uniqueRanks.Contains(rank))
                 yield return $"Ranking poll is missing rank {rank}.";
         }
+    }
+
+    private async Task<Dictionary<int, PollCandidateResultDto>> GetCandidateResultsAsync(IQueryable<CandidateVote> candidateVotes)
+    {
+        // TODO: Split this over multiple DbContexts for parallelization.
+        
+        // Split up the aggregation per aggregation function type.
+        var countCandidates = await candidateVotes
+            .Where(v => v.Candidate.Poll.PollType == PollType.Choice)
+            .GroupBy(v => v.CandidateId)
+            .Select(g => new PollCandidateResultDto
+            {
+                Id = g.Key,
+                VoterAmount = g.Count()
+             })
+             .ToDictionaryAsync(g => g.Id);
+             
+        var averageCandidates = await candidateVotes
+            .Where(v => v.Candidate.Poll.PollType == PollType.Rank || v.Candidate.Poll.PollType == PollType.Score)
+            .GroupBy(v => v.CandidateId)
+            .Select(g => new PollCandidateResultDto
+            {
+                Id = g.Key,
+                VoterAmount = g.Count(),
+                AverageScore = g.Average(v => v.Value)
+             })
+             .ToDictionaryAsync(g => g.Id);
+
+        var majorityCandidates = await candidateVotes
+            .Where(v => v.Candidate.Poll.PollType == PollType.Category)
+            .GroupBy(v => v.CandidateId)
+            .Select(g => new
+            {
+                Id = g.Key,
+                Total = g.Count(),
+                // SQL is unable to drill down a grouping to get the majority. We need to fetch the distribution.
+                Distribution = g
+                    .GroupBy(x => x.Value)
+                    .Select(x => new { Value = x.Key, Count = x.Count() })
+            })
+            .ToListAsync()
+            .ContinueWith(t => t.Result.ToDictionary(x => x.Id, x =>
+            {
+                var majorityVote = x.Distribution.OrderByDescending(d => d.Count).First();
+                return new PollCandidateResultDto
+                {
+                    Id = x.Id,
+                    VoterAmount = x.Total,
+                    MajorityVote = majorityVote.Value,
+                    MajorityRatio = (double)majorityVote.Count / x.Total
+                };
+            }));
+        
+        var results = new Dictionary<int, PollCandidateResultDto>();
+
+        foreach (var task in new[] { countCandidates, averageCandidates, majorityCandidates })
+        {
+            foreach (var kvp in task)
+                results[kvp.Key] = kvp.Value;
+        }
+
+        return results;
     }
 }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace HiveMime.Tests;
 
@@ -19,16 +20,11 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             // Remove the existing DbContext registration
-            var descriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(DbContextOptions<HiveMimeContext>));
-            if (descriptor != null)
-            {
-                services.Remove(descriptor);
-            }
+            var descriptor = services.RemoveAll<DbContextOptions<HiveMimeContext>>();
 
             // Register DbContext with Testcontainers connection string
-            services.AddDbContext<HiveMimeContext>(options =>
-                options.UseNpgsql(_connectionString));
+            services.AddDbContextFactory<HiveMimeContext>(options =>
+                options.UseNpgsql(_connectionString), ServiceLifetime.Scoped);
         });
     }
 }

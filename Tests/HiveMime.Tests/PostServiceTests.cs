@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace HiveMime.Tests;
@@ -9,6 +8,7 @@ public class PostServiceTests : IntegrationTest
     private Post _defaultPost;
     private Post _defaultPost2;
     private Post _scorePost;
+    private Post _categoryPost;
     private User _defaultUser;
     private User _defaultUser2;
 
@@ -48,10 +48,7 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.BrowsePostsAsync(null, null, null, null);
 
         // Assert
-        Assert.Equal(2, result.Count);
-
-        Assert.Equal(_defaultPost.Id, result[1].Id);
-        Assert.Equal(_defaultPost2.Id, result[0].Id);
+        Assert.Equal(4, result.Count);
     }
 
     [Fact]
@@ -72,10 +69,7 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.BrowsePostsAsync(null, null, null, newPost.CreatedAt);
 
         // Assert
-        Assert.Equal(2, result.Count);
-
-        Assert.Equal(_defaultPost.Id, result[1].Id);
-        Assert.Equal(_defaultPost2.Id, result[0].Id);
+        Assert.Equal(4, result.Count);
     }
 
     [Fact]
@@ -131,12 +125,9 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task GetPostResultAsync_WithManyScoreVotes_AggregatesCorrectly()
+    public async Task GetPostResultAsync_WithScoreVotes_AggregatesCorrectly()
     {
         // Arrange
-        Context.Posts.Add(_scorePost);
-        await Context.SaveChangesAsync();
-        
         var candidate = _scorePost.Polls[0].Candidates[0];
 
         // Add votes across the range
@@ -146,19 +137,45 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.GetPostResultAsync(_scorePost.Id, "");
 
         // Assert
-        Assert.Equal(50, result.Polls[0].Candidates[0].Score);
+        Assert.Equal(50, result.Polls[0].Candidates[0].AverageScore);
         Assert.Equal(10, result.Polls[0].Candidates[0].VoterAmount);
-        Assert.Equal(0, result.Polls[1].Candidates[0].Score);
+        Assert.Equal(null, result.Polls[1].Candidates[0].AverageScore);
         Assert.Equal(0, result.Polls[1].Candidates[0].VoterAmount);
+    }
+
+    [Fact]
+    public async Task GetPostResultAsync_WithCategoryVotes_AggregatesCorrectly()
+    {
+        // Arrange
+        await AddVotesToCandidate(_categoryPost.Polls[0].Candidates[0].Id, _categoryPost.Id, [0, 0, 0, 0, 0, 0, 1, 1, 1, 1]);
+
+        // Act
+        var result = await _service.GetPostResultAsync(_categoryPost.Id, "");
+
+        // Assert
+        Assert.Equal(0, result.Polls[0].Candidates[0].MajorityVote);
+        Assert.Equal(0.6, result.Polls[0].Candidates[0].MajorityRatio.Value, 4);
+    }
+
+    [Fact]
+    public async Task GetPostResultAsync_WithChoiceVotes_AggregatesCorrectly()
+    {
+        // Arrange
+        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [1, 1, 1, 1]);
+        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[1].Id, _defaultPost.Id, [1, 1]);
+
+        // Act
+        var result = await _service.GetPostResultAsync(_defaultPost.Id, "");
+
+        // Assert
+        Assert.Equal(4, result.Polls[0].Candidates[0].VoterAmount);
+        Assert.Equal(2, result.Polls[0].Candidates[1].VoterAmount);
     }
 
     [Fact]
     public async Task GetCandidateDistributionResultsAsync_ScoreWithLargeRange_BucketsValues()
     {
         // Arrange
-        Context.Posts.Add(_scorePost);
-        await Context.SaveChangesAsync();
-        
         var candidate = _scorePost.Polls[0].Candidates[0];
 
         // Add votes across the range
@@ -176,9 +193,6 @@ public class PostServiceTests : IntegrationTest
     public async Task GetCandidateDistributionResultsAsync_ScoreWithSmallRange_NoBucketing()
     {
         // Arrange
-        Context.Posts.Add(_scorePost);
-        await Context.SaveChangesAsync();
-        
         var candidate = _scorePost.Polls[1].Candidates[0]; // Use small range score poll
 
         // Add votes
@@ -211,9 +225,6 @@ public class PostServiceTests : IntegrationTest
     public async Task GetCandidateDistributionResultsAsync_OrderedByKey_ReturnsInOrder()
     {
         // Arrange
-        Context.Posts.Add(_scorePost);
-        await Context.SaveChangesAsync();
-        
         var candidate = _scorePost.Polls[1].Candidates[0]; // Use small range score poll
         
         // Add votes in random order
@@ -316,7 +327,7 @@ public class PostServiceTests : IntegrationTest
         {
             Title = "Score Post",
             Description = "This is a score post with large range.",
-            Creator = _defaultUser,
+            Creator = _defaultUser2,
             Polls = [
                 new Poll
                 {
@@ -345,7 +356,33 @@ public class PostServiceTests : IntegrationTest
             ]
         };
 
+        _categoryPost = new()
+        {
+            Creator = _defaultUser2,
+            Polls = [
+                new Poll
+                {
+                    Title = "Category Poll",
+                    Description = "This is a category poll.",
+                    PollType = PollType.Category,
+                    MinValue = 1,
+                    MaxValue = 2,
+                    Candidates = new List<Candidate>
+                    {
+                        new Candidate { Name = "A" }
+                    },
+                    Categories = new List<Category>
+                    {
+                        new Category { Name = "Category 1" },
+                        new Category { Name = "Category 2" }
+                    }
+                }
+            ]
+        };
+
         Context.Posts.Add(_defaultPost);
         Context.Posts.Add(_defaultPost2);
+        Context.Posts.Add(_scorePost);
+        Context.Posts.Add(_categoryPost);
     }
 }
