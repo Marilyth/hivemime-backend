@@ -99,40 +99,43 @@ public class PostService(HiveMimeContext context)
     /// <param name="filter">The filter to apply to the post details.</param>
     public async Task<PostResultDto> GetPostResultAsync(int postId, string filter)
     {
+        // Fetch the results and DTO structure seperately for better performance.
+        PostResultDto resultDto = await context.Posts.Where(p => p.Id == postId)
+            .ProjectToType<PostResultDto>()
+            .FirstAsync();
+
         VoteQueryBase voteQuery = filter.ToVoteQuery();
         Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
 
-        // Fetch post and filtered votes seperately for better performance.
-        List<PostVote> filteredVotes = await context.PostVotes
-            .AsNoTracking()
+        IQueryable<PostVote> filteredVotes = context.PostVotes
             .Where(v => v.PostId == postId)
-            .Where(voteExpression)
-            .Include(v => v.User.Settings)
-            .Include(v => v.Votes)
-            .AsSplitQuery()
-            .ToListAsync();
+            .Where(voteExpression);
+        
+        var candidateResults = await filteredVotes
+            .SelectMany(v => v.Votes)
+            .GroupBy(v => v.CandidateId)
+            .Select(g => new
+            {
+                Id = g.Key,
+                VoterAmount = g.Count(),
+                Score = g.Average(v => v.Value),
+            })
+            .ToDictionaryAsync(g => g.Id);
 
-        Post post = await context.Posts
-            .AsNoTracking()
-            .Include(p => p.Polls.OrderBy(p => p.Id))
-                .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
-            .FirstAsync(p => p.Id == postId);
-
-        Dictionary<int, Candidate> candidateLookup = post.Polls
-            .SelectMany(p => p.Candidates)
-            .ToDictionary(c => c.Id);
-
-        // Add the filtered votes to the candidates.
-        candidateLookup.Values.ToList().ForEach(c => c.Votes = []);
-        foreach (CandidateVote vote in filteredVotes.SelectMany(v => v.Votes))
+        // Merge the results into the structure.
+        foreach (PollCandidateResultDto candidateResult in resultDto.Polls.SelectMany(p => p.Candidates))
         {
-            Candidate candidate = candidateLookup[vote.CandidateId];
-            candidate.Votes.Add(vote);
+            // Candidates unvoted for will remain default, that is okay.
+            if (candidateResults.TryGetValue(candidateResult.Id, out var dbResult))
+            {
+                candidateResult.VoterAmount = dbResult.VoterAmount;
+                candidateResult.Score = dbResult.Score;
+            }
         }
 
-        post.PostVotes = filteredVotes;
+        // TODO: Add auto polls at this point later.
 
-        return post.ToPostResultsDto();
+        return resultDto;
     }
 
     /// <summary>

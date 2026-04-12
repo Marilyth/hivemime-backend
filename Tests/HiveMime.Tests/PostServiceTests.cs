@@ -131,6 +131,28 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
+    public async Task GetPostResultAsync_WithManyScoreVotes_AggregatesCorrectly()
+    {
+        // Arrange
+        Context.Posts.Add(_scorePost);
+        await Context.SaveChangesAsync();
+        
+        var candidate = _scorePost.Polls[0].Candidates[0];
+
+        // Add votes across the range
+        await AddVotesToCandidate(candidate.Id, _scorePost.Id, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]);
+
+        // Act
+        var result = await _service.GetPostResultAsync(_scorePost.Id, "");
+
+        // Assert
+        Assert.Equal(50, result.Polls[0].Candidates[0].Score);
+        Assert.Equal(10, result.Polls[0].Candidates[0].VoterAmount);
+        Assert.Equal(0, result.Polls[1].Candidates[0].Score);
+        Assert.Equal(0, result.Polls[1].Candidates[0].VoterAmount);
+    }
+
+    [Fact]
     public async Task GetCandidateDistributionResultsAsync_ScoreWithLargeRange_BucketsValues()
     {
         // Arrange
