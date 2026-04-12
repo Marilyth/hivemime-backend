@@ -24,5 +24,6 @@ public class CandidateResultDto
 
 public class CandidateDistributionDto
 {
+    public int Value { get; set; }
     public int Score { get; set; }
 }

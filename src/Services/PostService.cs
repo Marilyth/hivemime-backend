@@ -159,17 +159,18 @@ public class PostService(HiveMimeContext context)
         {
             // Bucket up the votes for score polls because of the large amount of possible values.
             int stepValue = (int)Math.Ceiling((candidateInfo.MaxValue - candidateInfo.MinValue + 1) / 10.0);
-            distributionQuery = filteredVotes.GroupBy(v => (v.Value - candidateInfo.MinValue) / stepValue);
+            distributionQuery = filteredVotes.GroupBy(v => ((v.Value - candidateInfo.MinValue) / stepValue) * stepValue + candidateInfo.MinValue);
         }
         else
         {
-             distributionQuery = filteredVotes.GroupBy(v => v.Value);        
+            distributionQuery = filteredVotes.GroupBy(v => v.Value);        
         }
 
         return await distributionQuery
             .OrderBy(g => g.Key)
             .Select(g => new CandidateDistributionDto
             {
+                Value = g.Key,
                 Score = g.Count(),
             })
             .ToListAsync();

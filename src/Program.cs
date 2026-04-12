@@ -26,7 +26,7 @@ public class Program
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
         services.AddDbContextFactory<HiveMimeContext>(options =>
-            options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")), ServiceLifetime.Scoped);
+            options.UseNpgsql(builder.Configuration.GetConnectionString("TestConnection")), ServiceLifetime.Scoped);
         services.AddScoped(s => s.GetService<IDbContextFactory<HiveMimeContext>>().CreateDbContext());
 
         services.AddAuthentication("Bearer")
