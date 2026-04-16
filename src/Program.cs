@@ -80,6 +80,15 @@ public class Program
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
         services.AddSingleton<GeoIPService>();
         services.AddHttpClient();
+        
+        // Add ITriggers.
+        foreach (var type in typeof(Program).Assembly.GetTypes())
+        {
+            if (type.IsClass && !type.IsAbstract && typeof(ITrigger).IsAssignableFrom(type))
+                services.AddScoped(typeof(ITrigger), type);
+        }
+
+        services.AddScoped<TriggerDispatcher>();
 
         // Configure Mapster.
         MapsterConfiguration.Configure();
@@ -121,7 +130,7 @@ public class Program
         {
             // During development, reset the databse on restart.
             var db = scope.ServiceProvider.GetRequiredService<HiveMimeContext>();
-            //db.Database.EnsureDeleted();
+            db.Database.EnsureDeleted();
             db.Database.EnsureCreated();
         }
     }

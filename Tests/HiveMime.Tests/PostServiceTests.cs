@@ -66,7 +66,7 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, newPost.CreatedAt);
+        var result = await _service.BrowsePostsAsync(null, null, null, new() { Cursor = new() { Cursor = newPost.CreatedAt.ToString(), AfterId = newPost.Id } });
 
         // Assert
         Assert.Equal(4, result.Count);
@@ -240,6 +240,87 @@ public class PostServiceTests : IntegrationTest
         {
             Assert.True(result[i].Score <= result[i + 1].Score || i == 0); // First might not follow pattern due to grouping
         }
+    }
+
+    [Fact]
+    public async Task BrowsePosts_OrderByVoteCount_Descending_ReturnsOrdered()
+    {
+        // Arrange
+        // Add votes to posts
+        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, new[] { 1, 1, 1 }); // 3 votes
+        await AddVotesToCandidate(_defaultPost2.Polls[0].Candidates[0].Id, _defaultPost2.Id, new[] { 1 }); // 1 vote
+        await Context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.VoteCount, Ascending = false });
+
+        // Assert
+        Assert.True(result[0].VoteCount >= result[1].VoteCount);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_OrderByCommentCount_Ascending_ReturnsOrdered()
+    {
+        // Arrange
+        var commentService = Context.GetService<CommentService>();
+
+        await commentService.AddCommentAsync(_defaultUser.Id, new() { PostId = _defaultPost.Id, Content = "c1" });
+        await commentService.AddCommentAsync(_defaultUser2.Id, new() { PostId = _defaultPost.Id, Content = "c2" });
+        await commentService.AddCommentAsync(_defaultUser2.Id, new() { PostId = _defaultPost2.Id, Content = "c3" });
+
+        // Act
+        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.CommentCount, Ascending = true });
+
+        // Assert
+        Assert.True(result[0].CommentCount <= result[1].CommentCount);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_CursorPaging_WorksCorrectly()
+    {
+        // Arrange
+        var allPosts = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.CreatedAt, Ascending = true });
+        var lastPost = allPosts.Last();
+        var cursor = new CursorDto { Cursor = lastPost.CreatedAt.ToString(), AfterId = lastPost.Id };
+
+        // Act
+        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.CreatedAt, Ascending = true, Cursor = cursor });
+
+        // Assert
+        Assert.Empty(result); // No posts after the last
+    }
+
+    [Fact]
+    public async Task CreatePost_UpdatesVoteCount()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Title = "VoteCount Post",
+            Description = "desc",
+            Polls = [ new CreatePollDto { Title = "Poll", Description = "desc", PollType = PollType.Choice, Candidates = [ new CreateCandidateDto { Name = "A" } ], Categories = [] } ]
+        };
+        var post = await _service.CreatePostAsync(_defaultUser.Id, postDto);
+        await AddVotesToCandidate(post.Polls[0].Candidates[0].Id, post.Id, new[] { 1, 1 });
+        
+        var updated = await _service.GetPostAsync(post.Id);
+
+        // Assert
+        Assert.Equal(2, updated.VoteCount);
+    }
+
+    [Fact]
+    public async Task AddComment_UpdatesCommentCount()
+    {
+        // Arrange
+        var commentService = Context.GetService<CommentService>();
+        var post = _defaultPost;
+        var dto = new CreateCommentDto { PostId = post.Id, Content = "test", ParentCommentId = null };
+        // Act
+        await commentService.AddCommentAsync(_defaultUser.Id, dto);
+        var updated = await _service.GetPostAsync(post.Id);
+        // Assert
+        Assert.Equal(1, updated.CommentCount);
     }
 
     private async Task AddVotesToCandidate(int candidateId, int postId, int[] values)
