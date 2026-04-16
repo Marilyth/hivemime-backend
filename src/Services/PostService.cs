@@ -33,7 +33,7 @@ public class PostService(HiveMimeContext context)
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
 
-        posts.ApplyPaginationFilter(pagination);
+        posts = posts.ApplyPaginationFilter(pagination);
 
         // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
         if (!string.IsNullOrWhiteSpace(filter))

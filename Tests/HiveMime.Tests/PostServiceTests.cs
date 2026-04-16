@@ -23,7 +23,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByUser_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(_defaultPost.CreatorId, null, null, null);
+        var result = await _service.BrowsePostsAsync(_defaultPost.CreatorId, null, null, new());
 
         // Assert
         Assert.Single(result);
@@ -34,7 +34,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByHive_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, _defaultHive.Id, null, null);
+        var result = await _service.BrowsePostsAsync(null, _defaultHive.Id, null, new());
 
         // Assert
         Assert.Single(result);
@@ -45,7 +45,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithoutFilter_ReturnsAll()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, null);
+        var result = await _service.BrowsePostsAsync(null, null, null, new());
 
         // Assert
         Assert.Equal(4, result.Count);
@@ -59,14 +59,15 @@ public class PostServiceTests : IntegrationTest
         {
             Title = "New Post",
             Description = "This is a new post.",
-            Creator = _defaultUser
+            Creator = _defaultUser,
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(1)
         };
 
         Context.Posts.Add(newPost);
         await Context.SaveChangesAsync();
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new() { Cursor = new() { Cursor = newPost.CreatedAt.ToString(), AfterId = newPost.Id } });
+        var result = await _service.BrowsePostsAsync(null, null, null, new() { Cursor = new() { Cursor = newPost.CreatedAt.ToString("O"), AfterId = newPost.Id } });
 
         // Assert
         Assert.Equal(4, result.Count);
@@ -76,7 +77,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithTextFilter_ReturnsExpected()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, "not a default post", null);
+        var result = await _service.BrowsePostsAsync(null, null, "not a default post", new());
 
         // Assert
         Assert.Single(result);
@@ -262,11 +263,10 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_OrderByCommentCount_Ascending_ReturnsOrdered()
     {
         // Arrange
-        var commentService = Context.GetService<CommentService>();
+        _defaultPost2.Comments = [new() { Content = "c1", User = _defaultUser }, new() { Content = "c2", User = _defaultUser }];
+        _defaultPost.Comments = [new() { Content = "c1", User = _defaultUser2 }];
 
-        await commentService.AddCommentAsync(_defaultUser.Id, new() { PostId = _defaultPost.Id, Content = "c1" });
-        await commentService.AddCommentAsync(_defaultUser2.Id, new() { PostId = _defaultPost.Id, Content = "c2" });
-        await commentService.AddCommentAsync(_defaultUser2.Id, new() { PostId = _defaultPost2.Id, Content = "c3" });
+        await Context.SaveChangesAsync();
 
         // Act
         var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.CommentCount, Ascending = true });
@@ -279,12 +279,12 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_CursorPaging_WorksCorrectly()
     {
         // Arrange
-        var allPosts = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.CreatedAt, Ascending = true });
+        var allPosts = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.DateCreated, Ascending = true });
         var lastPost = allPosts.Last();
-        var cursor = new CursorDto { Cursor = lastPost.CreatedAt.ToString(), AfterId = lastPost.Id };
+        var cursor = new CursorDto { Cursor = lastPost.CreatedAt.ToString("O"), AfterId = lastPost.Id };
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.CreatedAt, Ascending = true, Cursor = cursor });
+        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.DateCreated, Ascending = true, Cursor = cursor });
 
         // Assert
         Assert.Empty(result); // No posts after the last

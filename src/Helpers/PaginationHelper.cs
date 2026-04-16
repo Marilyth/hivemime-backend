@@ -2,12 +2,12 @@ public static class PaginationHelper
 {
     public static IQueryable<Post> ApplyPaginationFilter(this IQueryable<Post> posts, PostPaginationDto pagination)
     {
-        if (pagination is null || pagination.Cursor is null)
+        if (pagination.Cursor?.Cursor is null)
             return posts;
 
         switch (pagination.OrderBy)
         {
-            case OrderBy.CreatedAt:
+            case OrderBy.DateCreated:
                 var cursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
                 return pagination.Ascending ?
                     posts.Where(p => p.CreatedAt > cursor || (p.CreatedAt == cursor && p.Id > pagination.Cursor.AfterId)) :
@@ -33,7 +33,7 @@ public static class PaginationHelper
 
         switch (pagination.OrderBy)
         {
-            case OrderBy.CreatedAt:
+            case OrderBy.DateCreated:
                 orderedPosts = pagination.Ascending ?
                     posts.OrderBy(p => p.CreatedAt) :
                     posts.OrderByDescending(p => p.CreatedAt);
