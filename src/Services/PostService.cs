@@ -99,40 +99,37 @@ public class PostService(HiveMimeContext context)
     /// <param name="filter">The filter to apply to the post details.</param>
     public async Task<PostResultDto> GetPostResultAsync(int postId, string filter)
     {
+        // Fetch the results and DTO structure seperately for better performance.
+        PostResultDto resultDto = await context.Posts.Where(p => p.Id == postId)
+            .ProjectToType<PostResultDto>()
+            .FirstAsync();
+
         VoteQueryBase voteQuery = filter.ToVoteQuery();
         Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
 
-        // Fetch post and filtered votes seperately for better performance.
-        List<PostVote> filteredVotes = await context.PostVotes
-            .AsNoTracking()
+        IQueryable<PostVote> filteredVotes = context.PostVotes
             .Where(v => v.PostId == postId)
-            .Where(voteExpression)
-            .Include(v => v.User.Settings)
-            .Include(v => v.Votes)
-            .AsSplitQuery()
-            .ToListAsync();
+            .Where(voteExpression);
+        
+        IQueryable<CandidateVote> candidateVotes = filteredVotes.SelectMany(v => v.Votes);
+        Dictionary<int, PollCandidateResultDto> candidateResults = await GetCandidateResultsAsync(candidateVotes);
 
-        Post post = await context.Posts
-            .AsNoTracking()
-            .Include(p => p.Polls.OrderBy(p => p.Id))
-                .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
-            .FirstAsync(p => p.Id == postId);
-
-        Dictionary<int, Candidate> candidateLookup = post.Polls
-            .SelectMany(p => p.Candidates)
-            .ToDictionary(c => c.Id);
-
-        // Add the filtered votes to the candidates.
-        candidateLookup.Values.ToList().ForEach(c => c.Votes = []);
-        foreach (CandidateVote vote in filteredVotes.SelectMany(v => v.Votes))
+        // Merge the results into the structure.
+        foreach (PollCandidateResultDto candidateResult in resultDto.Polls.SelectMany(p => p.Candidates))
         {
-            Candidate candidate = candidateLookup[vote.CandidateId];
-            candidate.Votes.Add(vote);
+            // Candidates unvoted for will remain default, that is okay.
+            if (candidateResults.TryGetValue(candidateResult.Id, out var dbResult))
+            {
+                candidateResult.VoterAmount = dbResult.VoterAmount;
+                candidateResult.AverageScore = dbResult.AverageScore;
+                candidateResult.MajorityVote = dbResult.MajorityVote;
+                candidateResult.MajorityRatio = dbResult.MajorityRatio;
+            }
         }
 
-        post.PostVotes = filteredVotes;
+        // TODO: Add auto polls at this point later.
 
-        return post.ToPostResultsDto();
+        return resultDto;
     }
 
     /// <summary>
@@ -162,17 +159,18 @@ public class PostService(HiveMimeContext context)
         {
             // Bucket up the votes for score polls because of the large amount of possible values.
             int stepValue = (int)Math.Ceiling((candidateInfo.MaxValue - candidateInfo.MinValue + 1) / 10.0);
-            distributionQuery = filteredVotes.GroupBy(v => (v.Value - candidateInfo.MinValue) / stepValue);
+            distributionQuery = filteredVotes.GroupBy(v => ((v.Value - candidateInfo.MinValue) / stepValue) * stepValue + candidateInfo.MinValue);
         }
         else
         {
-             distributionQuery = filteredVotes.GroupBy(v => v.Value);        
+            distributionQuery = filteredVotes.GroupBy(v => v.Value);        
         }
 
         return await distributionQuery
             .OrderBy(g => g.Key)
             .Select(g => new CandidateDistributionDto
             {
+                Value = g.Key,
                 Score = g.Count(),
             })
             .ToListAsync();
@@ -381,5 +379,67 @@ public class PostService(HiveMimeContext context)
             if (!uniqueRanks.Contains(rank))
                 yield return $"Ranking poll is missing rank {rank}.";
         }
+    }
+
+    private async Task<Dictionary<int, PollCandidateResultDto>> GetCandidateResultsAsync(IQueryable<CandidateVote> candidateVotes)
+    {
+        // TODO: Split this over multiple DbContexts for parallelization.
+        
+        // Split up the aggregation per aggregation function type.
+        var countCandidates = await candidateVotes
+            .Where(v => v.Candidate.Poll.PollType == PollType.Choice)
+            .GroupBy(v => v.CandidateId)
+            .Select(g => new PollCandidateResultDto
+            {
+                Id = g.Key,
+                VoterAmount = g.Count()
+             })
+             .ToDictionaryAsync(g => g.Id);
+             
+        var averageCandidates = await candidateVotes
+            .Where(v => v.Candidate.Poll.PollType == PollType.Rank || v.Candidate.Poll.PollType == PollType.Score)
+            .GroupBy(v => v.CandidateId)
+            .Select(g => new PollCandidateResultDto
+            {
+                Id = g.Key,
+                VoterAmount = g.Count(),
+                AverageScore = g.Average(v => v.Value)
+             })
+             .ToDictionaryAsync(g => g.Id);
+
+        var majorityCandidates = await candidateVotes
+            .Where(v => v.Candidate.Poll.PollType == PollType.Category)
+            .GroupBy(v => v.CandidateId)
+            .Select(g => new
+            {
+                Id = g.Key,
+                Total = g.Count(),
+                // SQL is unable to drill down a grouping to get the majority. We need to fetch the distribution.
+                Distribution = g
+                    .GroupBy(x => x.Value)
+                    .Select(x => new { Value = x.Key, Count = x.Count() })
+            })
+            .ToListAsync()
+            .ContinueWith(t => t.Result.ToDictionary(x => x.Id, x =>
+            {
+                var majorityVote = x.Distribution.OrderByDescending(d => d.Count).First();
+                return new PollCandidateResultDto
+                {
+                    Id = x.Id,
+                    VoterAmount = x.Total,
+                    MajorityVote = majorityVote.Value,
+                    MajorityRatio = (double)majorityVote.Count / x.Total
+                };
+            }));
+        
+        var results = new Dictionary<int, PollCandidateResultDto>();
+
+        foreach (var task in new[] { countCandidates, averageCandidates, majorityCandidates })
+        {
+            foreach (var kvp in task)
+                results[kvp.Key] = kvp.Value;
+        }
+
+        return results;
     }
 }

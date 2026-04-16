@@ -25,8 +25,9 @@ public class Program
             .AddMvcOptions(o => o.Filters.Add(new AuthorizeFilter()))
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-        services.AddDbContext<HiveMimeContext>(options =>
-            options.UseNpgsql(builder.Configuration.GetConnectionString("TestConnection")));
+        services.AddDbContextFactory<HiveMimeContext>(options =>
+            options.UseNpgsql(builder.Configuration.GetConnectionString("TestConnection")), ServiceLifetime.Scoped);
+        services.AddScoped(s => s.GetService<IDbContextFactory<HiveMimeContext>>().CreateDbContext());
 
         services.AddAuthentication("Bearer")
             .AddJwtBearer("Bearer", options =>
@@ -120,7 +121,7 @@ public class Program
         {
             // During development, reset the databse on restart.
             var db = scope.ServiceProvider.GetRequiredService<HiveMimeContext>();
-            db.Database.EnsureDeleted();
+            //db.Database.EnsureDeleted();
             db.Database.EnsureCreated();
         }
     }

@@ -8,7 +8,6 @@ public static class MapsterConfiguration
     {
         ConfigurePost();
         ConfigureComment();
-        ConfigureCandidate();
         ConfigureHive();
     }
 
@@ -17,13 +16,6 @@ public static class MapsterConfiguration
         _config.NewConfig<Post, PostDto>()
             .Map(dest => dest.CommentCount, src => src.Comments.Count(c => c.ParentCommentId == null))
             .Map(dest => dest.VoteCount, src => src.PostVotes.Count);
-    }
-
-    private static void ConfigureCandidate()
-    {
-        _config.NewConfig<Candidate, PollCandidateResultDto>()
-            .Map(dest => dest.VoterAmount, src => src.Votes.Count)
-            .Map(dest => dest.Score, src => src.Votes.Sum(vote => vote.Value));
     }
 
     private static void ConfigureComment()

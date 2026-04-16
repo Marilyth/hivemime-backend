@@ -16,7 +16,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     public async Task<LoginDto> LoginAsync(string username)
     {
         // TODO: Add security measures / actual login.
-        User user = await context.Users.FirstOrDefaultAsync(u => u.Username == username) ?? await CreateUserAsync(username);
+        User user = await CreateUserAsync(username);
 
         Claim[] claims = [
             new Claim("UserId", user.Id.ToString())
