@@ -21,11 +21,10 @@ public class PostService(HiveMimeContext context)
     /// Fetches and returns a pre selection of hot posts to show in the browse section.
     /// </summary>
     /// <param name="creatorId">The ID of the user to fetch posts from.</param>
-    /// <param name="beforeDate">The date before which to fetch posts.</param>
     /// <param name="filter">The filter to apply to the posts.</param>
-    public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, string filter, DateTimeOffset? beforeDate)
+    /// <param name="pagination">The pagination parameters.</param>
+    public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, string filter, PostPaginationDto pagination)
     {
-        // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
         IQueryable<Post> posts = context.Posts.AsNoTracking();
 
         if (creatorId.HasValue)
@@ -34,9 +33,9 @@ public class PostService(HiveMimeContext context)
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
 
-        if (beforeDate.HasValue)
-            posts = posts.Where(p => p.CreatedAt < beforeDate);
+        posts = posts.ApplyPaginationFilter(pagination);
 
+        // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
         if (!string.IsNullOrWhiteSpace(filter))
         {
             filter = filter.Trim().ToLower();
@@ -48,8 +47,8 @@ public class PostService(HiveMimeContext context)
         }
 
         return await posts
-                    .OrderByDescending(p => p.CreatedAt)
-                    .Take(20)
+                    .ApplyPaginationOrdering(pagination)
+                    .Take(Math.Max(20, pagination.PageSize))
                     .ProjectToType<PostDto>()
                     .ToListAsync();
     }
@@ -198,7 +197,7 @@ public class PostService(HiveMimeContext context)
         PostVote postVote = await context.PostVotes
             .Include(pv => pv.Votes)
             .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.PostId);
-
+        
         if (postVote is null)
         {
             postVote = new PostVote

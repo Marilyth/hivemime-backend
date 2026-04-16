@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 
 public class HiveMimeContext : DbContext
@@ -15,6 +16,18 @@ public class HiveMimeContext : DbContext
     public DbSet<CandidateVote> CandidateVotes { get; set; }
     public DbSet<Candidate> Candidates { get; set; }
     public DbSet<Category> Categories { get; set; }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        TriggerDispatcher dispatcher = this.GetService<TriggerDispatcher>();
+        dispatcher.RegisterChanges(ChangeTracker);
+        
+        await dispatcher.DispatchAsync(true);
+        var result = await base.SaveChangesAsync(cancellationToken);
+        await dispatcher.DispatchAsync(false);
+
+        return result;
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

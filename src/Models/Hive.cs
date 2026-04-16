@@ -12,6 +12,9 @@ public class Hive : EntityWithIdentifier
     public List<Post> Posts { get; set; }
     public List<User> Followers { get; set; }
 
+    public int PostCount { get; set; }
+    public int FollowerCount { get; set; }
+
     [ForeignKey(nameof(Creator))]
     public int CreatorId { get; set; }
     public User? Creator { get; set; }

@@ -12,6 +12,9 @@ public class Post : EntityWithIdentifier
     public List<Comment> Comments { get; set; }
     public List<PostVote> PostVotes { get; set; }
 
+    public int CommentCount { get; set; }
+    public int VoteCount { get; set; }
+
     [ForeignKey(nameof(Creator))]
     public int CreatorId { get; set; }
     public User Creator { get; set; }
