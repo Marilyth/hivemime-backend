@@ -2,7 +2,7 @@ using Mapster;
 using Microsoft.EntityFrameworkCore;
 
 public static class PostExtensions
-{   
+{
     public static IQueryable<Post> IncludeForBrowse(this IQueryable<Post> query)
     {
         return query

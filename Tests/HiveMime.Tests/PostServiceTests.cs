@@ -244,35 +244,22 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task BrowsePosts_OrderByVoteCount_Descending_ReturnsOrdered()
+    public async Task BrowsePosts_OrderByHotness_Descending_ReturnsOrdered()
     {
         // Arrange
-        // Add votes to posts
-        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, new[] { 1, 1, 1 }); // 3 votes
-        await AddVotesToCandidate(_defaultPost2.Polls[0].Candidates[0].Id, _defaultPost2.Id, new[] { 1 }); // 1 vote
-        await Context.SaveChangesAsync();
-
-        // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.VoteCount, Ascending = false });
-
-        // Assert
-        Assert.True(result[0].VoteCount >= result[1].VoteCount);
-    }
-
-    [Fact]
-    public async Task BrowsePosts_OrderByCommentCount_Ascending_ReturnsOrdered()
-    {
-        // Arrange
+        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1, 1, 1 ]);
+        await AddVotesToCandidate(_defaultPost2.Polls[0].Candidates[0].Id, _defaultPost2.Id, [ 1 ]);
+        
         _defaultPost2.Comments = [new() { Content = "c1", User = _defaultUser }, new() { Content = "c2", User = _defaultUser }];
         _defaultPost.Comments = [new() { Content = "c1", User = _defaultUser2 }];
 
         await Context.SaveChangesAsync();
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.CommentCount, Ascending = true });
+        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Hotness, Ascending = false });
 
         // Assert
-        Assert.True(result[0].CommentCount <= result[1].CommentCount);
+        Assert.True(result[0].VoteCount >= result[1].VoteCount);
     }
 
     [Fact]

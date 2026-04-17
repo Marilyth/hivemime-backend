@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
+[Index(nameof(Hotness))]
 public class Post : EntityWithIdentifier
 {
     [MaxLength(128)]
@@ -14,6 +16,7 @@ public class Post : EntityWithIdentifier
 
     public int CommentCount { get; set; }
     public int VoteCount { get; set; }
+    public double Hotness { get; set; }
 
     [ForeignKey(nameof(Creator))]
     public int CreatorId { get; set; }
@@ -22,4 +25,6 @@ public class Post : EntityWithIdentifier
     [ForeignKey(nameof(Hive))]
     public int? HiveId { get; set; }
     public Hive? Hive { get; set; }
+
+    public DateTimeOffset HotnessLastRecalculatedAt { get; set; }
 }
