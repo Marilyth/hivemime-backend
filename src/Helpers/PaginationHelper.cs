@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-
 public static class PaginationHelper
 {
     public static async Task<IQueryable<Post>> ApplyPaginationFilterAsync(this IQueryable<Post> posts, PostPaginationDto pagination)
@@ -42,38 +40,5 @@ public static class PaginationHelper
         }
 
         return orderedPosts.ThenBy(p => p.Id);
-    }
-
-    public static async Task<IQueryable<Post>> ApplyPaginationSizeAsync(this IQueryable<Post> posts, PostPaginationDto pagination)
-    {
-        if(pagination.OrderBy == OrderBy.Hottest)
-            await posts.UpdateTopKHotnessAsync(heapSize: pagination.PageSize);
-
-        return posts.Take(pagination.PageSize);
-    }
-
-    private static async Task UpdateTopKHotnessAsync(this IQueryable<Post> posts, int heapSize)
-    {
-        double minHotness = double.MinValue;
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-
-        while (true)
-        {
-            var topPosts = posts
-                .Where(p => p.Hotness > minHotness)
-                .Where(p => p.HotnessLastRecalculatedAt < now)
-                .Take(heapSize);
-
-            var ids = await topPosts.Select(p => p.Id).ToListAsync();
-
-            // The minimum has stabilised.
-            if (ids.Count < heapSize)
-                break;
-
-            await topPosts.ExecuteUpdateAsync(p => p.UpdateHotness());
-            minHotness = await posts.Where(p => ids.Contains(p.Id)).MinAsync(p => p.Hotness);
-        }
-
-        // The initial query will now be mostly correct.
     }
 }

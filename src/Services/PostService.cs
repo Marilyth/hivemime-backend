@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class PostService(HiveMimeContext context)
+public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue)
 {
     /// <summary>
     /// Fetches and returns a post by its ID, including all its polls and candidates.
@@ -48,8 +48,11 @@ public class PostService(HiveMimeContext context)
                                         || poll.Description.ToLower().Contains(filter)));
         }
 
-        posts = await posts.ApplyPaginationOrdering(pagination)
-            .ApplyPaginationSizeAsync(pagination);
+        posts = posts.ApplyPaginationOrdering(pagination).Take(pagination.PageSize);
+        var postsToUpdate = await posts.Where(p => DateTimeOffset.UtcNow - p.HotnessLastRecalculatedAt > TimeSpan.FromMinutes(60))
+            .Select(p => p.Id).ToListAsync();
+
+        hotnessQueue.AddPosts(postsToUpdate);
 
         return await posts.ProjectToType<PostDto>().ToListAsync();
     }

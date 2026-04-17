@@ -3,7 +3,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 [Index(nameof(Hotness))]
-[Index(nameof(HotnessLastRecalculatedAt))]
 public class Post : EntityWithIdentifier
 {
     [MaxLength(128)]
@@ -27,5 +26,5 @@ public class Post : EntityWithIdentifier
     public int? HiveId { get; set; }
     public Hive? Hive { get; set; }
 
-    public DateTimeOffset HotnessLastRecalculatedAt { get; set; }
+    public DateTimeOffset HotnessLastRecalculatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
