@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 [Index(nameof(Hotness))]
+[Index(nameof(HotnessLastRecalculatedAt))]
 public class Post : EntityWithIdentifier
 {
     [MaxLength(128)]
