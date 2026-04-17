@@ -25,6 +25,8 @@ public class PostService(HiveMimeContext context)
     /// <param name="pagination">The pagination parameters.</param>
     public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, string filter, PostPaginationDto pagination)
     {
+        pagination.PageSize = Math.Clamp(pagination.PageSize, 1, 100);
+
         IQueryable<Post> posts = context.Posts.AsNoTracking();
 
         if (creatorId.HasValue)
@@ -46,11 +48,10 @@ public class PostService(HiveMimeContext context)
                                         || poll.Description.ToLower().Contains(filter)));
         }
 
-        return await posts
-                    .ApplyPaginationOrdering(pagination)
-                    .Take(Math.Max(20, pagination.PageSize))
-                    .ProjectToType<PostDto>()
-                    .ToListAsync();
+        posts = await posts.ApplyPaginationOrdering(pagination)
+            .ApplyPaginationSizeAsync(pagination);
+
+        return await posts.ProjectToType<PostDto>().ToListAsync();
     }
 
     /// <summary>

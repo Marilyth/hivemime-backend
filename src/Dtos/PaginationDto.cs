@@ -15,6 +15,5 @@ public class CursorDto
 public enum OrderBy
 {
     DateCreated,
-    VoteCount,
-    CommentCount
+    Hotness
 }
