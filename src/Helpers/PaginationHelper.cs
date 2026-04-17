@@ -2,23 +2,21 @@ using Microsoft.EntityFrameworkCore;
 
 public static class PaginationHelper
 {
-    public static IQueryable<Post> ApplyPaginationFilter(this IQueryable<Post> posts, PostPaginationDto pagination)
+    public static async Task<IQueryable<Post>> ApplyPaginationFilterAsync(this IQueryable<Post> posts, PostPaginationDto pagination)
     {
-        if (pagination.Cursor?.Cursor is null)
+        if (pagination.Cursor is null)
             return posts;
+
+        Post lastPost = await posts.FirstOrExceptionAsync(p => p.Id == pagination.Cursor);
 
         switch (pagination.OrderBy)
         {
-            case OrderBy.DateCreated:
-                var cursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
-                return pagination.Ascending ?
-                    posts.Where(p => p.CreatedAt > cursor || (p.CreatedAt == cursor && p.Id > pagination.Cursor.AfterId)) :
-                    posts.Where(p => p.CreatedAt < cursor || (p.CreatedAt == cursor && p.Id > pagination.Cursor.AfterId));
-            case OrderBy.Hotness:
-                var hotnessCursor = double.Parse(pagination.Cursor.Cursor);
-                return pagination.Ascending ?
-                    posts.Where(p => p.Hotness > hotnessCursor || (p.Hotness == hotnessCursor && p.Id > pagination.Cursor.AfterId)) :
-                    posts.Where(p => p.Hotness < hotnessCursor || (p.Hotness == hotnessCursor && p.Id > pagination.Cursor.AfterId));
+            case OrderBy.Newest:
+                return posts.Where(p => p.CreatedAt < lastPost.CreatedAt || (p.CreatedAt == lastPost.CreatedAt && p.Id > lastPost.Id));
+            case OrderBy.Oldest:
+                return posts.Where(p => p.CreatedAt > lastPost.CreatedAt || (p.CreatedAt == lastPost.CreatedAt && p.Id > lastPost.Id));
+            case OrderBy.Hottest:
+                return posts.Where(p => p.Hotness < lastPost.Hotness || (p.Hotness == lastPost.Hotness && p.Id > lastPost.Id));
             default:
                 throw new InvalidOperationException("Invalid order by option.");
         }
@@ -30,15 +28,14 @@ public static class PaginationHelper
 
         switch (pagination.OrderBy)
         {
-            case OrderBy.DateCreated:
-                orderedPosts = pagination.Ascending ?
-                    posts.OrderBy(p => p.CreatedAt) :
-                    posts.OrderByDescending(p => p.CreatedAt);
+            case OrderBy.Newest:
+                orderedPosts = posts.OrderByDescending(p => p.CreatedAt);
                 break;
-            case OrderBy.Hotness:
-                orderedPosts = pagination.Ascending ?
-                    posts.OrderBy(p => p.Hotness) :
-                    posts.OrderByDescending(p => p.Hotness);
+            case OrderBy.Oldest:
+                orderedPosts = posts.OrderBy(p => p.CreatedAt);
+                break;
+            case OrderBy.Hottest:
+                orderedPosts = posts.OrderByDescending(p => p.Hotness);
                 break;
             default:
                 throw new InvalidOperationException("Invalid order by option.");
@@ -49,7 +46,7 @@ public static class PaginationHelper
 
     public static async Task<IQueryable<Post>> ApplyPaginationSizeAsync(this IQueryable<Post> posts, PostPaginationDto pagination)
     {
-        if(pagination.OrderBy == OrderBy.Hotness)
+        if(pagination.OrderBy == OrderBy.Hottest)
             await posts.UpdateTopKHotnessAsync(heapSize: pagination.PageSize);
 
         return posts.Take(pagination.PageSize);

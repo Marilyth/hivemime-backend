@@ -1,3 +1,4 @@
+using Mapster;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace HiveMime.Tests;
@@ -46,28 +47,6 @@ public class PostServiceTests : IntegrationTest
     {
         // Act
         var result = await _service.BrowsePostsAsync(null, null, null, new());
-
-        // Assert
-        Assert.Equal(4, result.Count);
-    }
-
-    [Fact]
-    public async Task BrowsePosts_WithDateFilter_ReturnsExpected()
-    {
-        // Arrange
-        Post newPost = new()
-        {
-            Title = "New Post",
-            Description = "This is a new post.",
-            Creator = _defaultUser,
-            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(1)
-        };
-
-        Context.Posts.Add(newPost);
-        await Context.SaveChangesAsync();
-
-        // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new() { Cursor = new() { Cursor = newPost.CreatedAt.ToString("O"), AfterId = newPost.Id } });
 
         // Assert
         Assert.Equal(4, result.Count);
@@ -244,11 +223,11 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task BrowsePosts_OrderByHotness_Descending_ReturnsOrdered()
+    public async Task BrowsePosts_OrderByHotness_ReturnsOrdered()
     {
         // Arrange
-        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1, 1, 1 ]);
-        await AddVotesToCandidate(_defaultPost2.Polls[0].Candidates[0].Id, _defaultPost2.Id, [ 1 ]);
+        await AddVotesToCandidate(_defaultPost2.Polls[0].Candidates[0].Id, _defaultPost2.Id, [ 1, 1, 1 ]);
+        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1 ]);
         
         _defaultPost2.Comments = [new() { Content = "c1", User = _defaultUser }, new() { Content = "c2", User = _defaultUser }];
         _defaultPost.Comments = [new() { Content = "c1", User = _defaultUser2 }];
@@ -256,25 +235,49 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Hotness, Ascending = false });
+        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Hottest });
 
         // Assert
-        Assert.True(result[0].VoteCount >= result[1].VoteCount);
+        Assert.True(Algorithms.HotnessFunction(result[0].Adapt<Post>()) > Algorithms.HotnessFunction(result[1].Adapt<Post>()));
+
+        // Arrange 2
+        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1, 1, 1, 1, 1, 1 ]);
+        await Context.SaveChangesAsync();
+
+        // Act 2
+        var result2 = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Hottest });
+
+        // Assert 2
+        Assert.True(Algorithms.HotnessFunction(result2[0].Adapt<Post>()) > Algorithms.HotnessFunction(result2[1].Adapt<Post>()));
+        Assert.NotEqual(result[0].Id, result2[0].Id);
     }
 
     [Fact]
-    public async Task BrowsePosts_CursorPaging_WorksCorrectly()
+    public async Task BrowsePosts_AtEnd_StopsPaginating()
     {
         // Arrange
-        var allPosts = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.DateCreated, Ascending = true });
-        var lastPost = allPosts.Last();
-        var cursor = new CursorDto { Cursor = lastPost.CreatedAt.ToString("O"), AfterId = lastPost.Id };
+        PostPaginationDto paginationDto = new() { OrderBy = OrderBy.Newest };
+        var result = await _service.BrowsePostsAsync(null, null, null, paginationDto);
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.DateCreated, Ascending = true, Cursor = cursor });
+        result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Newest, Cursor = result.Last().Id });
 
         // Assert
-        Assert.Empty(result); // No posts after the last
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_InBetween_ReturnsNext()
+    {
+        // Arrange
+        var result = await _service.BrowsePostsAsync(null, null, null, new() { OrderBy = OrderBy.Newest, PageSize = 1 });
+
+        // Act
+        var result2 = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Newest, Cursor = result.Last().Id });
+
+        // Assert
+        Assert.NotEmpty(result);
+        Assert.False(result.Any(r => r.Id != result.Last().Id));
     }
 
     [Fact]
