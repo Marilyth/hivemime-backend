@@ -20,7 +20,7 @@ public class HotnessUpdaterTests : IntegrationTest
         post.HotnessLastRecalculatedAt = DateTimeOffset.UtcNow.AddHours(-2);
         await Context.SaveChangesAsync();
 
-        queue.AddPosts([post.Id]);
+        queue.EnqueuePosts([post.Id]);
 
         var updater = new HotnessUpdater(Context.GetService<IServiceScopeFactory>(), logger, queue);
 
@@ -28,7 +28,7 @@ public class HotnessUpdaterTests : IntegrationTest
         await updater.InvokeDoWorkAsync(Context);
 
         // Assert
-        Assert.Empty(queue.GetPostsToUpdate());
+        Assert.Empty(queue.DequeuePosts(1));
         Assert.True(Context.Posts.First().HotnessLastRecalculatedAt > DateTimeOffset.UtcNow.AddMinutes(-1));
     }
 

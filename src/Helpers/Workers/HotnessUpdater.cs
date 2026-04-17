@@ -5,7 +5,7 @@ public class HotnessUpdater : BaseWorker
     private HotnessUpdateQueue updateQueue;
 
     public HotnessUpdater(IServiceScopeFactory serviceScopeFactory, ILogger<HotnessUpdater> logger, HotnessUpdateQueue updateQueue)
-        : base(15, serviceScopeFactory, logger)
+        : base(1, serviceScopeFactory, logger)
     {
         this.updateQueue = updateQueue;
     }
@@ -14,13 +14,11 @@ public class HotnessUpdater : BaseWorker
     {
         const int batchSize = 1000;
 
-        List<int> postsToUpdate = updateQueue.GetPostsToUpdate();
+        List<int> postsToUpdate = updateQueue.DequeuePosts(batchSize);
 
-        for (int i = 0; i < postsToUpdate.Count; i += batchSize)
-        {
-            var batch = postsToUpdate.GetRange(i, Math.Min(batchSize, postsToUpdate.Count - i));
-            await context.Posts.Where(p => batch.Contains(p.Id)).ExecuteUpdateAsync(p => p.UpdateHotness());
-            updateQueue.RemovePosts(batch);
-        }
+        if (postsToUpdate.Count == 0)
+            return;
+            
+        await context.Posts.Where(p => postsToUpdate.Contains(p.Id)).ExecuteUpdateAsync(p => p.UpdateHotness());
     }
 }

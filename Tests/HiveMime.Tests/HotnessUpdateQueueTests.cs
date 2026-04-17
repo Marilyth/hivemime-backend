@@ -11,8 +11,8 @@ public class HotnessUpdateQueueTests
         var queue = new HotnessUpdateQueue();
         var postIds = new List<int> { 1, 2, 3 };
 
-        queue.AddPosts(postIds);
-        var result = queue.GetPostsToUpdate();
+        queue.EnqueuePosts(postIds);
+        var result = queue.DequeuePosts(100);
 
         Assert.Equal(3, result.Count);
         Assert.Contains(1, result);
@@ -25,15 +25,15 @@ public class HotnessUpdateQueueTests
     {
         var queue = new HotnessUpdateQueue();
         var postIds = new List<int> { 1, 2, 3 };
-        queue.AddPosts(postIds);
+        queue.EnqueuePosts(postIds);
 
-        queue.RemovePosts(new List<int> { 2 });
-        var result = queue.GetPostsToUpdate();
+        queue.DequeuePosts(1);
+        var result = queue.DequeuePosts(100);
 
         Assert.Equal(2, result.Count);
-        Assert.Contains(1, result);
+        Assert.Contains(2, result);
         Assert.Contains(3, result);
-        Assert.DoesNotContain(2, result);
+        Assert.DoesNotContain(1, result);
     }
 
     [Fact]
@@ -41,9 +41,9 @@ public class HotnessUpdateQueueTests
     {
         var queue = new HotnessUpdateQueue();
         var postIds = new List<int> { 10, 20 };
-        queue.AddPosts(postIds);
+        queue.EnqueuePosts(postIds);
 
-        var result = queue.GetPostsToUpdate();
+        var result = queue.DequeuePosts(100);
         Assert.Equal(postIds.OrderBy(x => x), result.OrderBy(x => x));
     }
 }

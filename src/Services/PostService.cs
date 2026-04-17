@@ -52,7 +52,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         var postsToUpdate = await posts.Where(p => DateTimeOffset.UtcNow - p.HotnessLastRecalculatedAt > TimeSpan.FromMinutes(60))
             .Select(p => p.Id).ToListAsync();
 
-        hotnessQueue.AddPosts(postsToUpdate);
+        hotnessQueue.EnqueuePosts(postsToUpdate);
 
         return await posts.ProjectToType<PostDto>().ToListAsync();
     }
