@@ -7,7 +7,7 @@ public class PostPaginationDto
 
 public enum OrderBy
 {
-    Newest,
-    Oldest,
-    Hottest
+    New,
+    Old,
+    Hot
 }

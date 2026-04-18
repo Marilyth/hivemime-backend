@@ -9,11 +9,11 @@ public static class PaginationHelper
 
         switch (pagination.OrderBy)
         {
-            case OrderBy.Newest:
+            case OrderBy.New:
                 return posts.Where(p => p.CreatedAt < lastPost.CreatedAt || (p.CreatedAt == lastPost.CreatedAt && p.Id > lastPost.Id));
-            case OrderBy.Oldest:
+            case OrderBy.Old:
                 return posts.Where(p => p.CreatedAt > lastPost.CreatedAt || (p.CreatedAt == lastPost.CreatedAt && p.Id > lastPost.Id));
-            case OrderBy.Hottest:
+            case OrderBy.Hot:
                 return posts.Where(p => p.Hotness < lastPost.Hotness || (p.Hotness == lastPost.Hotness && p.Id > lastPost.Id));
             default:
                 throw new InvalidOperationException("Invalid order by option.");
@@ -26,13 +26,13 @@ public static class PaginationHelper
 
         switch (pagination.OrderBy)
         {
-            case OrderBy.Newest:
+            case OrderBy.New:
                 orderedPosts = posts.OrderByDescending(p => p.CreatedAt);
                 break;
-            case OrderBy.Oldest:
+            case OrderBy.Old:
                 orderedPosts = posts.OrderBy(p => p.CreatedAt);
                 break;
-            case OrderBy.Hottest:
+            case OrderBy.Hot:
                 orderedPosts = posts.OrderByDescending(p => p.Hotness);
                 break;
             default:

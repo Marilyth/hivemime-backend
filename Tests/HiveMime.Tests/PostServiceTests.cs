@@ -235,7 +235,7 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Hottest });
+        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Hot });
 
         // Assert
         Assert.True(Algorithms.HotnessFunction(result[0].Adapt<Post>()) > Algorithms.HotnessFunction(result[1].Adapt<Post>()));
@@ -245,7 +245,7 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act 2
-        var result2 = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Hottest });
+        var result2 = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Hot });
 
         // Assert 2
         Assert.True(Algorithms.HotnessFunction(result2[0].Adapt<Post>()) > Algorithms.HotnessFunction(result2[1].Adapt<Post>()));
@@ -256,11 +256,11 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_AtEnd_StopsPaginating()
     {
         // Arrange
-        PostPaginationDto paginationDto = new() { OrderBy = OrderBy.Newest };
+        PostPaginationDto paginationDto = new() { OrderBy = OrderBy.New };
         var result = await _service.BrowsePostsAsync(null, null, null, paginationDto);
 
         // Act
-        result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Newest, Cursor = result.Last().Id });
+        result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.New, Cursor = result.Last().Id });
 
         // Assert
         Assert.Empty(result);
@@ -270,10 +270,10 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_InBetween_ReturnsNext()
     {
         // Arrange
-        var result = await _service.BrowsePostsAsync(null, null, null, new() { OrderBy = OrderBy.Newest, PageSize = 1 });
+        var result = await _service.BrowsePostsAsync(null, null, null, new() { OrderBy = OrderBy.New, PageSize = 1 });
 
         // Act
-        var result2 = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.Newest, Cursor = result.Last().Id });
+        var result2 = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = OrderBy.New, Cursor = result.Last().Id });
 
         // Assert
         Assert.NotEmpty(result);

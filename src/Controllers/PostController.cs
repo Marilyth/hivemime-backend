@@ -10,7 +10,7 @@ public class PostController(PostService postService) : ControllerBase
     public async Task<PostDto> GetPostById(int postId)
         => await postService.GetPostAsync(postId);
 
-    [HttpGet("browse")]
+    [HttpPost("browse")]
     public async Task<List<PostDto>> BrowsePosts(int? creatorId, int? hiveId, string? filter, PostPaginationDto pagination)
         => await postService.BrowsePostsAsync(creatorId, hiveId, filter, pagination);
 
