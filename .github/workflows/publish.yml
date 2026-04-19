@@ -1,0 +1,34 @@
+name: publish
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: 
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.PRODUCTION_SERVER }} >> ~/.ssh/known_hosts
+
+      - name: Login to registry
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build image
+        run: docker build -t marilyth/hivemime-backend:latest .
+
+      - name: Push image
+        run: docker push marilyth/hivemime-backend:latest
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p ${{ secrets.PRODUCTION_PORT }} ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_SERVER }} \
+          "cd coding/hivemime-backend && docker compose pull backend && docker compose up -d backend"
