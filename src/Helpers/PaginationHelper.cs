@@ -1,27 +1,20 @@
 public static class PaginationHelper
 {
-    public static IQueryable<Post> ApplyPaginationFilter(this IQueryable<Post> posts, PostPaginationDto pagination)
+    public static async Task<IQueryable<Post>> ApplyPaginationFilterAsync(this IQueryable<Post> posts, PostPaginationDto pagination)
     {
-        if (pagination.Cursor?.Cursor is null)
+        if (pagination.Cursor is null)
             return posts;
+
+        Post lastPost = await posts.FirstOrExceptionAsync(p => p.Id == pagination.Cursor);
 
         switch (pagination.OrderBy)
         {
-            case OrderBy.DateCreated:
-                var cursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
-                return pagination.Ascending ?
-                    posts.Where(p => p.CreatedAt > cursor || (p.CreatedAt == cursor && p.Id > pagination.Cursor.AfterId)) :
-                    posts.Where(p => p.CreatedAt < cursor || (p.CreatedAt == cursor && p.Id > pagination.Cursor.AfterId));
-            case OrderBy.VoteCount:
-                var voteCursor = int.Parse(pagination.Cursor.Cursor);
-                return pagination.Ascending ?
-                    posts.Where(p => p.VoteCount > voteCursor || (p.VoteCount == voteCursor && p.Id > pagination.Cursor.AfterId)) :
-                    posts.Where(p => p.VoteCount < voteCursor || (p.VoteCount == voteCursor && p.Id > pagination.Cursor.AfterId));
-            case OrderBy.CommentCount:
-                var commentCursor = int.Parse(pagination.Cursor.Cursor);
-                return pagination.Ascending ?
-                    posts.Where(p => p.CommentCount > commentCursor || (p.CommentCount == commentCursor && p.Id > pagination.Cursor.AfterId)) :
-                    posts.Where(p => p.CommentCount < commentCursor || (p.CommentCount == commentCursor && p.Id > pagination.Cursor.AfterId));
+            case OrderBy.New:
+                return posts.Where(p => p.CreatedAt < lastPost.CreatedAt || (p.CreatedAt == lastPost.CreatedAt && p.Id > lastPost.Id));
+            case OrderBy.Old:
+                return posts.Where(p => p.CreatedAt > lastPost.CreatedAt || (p.CreatedAt == lastPost.CreatedAt && p.Id > lastPost.Id));
+            case OrderBy.Hot:
+                return posts.Where(p => p.Hotness < lastPost.Hotness || (p.Hotness == lastPost.Hotness && p.Id > lastPost.Id));
             default:
                 throw new InvalidOperationException("Invalid order by option.");
         }
@@ -33,20 +26,14 @@ public static class PaginationHelper
 
         switch (pagination.OrderBy)
         {
-            case OrderBy.DateCreated:
-                orderedPosts = pagination.Ascending ?
-                    posts.OrderBy(p => p.CreatedAt) :
-                    posts.OrderByDescending(p => p.CreatedAt);
+            case OrderBy.New:
+                orderedPosts = posts.OrderByDescending(p => p.CreatedAt);
                 break;
-            case OrderBy.VoteCount:
-                orderedPosts = pagination.Ascending ?
-                    posts.OrderBy(p => p.VoteCount) :
-                    posts.OrderByDescending(p => p.VoteCount);
+            case OrderBy.Old:
+                orderedPosts = posts.OrderBy(p => p.CreatedAt);
                 break;
-            case OrderBy.CommentCount:
-                orderedPosts = pagination.Ascending ?
-                    posts.OrderBy(p => p.CommentCount) :
-                    posts.OrderByDescending(p => p.CommentCount);
+            case OrderBy.Hot:
+                orderedPosts = posts.OrderByDescending(p => p.Hotness);
                 break;
             default:
                 throw new InvalidOperationException("Invalid order by option.");

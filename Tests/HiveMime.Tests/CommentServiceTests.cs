@@ -169,7 +169,6 @@ public class CommentServiceTests : IntegrationTest
         _defaultUser = new User { Username = "defaultuser", Settings = new() };
         _defaultPost = new Post
         {
-            Title = "Default Post",
             Creator = _defaultUser,
             Comments = [],
             Polls = [],

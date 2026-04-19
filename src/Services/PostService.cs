@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class PostService(HiveMimeContext context)
+public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue)
 {
     /// <summary>
     /// Fetches and returns a post by its ID, including all its polls and candidates.
@@ -25,6 +25,8 @@ public class PostService(HiveMimeContext context)
     /// <param name="pagination">The pagination parameters.</param>
     public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, string filter, PostPaginationDto pagination)
     {
+        pagination.PageSize = Math.Clamp(pagination.PageSize, 1, 100);
+
         IQueryable<Post> posts = context.Posts.AsNoTracking();
 
         if (creatorId.HasValue)
@@ -33,24 +35,24 @@ public class PostService(HiveMimeContext context)
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
 
-        posts = posts.ApplyPaginationFilter(pagination);
+        posts = await posts.ApplyPaginationFilterAsync(pagination);
 
         // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
         if (!string.IsNullOrWhiteSpace(filter))
         {
             filter = filter.Trim().ToLower();
 
-            posts = posts.Where(p => p.Title.ToLower().Contains(filter)
-                                    || p.Description.ToLower().Contains(filter)
-                                    || p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
-                                        || poll.Description.ToLower().Contains(filter)));
+            posts = posts.Where(p => p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
+                                  || poll.Description.ToLower().Contains(filter)));
         }
 
-        return await posts
-                    .ApplyPaginationOrdering(pagination)
-                    .Take(Math.Max(20, pagination.PageSize))
-                    .ProjectToType<PostDto>()
-                    .ToListAsync();
+        posts = posts.ApplyPaginationOrdering(pagination).Take(pagination.PageSize);
+        var postsToUpdate = await posts.Where(p => DateTimeOffset.UtcNow - p.HotnessLastRecalculatedAt > TimeSpan.FromMinutes(60))
+            .Select(p => p.Id).ToListAsync();
+
+        hotnessQueue.EnqueuePosts(postsToUpdate);
+
+        return await posts.ProjectToType<PostDto>().ToListAsync();
     }
 
     /// <summary>

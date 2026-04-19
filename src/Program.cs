@@ -79,6 +79,7 @@ public class Program
         services.AddScoped<CommentService>();
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
         services.AddSingleton<GeoIPService>();
+        services.AddSingleton<HotnessUpdateQueue>();
         services.AddHttpClient();
         
         // Add ITriggers.
@@ -89,6 +90,9 @@ public class Program
         }
 
         services.AddScoped<TriggerDispatcher>();
+
+        // Add workers.
+        services.AddHostedService<HotnessUpdater>();
 
         // Configure Mapster.
         MapsterConfiguration.Configure();
