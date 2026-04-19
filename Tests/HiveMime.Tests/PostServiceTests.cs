@@ -56,7 +56,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithTextFilter_ReturnsExpected()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, "not a default post", new());
+        var result = await _service.BrowsePostsAsync(null, null, "not a default poll", new());
 
         // Assert
         Assert.Single(result);
@@ -69,8 +69,6 @@ public class PostServiceTests : IntegrationTest
         // Arrange
         var postDto = new CreatePostDto
         {
-            Title = "New Post",
-            Description = "New post description",
             Polls =
             [
                 new CreatePollDto
@@ -92,8 +90,6 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.NotNull(post);
-        Assert.Equal("New Post", post.Title);
-        Assert.Equal("New post description", post.Description);
         Assert.Equal(_defaultUser.Id, post.Creator.Id);
         Assert.Single(post.Polls);
         Assert.Equal("Poll 1", post.Polls[0].Title);
@@ -286,8 +282,6 @@ public class PostServiceTests : IntegrationTest
         // Arrange
         var postDto = new CreatePostDto
         {
-            Title = "VoteCount Post",
-            Description = "desc",
             Polls = [ new CreatePollDto { Title = "Poll", Description = "desc", PollType = PollType.Choice, Candidates = [ new CreateCandidateDto { Name = "A" } ], Categories = [] } ]
         };
         var post = await _service.CreatePostAsync(_defaultUser.Id, postDto);
@@ -355,8 +349,6 @@ public class PostServiceTests : IntegrationTest
 
         _defaultPost = new()
         {
-            Title = "Default Post",
-            Description = "This is a default post.",
             Creator = _defaultUser,
             Polls = [
                 new Poll
@@ -375,8 +367,6 @@ public class PostServiceTests : IntegrationTest
 
         _defaultPost2 = new()
         {
-            Title = "Not a default post",
-            Description = "This is not a default post.",
             Creator = _defaultUser2,
             Hive = _defaultHive,
             Polls = [
@@ -396,8 +386,6 @@ public class PostServiceTests : IntegrationTest
 
         _scorePost = new()
         {
-            Title = "Score Post",
-            Description = "This is a score post with large range.",
             Creator = _defaultUser2,
             Polls = [
                 new Poll

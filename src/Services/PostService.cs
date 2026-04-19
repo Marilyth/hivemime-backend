@@ -42,10 +42,8 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         {
             filter = filter.Trim().ToLower();
 
-            posts = posts.Where(p => p.Title.ToLower().Contains(filter)
-                                    || p.Description.ToLower().Contains(filter)
-                                    || p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
-                                        || poll.Description.ToLower().Contains(filter)));
+            posts = posts.Where(p => p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
+                                  || poll.Description.ToLower().Contains(filter)));
         }
 
         posts = posts.ApplyPaginationOrdering(pagination).Take(pagination.PageSize);

@@ -36,8 +36,6 @@ public class HotnessUpdaterTests : IntegrationTest
     {
         Post post = new()
         {
-            Title = "Default Post",
-            Description = "This is a default post.",
             Creator = new User { Username = "defaultuser", Settings = new() },
             Polls = [
                 new Poll

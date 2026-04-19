@@ -1,15 +1,9 @@
-using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 [Index(nameof(Hotness))]
 public class Post : EntityWithIdentifier
 {
-    [MaxLength(128)]
-    public string? Title { get; set; }
-    [MaxLength(1024)]
-    public string? Description { get; set; }
-
     public List<Poll> Polls { get; set; }
     public List<Comment> Comments { get; set; }
     public List<PostVote> PostVotes { get; set; }
