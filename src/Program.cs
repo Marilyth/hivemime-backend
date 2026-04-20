@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Authorization;
@@ -8,6 +7,15 @@ using Microsoft.OpenApi;
 
 public class Program
 {
+    public static readonly TokenValidationParameters Parameters = new()
+    {
+        ValidateIssuer = true,
+        ValidIssuer = "https://securetoken.google.com/hivemime-6072d",
+        ValidateAudience = true,
+        ValidAudience = "hivemime-6072d",
+        ValidateLifetime = true
+    };
+
     private static WebApplication _app;
 
     public static void Main(string[] args)
@@ -31,15 +39,8 @@ public class Program
         services.AddAuthentication("Bearer")
             .AddJwtBearer(options =>
             {
-                options.Authority = "https://securetoken.google.com/hivemime-6072d";
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidIssuer = "https://securetoken.google.com/hivemime-6072d",
-                    ValidateAudience = true,
-                    ValidAudience = "hivemime-6072d",
-                    ValidateLifetime = true
-                };
+                options.Authority = Parameters.ValidIssuer;
+                options.TokenValidationParameters = Parameters;
             });
         services.AddAuthorization();
 
@@ -132,7 +133,7 @@ public class Program
         {
             // During development, reset the databse on restart.
             var db = scope.ServiceProvider.GetRequiredService<HiveMimeContext>();
-            //db.Database.EnsureDeleted();
+            db.Database.EnsureDeleted();
             db.Database.EnsureCreated();
         }
     }

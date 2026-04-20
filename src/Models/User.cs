@@ -1,7 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.EntityFrameworkCore;
 
+[Index(nameof(UId), IsUnique = true)]
 public class User : EntityWithIdentifier
 {
+    public string UId { get; set; }
+
     [MaxLength(64)]
     public string Username { get; set; }
     [MaxLength(256)]
@@ -9,7 +13,7 @@ public class User : EntityWithIdentifier
 
     public DateTimeOffset? DateOfBirth { get; set; }
 
-    public List<CandidateVote> Votes { get; set; }
+    public List<PostVote> Votes { get; set; }
     public List<Post> CreatedPosts { get; set; }
     public List<Comment> Comments { get; set; }
     public List<Hive> FollowedHives { get; set; }

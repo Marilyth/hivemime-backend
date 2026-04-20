@@ -4,7 +4,7 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class PostController(PostService postService) : ControllerBase
+public class PostController(PostService postService, HiveMimeContext context) : ControllerBase
 {
     [HttpGet("get")]
     public async Task<PostDto> GetPostById(int postId)
@@ -16,7 +16,7 @@ public class PostController(PostService postService) : ControllerBase
 
     [HttpPost("create")]
     public async Task<PostDto> CreatePost([FromBody] CreatePostDto postDto)
-        => await postService.CreatePostAsync(User.GetUserId(), postDto);
+        => await postService.CreatePostAsync(await User.GetUserIdAsync(context), postDto);
 
     [HttpGet("results")]
     public async Task<PostResultDto> GetPostResults(int postId, string? filter)
@@ -28,5 +28,5 @@ public class PostController(PostService postService) : ControllerBase
 
     [HttpPost("vote")]
     public async Task UpsertVoteToPost([FromBody] VoteOnPostDto vote)
-        => await postService.VoteOnPostAsync(User.GetUserId(), vote);
+        => await postService.VoteOnPostAsync(await User.GetUserIdAsync(context), vote);
 }

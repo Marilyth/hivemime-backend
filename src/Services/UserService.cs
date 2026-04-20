@@ -1,75 +1,106 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.IdentityModel.Tokens;
 
 public class UserService(HiveMimeContext context, IConfiguration configuration, GeoIPService geoIPService)
 {
-    /// <summary>
-    /// Creates a JWT token for the user.
-    /// </summary>
-    /// <param name="username">The username of the user to create a token for.</param>
-    /// <returns>A LoginDto containing the JWT token and username.</returns>
-    public async Task<LoginDto> LoginAsync(string username)
-    {
-        // TODO: Add security measures / actual login.
-        User user = await CreateUserAsync(username);
-
-        Claim[] claims = [
-            new Claim("UserId", user.Id.ToString())
-        ];
-
-        SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]));
-        SigningCredentials creds = new(key, SecurityAlgorithms.HmacSha256);
-
-        JwtSecurityToken token = new(
-            issuer: configuration["Jwt:Issuer"],
-            audience: configuration["Jwt:Audience"],
-            claims: claims,
-            expires: DateTime.UtcNow.AddDays(999),
-            signingCredentials: creds
-        );
-
-        string tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-
-        return new LoginDto { Token = tokenString, Username = user.Username };
-    }
-
     /// <summary>
     /// Returns the details of a user, including their settings.
     /// </summary>
     /// <param name="userId">The ID of the user to retrieve details for.</param>
     public async Task<UserDetailsDto> GetUserDetailsAsync(int userId)
     {
+        if (userId == 0)
+            throw new Exception("User does not exist.");
+
         var user = await context.Users.AsNoTracking().Where(u => u.Id == userId).Include(u => u.Settings).FirstAsync();
         return user.Adapt<UserDetailsDto>();
     }
 
     /// <summary>
-    /// Creates a new user with the given username.
+    /// Creates a new user for the given claim or returns the existing user if a user with the same UID already exists.
     /// </summary>
-    /// <param name="username">The username of the user to create.</param>
-    public async Task<User> CreateUserAsync(string username)
+    /// <param name="user">The claims principal containing the user information.</param>
+    public async Task<UserDetailsDto> CreateOrLoginUserAsync(ClaimsPrincipal user)
     {
-        var ipAddress = context.GetService<IHttpContextAccessor>()?.HttpContext?.Connection?.RemoteIpAddress?.ToString();
-        string? country = await geoIPService.GetCountryOfIPAsync(ipAddress);
+        string uid = user.FindFirstValue("user_id")
+            ?? throw new Exception("User ID claim is missing.");
 
-        // TODO: Add support for registration using password / emails / OAuth, etc.
-        var user = new User()
+        if (await context.Users.FirstOrDefaultAsync(u => u.UId == uid) is not User existingUser)
         {
-            Username = username,
-            Settings = new()
+            var ipAddress = context.GetService<IHttpContextAccessor>()?.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+            string? country = await geoIPService.GetCountryOfIPAsync(ipAddress);
+
+            existingUser = new User()
             {
-                Country = country
-            }
-        };
+                Username = "guest_" + Guid.NewGuid().ToString()[..8],
+                UId = uid,
+                Settings = new()
+                {
+                    Country = country
+                }
+            };
 
-        context.Users.Add(user);
+            context.Users.Add(existingUser);
+            await context.SaveChangesAsync();
+        }
+
+        return await GetUserDetailsAsync(existingUser.Id);
+    }
+
+    /// <summary>
+    /// Merges a previous user account into the current one.
+    /// This is used to merge an anonymous account with a new account after login,
+    /// so that the user's posts, comments, votes, etc. are not lost.
+    /// </summary>
+    /// <param name="currentUserId">The ID of the current user.</param>
+    /// <param name="previousUserId">The ID of the previous user to merge.</param>
+    public async Task MergeAccountsAsync(int currentUserId, int previousUserId)
+    {
+        var currentUser = await context.Users.Include(u => u.FollowedHives)
+            .FirstOrExceptionAsync(u => u.Id == currentUserId);
+        var previousUser = await context.Users.FirstOrExceptionAsync(u => u.Id == previousUserId);
+
+        using var transaction = await context.Database.BeginTransactionAsync();
+        
+        // Merge posts.
+        await context.Posts.Where(p => p.CreatorId == previousUserId)
+            .ExecuteUpdateAsync(p => p.SetProperty(post => post.CreatorId, currentUserId));
+
+        // Merge comments.
+        await context.Comments.Where(c => c.UserId == previousUserId)
+            .ExecuteUpdateAsync(c => c.SetProperty(comment => comment.UserId, currentUserId));
+
+        // Merge votes. Discard previous votes already present.
+        var currentVotes = context.PostVotes.Where(v => v.UserId == currentUserId)
+            .Select(v => v.PostId);
+
+        await context.PostVotes.Where(v => v.UserId == previousUserId)
+            .Where(v => !currentVotes.Contains(v.PostId))
+            .ExecuteUpdateAsync(v => v.SetProperty(vote => vote.UserId, currentUserId));
+
+        // Merge hives.
+        await context.Hives.Where(h => h.CreatorId == previousUserId)
+            .ExecuteUpdateAsync(h => h.SetProperty(hive => hive.CreatorId, currentUserId));
+
+        // Merge followed hives.
+        var currentFollowedHives = context.Users.Where(u => u.Id == currentUserId)
+            .SelectMany(u => u.FollowedHives)
+            .Select(h => h.Id);
+
+        var previousFollowedHives = context.Users.Where(u => u.Id == previousUserId)
+            .SelectMany(u => u.FollowedHives)
+            .Where(h => !currentFollowedHives.Contains(h.Id))
+            .ToListAsync();
+
+        foreach (var hive in await previousFollowedHives)
+            currentUser.FollowedHives.Add(hive);
+        
+        // Remove previous user.
+        context.Users.Remove(previousUser);
+
         await context.SaveChangesAsync();
-
-        return user;
+        await transaction.CommitAsync();
     }
 }
