@@ -19,6 +19,8 @@ services:
     image: marilyth/hivemime-backend:latest
     container_name: hivemime-backend
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     environment:
-      ConnectionStrings__Default: ${DB_CONNECTION}
-      Jwt__Key: ${JWT_KEY}
+      ConnectionStrings__Default: ${ConnectionStrings__Default}
+      Jwt__Key: ${Jwt__Key}
