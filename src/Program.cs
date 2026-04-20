@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json.Serialization;
-using Mapster;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -30,17 +29,16 @@ public class Program
         services.AddScoped(s => s.GetService<IDbContextFactory<HiveMimeContext>>().CreateDbContext());
 
         services.AddAuthentication("Bearer")
-            .AddJwtBearer("Bearer", options =>
+            .AddJwtBearer(options =>
             {
+                options.Authority = "https://securetoken.google.com/hivemime-6072d";
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
+                    ValidIssuer = "https://securetoken.google.com/hivemime-6072d",
                     ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = builder.Configuration["Jwt:Issuer"],
-                    ValidAudience = builder.Configuration["Jwt:Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+                    ValidAudience = "hivemime-6072d",
+                    ValidateLifetime = true
                 };
             });
         services.AddAuthorization();
