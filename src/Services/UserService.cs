@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -27,15 +28,16 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
         string uid = user.FindFirstValue("user_id")
             ?? throw new Exception("User ID claim is missing.");
 
-        if (await context.Users.FirstOrDefaultAsync(u => u.UId == uid) is not User existingUser)
+        if (await context.Users.FirstOrDefaultAsync(u => u.FirebaseId == uid) is not User existingUser)
         {
             var ipAddress = context.GetService<IHttpContextAccessor>()?.HttpContext?.Connection?.RemoteIpAddress?.ToString();
             string? country = await geoIPService.GetCountryOfIPAsync(ipAddress);
 
             existingUser = new User()
             {
-                Username = "guest_" + Guid.NewGuid().ToString()[..8],
-                UId = uid,
+                Username = "guest_" + Guid.NewGuid().ToString(),
+                FirebaseId = uid,
+                IsAnonymous = true,
                 Settings = new()
                 {
                     Country = country
@@ -43,9 +45,9 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
             };
 
             context.Users.Add(existingUser);
-            await context.SaveChangesAsync();
         }
 
+        await UpdateUserStatus(user, existingUser);
         return await GetUserDetailsAsync(existingUser.Id);
     }
 
@@ -102,5 +104,55 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
 
         await context.SaveChangesAsync();
         await transaction.CommitAsync();
+    }
+
+    /// <summary>
+    /// Updates the user's status based on their claims.
+    /// </summary>
+    /// <param name="claims">The claims principal containing the user information.</param>
+    /// <param name="user">The user to update.</param>
+    private async Task UpdateUserStatus(ClaimsPrincipal claims, User user)
+    {
+        string firebaseJson = claims.FindFirst("firebase").Value;
+
+        var firebaseDocument = JsonDocument.Parse(firebaseJson).RootElement;
+        var provider = firebaseDocument.GetProperty("sign_in_provider").GetString();
+        var identities = firebaseDocument.GetProperty("identities")
+            .EnumerateObject()
+            .ToDictionary(p => p.Name, p => p.Value.EnumerateArray().Select(v => v.GetString()).ToList());
+
+        var email = identities.ContainsKey("email") ? identities["email"].First() :
+            claims.HasClaim(c => c.Type == "email") ? claims.FindFirst("email").Value : null;
+
+        // If the user has a guest name, overwrite it with a new one.
+        if (user.IsAnonymous && provider != "anonymous")
+        {
+            if (claims.HasClaim(c => c.Type == "name"))
+                user.Username = claims.FindFirst("name")!.Value;
+            else if (email is not null)
+                user.Username = email.Split('@')[0];
+            else
+                user.Username = "user_" + Guid.NewGuid().ToString();
+
+            user.Username = user.Username.Length > 64 ? user.Username[..64] : user.Username;
+
+            // This is not perfect but if it collides just try again.
+            if (context.Users.Any(u => u.Username == user.Username && u.Id != user.Id))
+            {
+                user.Username = user.Username.Length > 55 ? user.Username[..55] : user.Username;
+                user.Username += "_" + Guid.NewGuid().ToString()[..8];
+            }
+
+            user.IsAnonymous = false;
+        }
+
+        if (provider == "anonymous" ||
+            claims.HasClaim(c => c.Type == "email_verified" && c.Value == "false"))
+            user.IsVerified = false;
+        else
+            user.IsVerified = true;
+
+        user.LastLogin = DateTimeOffset.UtcNow;
+        await context.SaveChangesAsync();
     }
 }

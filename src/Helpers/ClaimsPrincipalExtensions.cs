@@ -10,7 +10,7 @@ public static class ClaimsPrincipalExtensions
         if (userIdClaim is null)
             return -1;
 
-        return await context.Users.Where(u => u.UId == userIdClaim.Value)
+        return await context.Users.Where(u => u.FirebaseId == userIdClaim.Value)
             .Select(u => u.Id).FirstOrDefaultAsync();
     }
 }
