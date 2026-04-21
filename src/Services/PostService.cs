@@ -375,7 +375,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         if (uniqueRanks.Count != expectedRankCount)
             yield return "Duplicate values are not allowed in ranking polls.";
 
-        for (int rank = 1; rank <= expectedRankCount; rank++)
+        for (int rank = poll.MaxValue - expectedRankCount + 1; rank <= poll.MaxValue; rank++)
         {
             if (!uniqueRanks.Contains(rank))
                 yield return $"Ranking poll is missing rank {rank}.";

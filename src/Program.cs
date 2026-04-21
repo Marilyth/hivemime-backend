@@ -1,6 +1,4 @@
-using System.Text;
 using System.Text.Json.Serialization;
-using Mapster;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +7,15 @@ using Microsoft.OpenApi;
 
 public class Program
 {
+    public static readonly TokenValidationParameters Parameters = new()
+    {
+        ValidateIssuer = true,
+        ValidIssuer = "https://securetoken.google.com/hivemime-6072d",
+        ValidateAudience = true,
+        ValidAudience = "hivemime-6072d",
+        ValidateLifetime = true
+    };
+
     private static WebApplication _app;
 
     public static void Main(string[] args)
@@ -30,18 +37,10 @@ public class Program
         services.AddScoped(s => s.GetService<IDbContextFactory<HiveMimeContext>>().CreateDbContext());
 
         services.AddAuthentication("Bearer")
-            .AddJwtBearer("Bearer", options =>
+            .AddJwtBearer(options =>
             {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = builder.Configuration["Jwt:Issuer"],
-                    ValidAudience = builder.Configuration["Jwt:Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
-                };
+                options.Authority = Parameters.ValidIssuer;
+                options.TokenValidationParameters = Parameters;
             });
         services.AddAuthorization();
 
@@ -134,7 +133,7 @@ public class Program
         {
             // During development, reset the databse on restart.
             var db = scope.ServiceProvider.GetRequiredService<HiveMimeContext>();
-            //db.Database.EnsureDeleted();
+            db.Database.EnsureDeleted();
             db.Database.EnsureCreated();
         }
     }

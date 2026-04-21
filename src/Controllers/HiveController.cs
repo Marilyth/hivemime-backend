@@ -5,7 +5,7 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class HiveController(HiveService hiveService) : ControllerBase
+public class HiveController(HiveService hiveService, HiveMimeContext context) : ControllerBase
 {
     [HttpGet("get")]
     public async Task<HiveDto> GetHiveById(int hiveId)
@@ -13,15 +13,15 @@ public class HiveController(HiveService hiveService) : ControllerBase
 
     [HttpGet("followed")]
     public async Task<List<HiveDto>> GetFollowedHives(int? userId)
-        => await hiveService.GetFollowedHivesAsync(userId ?? User.GetUserId());
+        => await hiveService.GetFollowedHivesAsync(userId ?? await User.GetUserIdAsync(context));
 
     [HttpPost("join")]
     public async Task JoinHive(int hiveId)
-        => await hiveService.JoinHiveAsync(User.GetUserId(), hiveId);
+        => await hiveService.JoinHiveAsync(await User.GetUserIdAsync(context), hiveId);
         
     [HttpPost("leave")]
     public async Task LeaveHive(int hiveId)
-        => await hiveService.LeaveHiveAsync(User.GetUserId(), hiveId);
+        => await hiveService.LeaveHiveAsync(await User.GetUserIdAsync(context), hiveId);
 
     [HttpGet("browse")]
     public async Task<List<HiveDto>> BrowseHives(int? afterId, string? filter)
@@ -29,5 +29,5 @@ public class HiveController(HiveService hiveService) : ControllerBase
 
     [HttpPost("create")]
     public async Task<HiveDto> CreateHive([FromBody] CreateHiveDto hiveDto)
-        => await hiveService.CreateHiveAsync(User.GetUserId(), hiveDto);
+        => await hiveService.CreateHiveAsync(await User.GetUserIdAsync(context), hiveDto);
 }

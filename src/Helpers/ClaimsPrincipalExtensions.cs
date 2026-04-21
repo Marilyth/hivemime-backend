@@ -1,18 +1,16 @@
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 public static class ClaimsPrincipalExtensions
 {
-    public static User GetUser(this ClaimsPrincipal user, HiveMimeContext context)
+    public static async Task<int> GetUserIdAsync(this ClaimsPrincipal user, HiveMimeContext context)
     {
-        int userId = user.GetUserId();
+        Claim userIdClaim = user.FindFirst("user_id")!;
 
-        return userId == -1 ? null : context.Users.Find(userId);
-    }
+        if (userIdClaim is null)
+            return -1;
 
-    public static int GetUserId(this ClaimsPrincipal user)
-    {
-        Claim userIdClaim = user.FindFirst("UserId")!;
-
-        return userIdClaim is null ? -1 : int.Parse(userIdClaim.Value);
+        return await context.Users.Where(u => u.FirebaseId == userIdClaim.Value)
+            .Select(u => u.Id).FirstOrDefaultAsync();
     }
 }
