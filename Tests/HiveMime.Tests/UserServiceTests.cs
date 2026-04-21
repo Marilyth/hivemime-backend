@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace HiveMime.Tests;
 
@@ -40,7 +41,7 @@ public class UserServiceTests : IntegrationTest
     public async Task CreateUserAsync_ValidClaims_CreatesUser()
     {
         // Arrange
-        var claims = new List<Claim> { new("user_id", "test-uid"), new("firebase", "{\"sign_in_provider\":\"test\"}") };
+        var claims = new List<Claim> { new("user_id", "test-uid"), new("firebase", "{\"sign_in_provider\":\"test\", \"identities\":{}}") };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var principal = new ClaimsPrincipal(identity);
 
@@ -68,7 +69,7 @@ public class UserServiceTests : IntegrationTest
     public async Task CreateUserAsync_AnonymousUser_SetsFlags()
     {
         // Arrange
-        var claims = new List<Claim> { new("user_id", "uid"), new("firebase", "{\"sign_in_provider\":\"anonymous\"}") };
+        var claims = new List<Claim> { new("user_id", "uid"), new("firebase", "{\"sign_in_provider\":\"anonymous\", \"identities\":{}}") };
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var principal = new ClaimsPrincipal(identity);
 
@@ -88,7 +89,7 @@ public class UserServiceTests : IntegrationTest
         // Arrange
         var claims = new List<Claim> {
             new("user_id", "uid"),
-            new("firebase", "{\"sign_in_provider\":\"password\"}"),
+            new("firebase", "{\"sign_in_provider\":\"password\", \"identities\":{}}"),
             new("email", "test@test.com"),
             new("email_verified", "false")
         };
@@ -114,7 +115,7 @@ public class UserServiceTests : IntegrationTest
 
         var claims = new List<Claim> {
             new("user_id", "existing-uid"),
-            new("firebase", "{\"sign_in_provider\":\"password\"}"),
+            new("firebase", "{\"sign_in_provider\":\"password\", \"identities\":{}}"),
             new("email", "test@test.com"),
             new("email_verified", "true")
         };
@@ -140,7 +141,7 @@ public class UserServiceTests : IntegrationTest
 
         var claims = new List<Claim> {
             new("user_id", "uid"),
-            new("firebase", "{\"sign_in_provider\":\"password\"}"),
+            new("firebase", "{\"sign_in_provider\":\"password\", \"identities\":{}}"),
             new("email", "test@test.com"),
             new("email_verified", "true")
         };
@@ -158,6 +159,61 @@ public class UserServiceTests : IntegrationTest
     [Fact]
     public async Task MergeAccountsAsync_ValidUserIds_MergesAccounts()
     {
-        // ToDo.
+        // Arrange
+        var currentUser = new User { Username = "current", Settings = new(), FollowedHives = new List<Hive>() };
+        var previousUser = new User { Username = "previous", Settings = new(), FollowedHives = new List<Hive>() };
+        Context.Users.AddRange(currentUser, previousUser);
+        await Context.SaveChangesAsync();
+
+        // Reload users to get tracked entities with IDs
+        currentUser = Context.Users.First(u => u.Username == "current");
+        previousUser = Context.Users.First(u => u.Username == "previous");
+
+        // Create a hive and have previousUser follow it
+        var hive = new Hive { Name = "TestHive", Description = "desc", CreatorId = previousUser.Id, Followers = new List<User>() };
+        Context.Hives.Add(hive);
+        await Context.SaveChangesAsync();
+
+        // Reload hive to get tracked entity with ID
+        hive = Context.Hives.First(h => h.Name == "TestHive");
+
+        // Only set navigation from one side
+        previousUser.FollowedHives.Add(hive);
+        await Context.SaveChangesAsync();
+
+        // Create a post by previousUser
+        var post = new Post { CreatorId = previousUser.Id, HiveId = hive.Id, Hotness = 1.0, CommentCount = 0, VoteCount = 0 };
+        Context.Posts.Add(post);
+        await Context.SaveChangesAsync();
+
+        // Create a comment by previousUser
+        var comment = new Comment { Content = "test", UserId = previousUser.Id, PostId = post.Id };
+        Context.Comments.Add(comment);
+        await Context.SaveChangesAsync();
+
+        // Create a vote by previousUser
+        var vote = new PostVote { UserId = previousUser.Id, PostId = post.Id };
+        Context.Set<PostVote>().Add(vote);
+        await Context.SaveChangesAsync();
+
+        // Detach all tracked entities to avoid concurrency issues
+        foreach (var entry in Context.ChangeTracker.Entries().ToList())
+            entry.State = EntityState.Detached;
+
+        // Act
+        await _service.MergeAccountsAsync(currentUser.Id, previousUser.Id);
+
+        // Assert
+        // Previous user should be deleted
+        Assert.False(Context.Users.Any(u => u.Id == previousUser.Id));
+
+        // Post, comment, and vote should now belong to currentUser
+        Assert.All(Context.Posts, p => Assert.Equal(currentUser.Id, p.CreatorId));
+        Assert.All(Context.Comments, c => Assert.Equal(currentUser.Id, c.UserId));
+        Assert.All(Context.Set<PostVote>(), v => Assert.Equal(currentUser.Id, v.UserId));
+
+        // Followed hives should be merged
+        var refreshedCurrentUser = Context.Users.Include(u => u.FollowedHives).First(u => u.Id == currentUser.Id);
+        Assert.Contains(refreshedCurrentUser.FollowedHives, h => h.Id == hive.Id);
     }
 }
