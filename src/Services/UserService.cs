@@ -56,6 +56,13 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
         return await GetUserDetailsAsync(existingUser.Id);
     }
 
+    /// <summary>
+    /// Updates the user's details, including their username and settings. Validates the input and checks for username uniqueness.
+    /// </summary>
+    /// <param name="userId">The ID of the user to update.</param>
+    /// <param name="userDetails">The new details for the user.</param>
+    /// <returns>The updated user details.</returns>
+    /// <exception cref="ValidationException">Thrown when the input is invalid.</exception>
     public async Task<UserDetailsDto> UpdateUserAsync(int userId, UserDetailsDto userDetails)
     {
         var user = await context.Users.Include(u => u.Settings).FirstOrExceptionAsync(u => u.Id == userId);
