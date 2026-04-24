@@ -69,7 +69,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             hive = await context.Hives.FirstOrExceptionAsync(h => h.Id == postDto.HiveId.Value);
 
         if (validationErrors.Any())
-            throw new InvalidOperationException("Post validation failed: " + string.Join("; ", validationErrors));
+            throw new ValidationException("Post validation failed: " + string.Join("; ", validationErrors));
 
         Post newPost = postDto.Adapt<Post>();
 
@@ -105,13 +105,17 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             .ProjectToType<PostResultDto>()
             .FirstAsync();
 
-        VoteQueryBase voteQuery = filter.ToVoteQuery();
-        Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
-
         IQueryable<PostVote> filteredVotes = context.PostVotes
-            .Where(v => v.PostId == postId)
-            .Where(voteExpression);
-        
+            .Where(v => v.PostId == postId);
+
+        if (!string.IsNullOrWhiteSpace(filter))
+        {
+            VoteQueryBase voteQuery = filter.ToVoteQuery();
+            Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
+            filteredVotes = filteredVotes.Where(v => !v.User.Settings.ProtectVoteOnFilter)
+                .Where(voteExpression);
+        }
+
         IQueryable<CandidateVote> candidateVotes = filteredVotes.SelectMany(v => v.Votes);
         Dictionary<int, PollCandidateResultDto> candidateResults = await GetCandidateResultsAsync(candidateVotes);
 
@@ -194,7 +198,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         IEnumerable<string> validationErrors = ValidatePostVotes(post, vote);
 
         if (validationErrors.Any())
-            throw new InvalidOperationException("Vote validation failed: " + string.Join("; ", validationErrors));
+            throw new ValidationException("Vote validation failed: " + string.Join("; ", validationErrors));
             
         PostVote postVote = await context.PostVotes
             .Include(pv => pv.Votes)
@@ -274,7 +278,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         if (dto.PollType == PollType.Score)
         {
             if (dto.StepValue is null)
-                throw new InvalidOperationException("StepValue must be set for scoring polls.");
+                throw new ValidationException("StepValue must be set for scoring polls.");
 
             if (dto.StepValue <= 0)
                 yield return "StepValue must be greater than 0.";

@@ -126,7 +126,7 @@ public class HiveServiceTests : IntegrationTest
         };
 
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateHiveAsync(user.Id, hiveDto));
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateHiveAsync(user.Id, hiveDto));
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class HiveServiceTests : IntegrationTest
         };
 
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateHiveAsync(user.Id, hiveDto));
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateHiveAsync(user.Id, hiveDto));
     }
     
     protected override void SeedDatabase()

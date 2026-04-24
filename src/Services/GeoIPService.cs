@@ -12,7 +12,7 @@ public class GeoIPService(IHttpClientFactory httpClientFactory)
         await DownloadCountryDatabaseAsync();
         string? country = null;
 
-        try { country = _dbReader?.Country(ipAddress).Country.Name; }
+        try { country = _dbReader?.Country(ipAddress).Country.IsoCode; }
         catch { }
         
         return country;

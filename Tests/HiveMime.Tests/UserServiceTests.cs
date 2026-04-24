@@ -62,7 +62,7 @@ public class UserServiceTests : IntegrationTest
         var principal = new ClaimsPrincipal(identity);
 
         // Act & Assert
-        await Assert.ThrowsAsync<Exception>(() => _service.CreateOrLoginUserAsync(principal));
+        await Assert.ThrowsAsync<ValidationException>(() => _service.CreateOrLoginUserAsync(principal));
     }
 
     [Fact]
@@ -215,5 +215,137 @@ public class UserServiceTests : IntegrationTest
         // Followed hives should be merged
         var refreshedCurrentUser = Context.Users.Include(u => u.FollowedHives).First(u => u.Id == currentUser.Id);
         Assert.Contains(refreshedCurrentUser.FollowedHives, h => h.Id == hive.Id);
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_UsernameTooShort_ThrowsValidationException()
+    {
+        var user = new User { Username = "validuser", Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+
+        var dto = new UserDetailsDto
+        {
+            Username = "ab",
+            Settings = new UserSettingsDto()
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.UpdateUserAsync(user.Id, dto));
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_UsernameTooLong_ThrowsValidationException()
+    {
+        var user = new User { Username = "validuser", Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+
+        var dto = new UserDetailsDto
+        {
+            Username = new string('a', 65),
+            Settings = new UserSettingsDto()
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.UpdateUserAsync(user.Id, dto));
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_UsernameDuplicate_ThrowsValidationException()
+    {
+        var user1 = new User { Username = "user1", Settings = new() };
+        var user2 = new User { Username = "user2", Settings = new() };
+        Context.Users.AddRange(user1, user2);
+        await Context.SaveChangesAsync();
+
+        var dto = new UserDetailsDto
+        {
+            Username = "user2",
+            Settings = new UserSettingsDto()
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.UpdateUserAsync(user1.Id, dto));
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_InvalidCountry_ThrowsValidationException()
+    {
+        var user = new User { Username = "validuser", Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+
+        var dto = new UserDetailsDto
+        {
+            Username = "validuser",
+            Settings = new UserSettingsDto { Country = "XX" } // Invalid country
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.UpdateUserAsync(user.Id, dto));
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_TooYoung_ThrowsValidationException()
+    {
+        var user = new User { Username = "validuser", Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+
+        var dto = new UserDetailsDto
+        {
+            Username = "validuser",
+            DateOfBirth = DateTimeOffset.UtcNow.AddYears(-10), // Too young
+            Settings = new UserSettingsDto()
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.UpdateUserAsync(user.Id, dto));
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_TooOld_ThrowsValidationException()
+    {
+        var user = new User { Username = "validuser", Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+
+        var dto = new UserDetailsDto
+        {
+            Username = "validuser",
+            DateOfBirth = DateTimeOffset.UtcNow.AddYears(-140), // Too old
+            Settings = new UserSettingsDto()
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.UpdateUserAsync(user.Id, dto));
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_ValidUpdate_UpdatesUserAndSettings()
+    {
+        var user = new User { Username = "oldname", Settings = new UserSettings() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+
+        var dto = new UserDetailsDto
+        {
+            Username = "newname",
+            DateOfBirth = DateTimeOffset.UtcNow.AddYears(-20),
+            Settings = new UserSettingsDto
+            {
+                Country = "US",
+                ShareAgeOnVote = false,
+                ShareCountryOnVote = false,
+                ShareDateOnVote = false,
+                ProtectVoteOnFilter = true
+            }
+        };
+
+        var result = await _service.UpdateUserAsync(user.Id, dto);
+
+        var updated = Context.Users.Include(u => u.Settings).First(u => u.Id == user.Id);
+        Assert.Equal("newname", updated.Username);
+        Assert.Equal(dto.DateOfBirth, updated.DateOfBirth);
+        Assert.Equal("US", updated.Settings.Country);
+        Assert.False(updated.Settings.ShareAgeOnVote);
+        Assert.False(updated.Settings.ShareCountryOnVote);
+        Assert.False(updated.Settings.ShareDateOnVote);
+        Assert.True(updated.Settings.ProtectVoteOnFilter);
     }
 }
