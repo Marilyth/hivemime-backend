@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
 using Mapster;
@@ -6,6 +7,10 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 
 public class UserService(HiveMimeContext context, IConfiguration configuration, GeoIPService geoIPService)
 {
+    private HashSet<string> _countries = CultureInfo.GetCultures(CultureTypes.SpecificCultures)
+        .Select(c => new RegionInfo(c.Name).TwoLetterISORegionName)
+        .ToHashSet();
+
     /// <summary>
     /// Returns the details of a user, including their settings.
     /// </summary>
@@ -13,7 +18,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     public async Task<UserDetailsDto> GetUserDetailsAsync(int userId)
     {
         if (userId == 0)
-            throw new Exception("User does not exist.");
+            throw new NotFoundException("User does not exist.");
 
         var user = await context.Users.AsNoTracking().Where(u => u.Id == userId).Include(u => u.Settings).FirstAsync();
         return user.Adapt<UserDetailsDto>();
@@ -26,7 +31,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     public async Task<UserDetailsDto> CreateOrLoginUserAsync(ClaimsPrincipal user)
     {
         string uid = user.FindFirstValue("user_id")
-            ?? throw new Exception("User ID claim is missing.");
+            ?? throw new ValidationException("User ID claim is missing.");
 
         if (await context.Users.FirstOrDefaultAsync(u => u.FirebaseId == uid) is not User existingUser)
         {
@@ -49,6 +54,51 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
 
         await UpdateUserStatus(user, existingUser);
         return await GetUserDetailsAsync(existingUser.Id);
+    }
+
+    public async Task<UserDetailsDto> UpdateUserAsync(int userId, UserDetailsDto userDetails)
+    {
+        var user = await context.Users.Include(u => u.Settings).FirstOrExceptionAsync(u => u.Id == userId);
+        string newUserName = userDetails.Username?.Trim();
+
+        if (newUserName.Length < 3)
+            throw new ValidationException("Username must be at least 3 characters long.");
+
+        if (newUserName.Length > 64)
+            throw new ValidationException("Username must be at most 64 characters long.");
+
+        if (user.Username != newUserName)
+        {
+            if (context.Users.Any(u => u.Username == newUserName && u.Id != userId))
+                throw new ValidationException($"Username \"{newUserName}\" is already taken. Please pick another one.");
+
+            user.Username = newUserName;
+        }
+
+        if (!string.IsNullOrEmpty(userDetails.Settings.Country) && !_countries.Contains(userDetails.Settings.Country))
+            throw new ValidationException("Invalid country code.");
+
+        if (userDetails.DateOfBirth.HasValue)
+        {
+            DateTimeOffset minAge = DateTimeOffset.UtcNow.AddYears(-13);
+            if (userDetails.DateOfBirth.Value > minAge)
+                throw new ValidationException("You must be at least 13 years old to use this service.");
+
+            DateTimeOffset maxAge = DateTimeOffset.UtcNow.AddYears(-130);
+            if (userDetails.DateOfBirth.Value < maxAge)
+                throw new ValidationException("Invalid date of birth.");
+
+            user.DateOfBirth = userDetails.DateOfBirth;
+        }
+
+        user.Settings.Country = userDetails.Settings.Country;
+        user.Settings.ShareAgeOnVote = userDetails.Settings.ShareAgeOnVote;
+        user.Settings.ShareCountryOnVote = userDetails.Settings.ShareCountryOnVote;
+        user.Settings.ShareDateOnVote = userDetails.Settings.ShareDateOnVote;
+        user.Settings.ProtectVoteOnFilter = userDetails.Settings.ProtectVoteOnFilter;
+
+        await context.SaveChangesAsync();
+        return await GetUserDetailsAsync(user.Id);
     }
 
     /// <summary>

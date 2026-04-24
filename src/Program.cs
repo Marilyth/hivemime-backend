@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -97,6 +98,28 @@ public class Program
         MapsterConfiguration.Configure();
 
         _app = builder.Build();
+
+        _app.UseExceptionHandler(appError =>
+        {
+            appError.Run(async context =>
+            {
+                var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+
+                context.Response.ContentType = "application/json";
+                context.Response.StatusCode = error switch
+                {
+                    ValidationException => 400,
+                    UnauthorizedAccessException => 401,
+                    NotFoundException => 404,
+                    _ => 500
+                };
+
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    error = error?.Message
+                });
+            });
+        });
 
         // Make IP retrieval work for reverse proxies.
         _app.UseForwardedHeaders(new ForwardedHeadersOptions

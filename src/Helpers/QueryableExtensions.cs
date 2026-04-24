@@ -12,7 +12,7 @@ public static class QueryableExtensions
     public static async Task<T> FirstOrExceptionAsync<T>(this IQueryable<T> query, Expression<Func<T, bool>> predicate)
     {
         return await query.FirstOrDefaultAsync(predicate) ?? 
-            throw new Exception($"The requested {typeof(T).Name} was not found.");
+            throw new NotFoundException($"The requested {typeof(T).Name} was not found.");
     }
 
     /// <summary>

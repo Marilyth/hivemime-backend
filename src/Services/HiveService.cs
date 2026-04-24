@@ -102,10 +102,10 @@ public class HiveService(HiveMimeContext context)
         string description = hiveDto.Description?.Trim();
 
         if (string.IsNullOrWhiteSpace(name) || name.Length < 3)
-            throw new InvalidOperationException("Hive names must be at least 3 characters long.");
+            throw new ValidationException("Hive names must be at least 3 characters long.");
 
         if (await context.Hives.AnyAsync(h => h.Name.ToLower() == name.ToLower()))
-            throw new InvalidOperationException("A hive with the same name already exists.");
+            throw new ValidationException("A hive with the same name already exists.");
 
         Hive hive = new()
         {

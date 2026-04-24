@@ -21,7 +21,7 @@ public class UserController(UserService userService, HiveMimeContext context, IO
 
         // Merges must be on an anonymous account through the API.
         if (result.FindFirst("provider_id")!.Value != "anonymous")
-            throw new Exception("Previous token is not valid.");
+            throw new ValidationException("Previous token is not valid.");
 
         await userService.MergeAccountsAsync(
             await User.GetUserIdAsync(context),
@@ -35,4 +35,8 @@ public class UserController(UserService userService, HiveMimeContext context, IO
     [HttpGet("login")]
     public async Task<UserDetailsDto> LoginUser()
         => await userService.CreateOrLoginUserAsync(User);
+
+    [HttpPost("update")]
+    public async Task<UserDetailsDto> UpdateUser([FromBody] UserDetailsDto userDetails)
+        => await userService.UpdateUserAsync(await User.GetUserIdAsync(context), userDetails);
 }

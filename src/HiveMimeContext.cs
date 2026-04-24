@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 public class HiveMimeContext : DbContext
 {
@@ -44,15 +45,27 @@ public class HiveMimeContext : DbContext
         modelBuilder.Entity<Hive>()
             .HasMany(h => h.Followers)
             .WithMany(u => u.FollowedHives);
+
     }
 
     private void SetEntityRules(IMutableEntityType entityType)
     {
-        // Set default string length to 1000 for all string properties.
-        foreach (var property in entityType.GetProperties()
-            .Where(p => p.ClrType == typeof(string)))
+        foreach (var property in entityType.GetProperties())
         {
-            property.SetMaxLength(1000);
+            if (property.ClrType == typeof(string))
+                property.SetMaxLength(1000);
+
+            else if (property.ClrType == typeof(DateTimeOffset))
+                property.SetValueConverter(new ValueConverter<DateTimeOffset, DateTimeOffset>(
+                    v => v.ToUniversalTime(),
+                    v => v
+                ));
+
+            else if (property.ClrType == typeof(DateTimeOffset?))
+                property.SetValueConverter(new ValueConverter<DateTimeOffset?, DateTimeOffset?>(
+                    v => v.HasValue ? v.Value.ToUniversalTime() : v,
+                    v => v
+                ));
         }
     }
 }

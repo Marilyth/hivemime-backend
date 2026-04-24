@@ -12,4 +12,5 @@ public class UserSettingsDto
     public bool ShareDateOnVote { get; set; }
     public bool ShareCountryOnVote { get; set; }
     public bool ShareAgeOnVote { get; set; }
+    public bool ProtectVoteOnFilter { get; set; }
 }

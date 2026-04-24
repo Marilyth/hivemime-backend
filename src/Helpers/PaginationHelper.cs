@@ -16,7 +16,7 @@ public static class PaginationHelper
             case OrderBy.Hot:
                 return posts.Where(p => p.Hotness < lastPost.Hotness || (p.Hotness == lastPost.Hotness && p.Id > lastPost.Id));
             default:
-                throw new InvalidOperationException("Invalid order by option.");
+                throw new ValidationException("Invalid order by option.");
         }
     }
 
@@ -36,7 +36,7 @@ public static class PaginationHelper
                 orderedPosts = posts.OrderByDescending(p => p.Hotness);
                 break;
             default:
-                throw new InvalidOperationException("Invalid order by option.");
+                throw new ValidationException("Invalid order by option.");
         }
 
         return orderedPosts.ThenBy(p => p.Id);
