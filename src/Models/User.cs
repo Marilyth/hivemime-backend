@@ -13,6 +13,7 @@ public class User : EntityWithIdentifier
     public string Username { get; set; }
     [MaxLength(256)]
     public string? Email { get; set; }
+    public double Honey { get; set; }
 
     public DateTimeOffset? DateOfBirth { get; set; }
     public DateTimeOffset LastLogin { get; set; } = DateTimeOffset.UtcNow;

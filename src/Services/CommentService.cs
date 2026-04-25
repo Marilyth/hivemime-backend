@@ -1,9 +1,9 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class CommentService(HiveMimeContext context)
+public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyDeltaCalculator)
 {
-    public async Task<CommentDto> AddCommentAsync(int userId, CreateCommentDto dto)
+    public async Task<HoneyDeltaDto<CommentDto>> AddCommentAsync(int userId, CreateCommentDto dto)
     {
         var comment = dto.Adapt<Comment>();
         comment.UserId = userId;
@@ -11,7 +11,7 @@ public class CommentService(HiveMimeContext context)
 
         await context.SaveChangesAsync();
         
-        return comment.ToQueryable(context).ProjectToType<CommentDto>().FirstOrDefault();
+        return await honeyDeltaCalculator.FromCommentDtoAsync(userId, comment.ToQueryable(context).ProjectToType<CommentDto>().FirstOrDefault());
     }
 
     public async Task<CommentDto> EditCommentAsync(int userId, EditCommentDto dto)
@@ -43,29 +43,37 @@ public class CommentService(HiveMimeContext context)
         await context.SaveChangesAsync();
     }
 
-    public async Task<List<CommentDto>> GetCommentsByUserAsync(int userId, DateTimeOffset? beforeDate)
+    /// <summary>
+    /// Fetches and returns comments based on the provided filters and pagination parameters.
+    /// </summary>
+    /// <param name="userId">The ID of the user whose comments to fetch.</param>
+    /// <param name="postId">The ID of the post whose comments to fetch.</param>
+    /// <param name="parentCommentId">The ID of the parent comment whose replies to fetch.</param>
+    /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
+    /// <returns>A list of comments matching the provided filters and pagination parameters.</returns>
+    /// <exception cref="ValidationException">Thrown if none of the filters are provided.</exception>
+    public async Task<List<CommentDto>> BrowseCommentsAsync(int? userId, int? postId, int? parentCommentId, CommentPaginationDto pagination)
     {
-        return await GetComments(userId, null, null, beforeDate).ProjectToType<CommentDto>().ToListAsync();
-    }
+        if (userId == null && postId == null && parentCommentId == null)
+            throw new ValidationException("At least one of userId, postId, or parentCommentId must be provided.");
 
-    public async Task<List<CommentDto>> GetCommentsByPostAsync(int postId, int? parentCommentId, DateTimeOffset? beforeDate)
-    {
-        return await GetComments(null, postId, parentCommentId, beforeDate).ProjectToType<CommentDto>().ToListAsync();
-    }
-
-    public IQueryable<Comment> GetComments(int? userId, int? postId, int? parentCommentId, DateTimeOffset? beforeDate)
-    {
         var comments = context.Comments.AsQueryable();
 
         if (userId.HasValue)
             comments = comments.Where(c => c.UserId == userId.Value);
 
         if (postId.HasValue)
-            comments = comments.Where(c => c.PostId == postId.Value && c.ParentCommentId == parentCommentId);
+            comments = comments.Where(c => c.PostId == postId.Value);
 
-        if (beforeDate.HasValue)
-            comments = comments.Where(c => c.CreatedAt < beforeDate.Value);
+        if (parentCommentId.HasValue)
+            comments = comments.Where(c => c.ParentCommentId == parentCommentId.Value);
+        else
+            comments = comments.Where(c => c.ParentCommentId == null);
 
-        return comments.OrderByDescending(c => c.CreatedAt).Take(20);
+        return await comments.ApplyPaginationFilter(pagination)
+            .ApplyPaginationOrdering(pagination)
+            .ApplyPaginationPageSize(pagination)
+            .ProjectToType<CommentDto>()
+            .ToListAsync();
     }
 }

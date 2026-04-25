@@ -1,8 +1,9 @@
 public class UserDetailsDto
 {
     public string Username { get; set; }
-    public DateTimeOffset? DateOfBirth { get; set; }
+    public double Honey {get; set;}
 
+    public DateTimeOffset? DateOfBirth { get; set; }
     public UserSettingsDto Settings { get; set; }
 }
 

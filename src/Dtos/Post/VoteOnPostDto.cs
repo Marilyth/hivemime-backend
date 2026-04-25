@@ -1,15 +1,15 @@
-public class VoteOnPostDto
+public class PostVoteDto
 {
     public int PostId { get; set; }
-    public List<VoteOnPollDto> Polls { get; set; }
+    public List<PollVoteDto> Polls { get; set; }
 }
 
-public class VoteOnPollDto
+public class PollVoteDto
 {
-    public List<VoteOnCandidateDto> Candidates { get; set; }
+    public List<CandidateVoteDto> Candidates { get; set; }
 }
 
-public class VoteOnCandidateDto
+public class CandidateVoteDto
 {
     public int? Value { get; set; }
 }

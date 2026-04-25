@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue)
+public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue, HoneyDeltaCalculator honeyDeltaCalculator)
 {
     /// <summary>
     /// Fetches and returns a post by its ID, including all its polls and candidates.
@@ -23,10 +23,8 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// <param name="creatorId">The ID of the user to fetch posts from.</param>
     /// <param name="filter">The filter to apply to the posts.</param>
     /// <param name="pagination">The pagination parameters.</param>
-    public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, string filter, PostPaginationDto pagination)
+    public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, PostPaginationDto pagination)
     {
-        pagination.PageSize = Math.Clamp(pagination.PageSize, 1, 100);
-
         IQueryable<Post> posts = context.Posts.AsNoTracking();
 
         if (creatorId.HasValue)
@@ -35,18 +33,10 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
 
-        posts = await posts.ApplyPaginationFilterAsync(pagination);
+        posts = posts.ApplyPaginationFilter(pagination)
+            .ApplyPaginationOrdering(pagination)
+            .ApplyPaginationPageSize(pagination);
 
-        // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
-        if (!string.IsNullOrWhiteSpace(filter))
-        {
-            filter = filter.Trim().ToLower();
-
-            posts = posts.Where(p => p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
-                                  || poll.Description.ToLower().Contains(filter)));
-        }
-
-        posts = posts.ApplyPaginationOrdering(pagination).Take(pagination.PageSize);
         var postsToUpdate = await posts.Where(p => DateTimeOffset.UtcNow - p.HotnessLastRecalculatedAt > TimeSpan.FromMinutes(60))
             .Select(p => p.Id).ToListAsync();
 
@@ -60,7 +50,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// </summary>
     /// <param name="userId">The ID of the user creating the post.</param>
     /// <param name="postDto">The post to create.</param>
-    public async Task<PostDto> CreatePostAsync(int userId, CreatePostDto postDto)
+    public async Task<HoneyDeltaDto<PostDto>> CreatePostAsync(int userId, CreatePostDto postDto)
     {
         IEnumerable<string> validationErrors = ValidateCreatePost(postDto);
         Hive hive = null;
@@ -86,11 +76,13 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         context.Posts.Add(newPost);
         await context.SaveChangesAsync();
 
-        return await context.Posts
+        PostDto createdPostDto = await context.Posts
             .AsNoTracking()
             .QueryableFind(newPost.Id)
             .ProjectToType<PostDto>()
             .FirstAsync();
+
+        return await honeyDeltaCalculator.FromPostDtoAsync(userId, createdPostDto);
     }
 
     /// <summary>
@@ -186,7 +178,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// </summary>
     /// <param name="userId">The ID of the user voting.</param>
     /// <param name="vote">The vote to insert or update.</param>
-    public async Task VoteOnPostAsync(int userId, VoteOnPostDto vote)
+    public async Task<HoneyDeltaDto<bool>> VoteOnPostAsync(int userId, PostVoteDto vote)
     {
         Post post = await context.Posts
             .Include(p => p.Polls.OrderBy(p => p.Id))
@@ -200,10 +192,12 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         if (validationErrors.Any())
             throw new ValidationException("Vote validation failed: " + string.Join("; ", validationErrors));
             
+        HoneyDeltaDto<bool> honeyDelta = new() { Dto = true };
+
         PostVote postVote = await context.PostVotes
             .Include(pv => pv.Votes)
             .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.PostId);
-        
+            
         if (postVote is null)
         {
             postVote = new PostVote
@@ -214,11 +208,12 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             };
 
             context.PostVotes.Add(postVote);
+            honeyDelta = await honeyDeltaCalculator.FromPostVoteAsync(userId, vote);
         }
 
-        foreach ((Poll poll, VoteOnPollDto pollVote) in post.Polls.Zip(vote.Polls))
+        foreach ((Poll poll, PollVoteDto pollVote) in post.Polls.Zip(vote.Polls))
         {
-            foreach ((Candidate candidate, VoteOnCandidateDto candidateVote) in poll.Candidates.Zip(pollVote.Candidates))
+            foreach ((Candidate candidate, CandidateVoteDto candidateVote) in poll.Candidates.Zip(pollVote.Candidates))
             {
                 // Either update the vote if one already exists, or create a new one.
                 CandidateVote dbVote = postVote.Votes.FirstOrDefault(v => v.CandidateId == candidate.Id);
@@ -249,6 +244,8 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         }
 
         await context.SaveChangesAsync();
+
+        return honeyDelta;
     }
 
     private IEnumerable<string> ValidateCreatePost(CreatePostDto postDto)
@@ -313,7 +310,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         }
     }
 
-    private IEnumerable<string> ValidatePostVotes(Post post, VoteOnPostDto postVote)
+    private IEnumerable<string> ValidatePostVotes(Post post, PostVoteDto postVote)
     {
         if (post.Polls.Count != postVote.Polls.Count)
         {
@@ -321,7 +318,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             yield break;
         }
 
-        foreach ((Poll poll, VoteOnPollDto pollVote) in post.Polls.Zip(postVote.Polls))
+        foreach ((Poll poll, PollVoteDto pollVote) in post.Polls.Zip(postVote.Polls))
         {
             if (!poll.IsOptional && pollVote.Candidates.All(v => !v.Value.HasValue))
             {
@@ -334,7 +331,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         }
     }
 
-    private IEnumerable<string> ValidateVote(Poll poll, VoteOnPollDto pollVote)
+    private IEnumerable<string> ValidateVote(Poll poll, PollVoteDto pollVote)
     {
         int votesCount = pollVote.Candidates.Count(v => v.Value.HasValue);
 
@@ -366,7 +363,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         }
     }
 
-    private IEnumerable<string> ValidateRankingPoll(Poll poll, VoteOnPollDto pollVote)
+    private IEnumerable<string> ValidateRankingPoll(Poll poll, PollVoteDto pollVote)
     {
         List<int> assignedRanks = pollVote.Candidates
             .Where(v => v.Value.HasValue)

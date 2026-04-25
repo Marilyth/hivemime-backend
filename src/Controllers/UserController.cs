@@ -32,6 +32,10 @@ public class UserController(UserService userService, HiveMimeContext context, IO
     public async Task<UserDetailsDto> GetUserDetails()
         => await userService.GetUserDetailsAsync(await User.GetUserIdAsync(context));
 
+    [HttpGet("profile")]
+    public async Task<UserProfileDto> GetUserProfile(int userId)
+        => await userService.GetUserProfileAsync(userId);
+
     [HttpGet("login")]
     public async Task<UserDetailsDto> LoginUser()
         => await userService.CreateOrLoginUserAsync(User);

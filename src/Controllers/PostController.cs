@@ -11,11 +11,11 @@ public class PostController(PostService postService, HiveMimeContext context) : 
         => await postService.GetPostAsync(postId);
 
     [HttpPost("browse")]
-    public async Task<List<PostDto>> BrowsePosts(int? creatorId, int? hiveId, string? filter, PostPaginationDto pagination)
-        => await postService.BrowsePostsAsync(creatorId, hiveId, filter, pagination);
+    public async Task<List<PostDto>> BrowsePosts(int? creatorId, int? hiveId, PostPaginationDto pagination)
+        => await postService.BrowsePostsAsync(creatorId, hiveId, pagination);
 
     [HttpPost("create")]
-    public async Task<PostDto> CreatePost([FromBody] CreatePostDto postDto)
+    public async Task<HoneyDeltaDto<PostDto>> CreatePost([FromBody] CreatePostDto postDto)
         => await postService.CreatePostAsync(await User.GetUserIdAsync(context), postDto);
 
     [HttpGet("results")]
@@ -27,6 +27,6 @@ public class PostController(PostService postService, HiveMimeContext context) : 
         => await postService.GetCandidateDistributionResultsAsync(candidateId, filter);
 
     [HttpPost("vote")]
-    public async Task UpsertVoteToPost([FromBody] VoteOnPostDto vote)
+    public async Task<HoneyDeltaDto<bool>> UpsertVoteToPost([FromBody] PostVoteDto vote)
         => await postService.VoteOnPostAsync(await User.GetUserIdAsync(context), vote);
 }

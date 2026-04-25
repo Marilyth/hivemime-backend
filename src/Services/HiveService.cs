@@ -74,18 +74,14 @@ public class HiveService(HiveMimeContext context)
     /// Fetches and returns hives depending on the provided filter and pagination parameters.
     /// </summary>
     /// <param name="afterId">The ID of the last hive seen, for pagination.</param>
-    /// <param name="filter">The filter to apply to the hives, based on their name.</param>
-    public async Task<List<HiveDto>> BrowseHivesAsync(int? afterId, string filter)
+    /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
+    public async Task<List<HiveDto>> BrowseHivesAsync(HivePaginationDto pagination)
     {
         IQueryable<Hive> query = context.Hives.AsNoTracking();
 
-        if (afterId.HasValue)
-            query = query.Where(h => h.Id < afterId.Value);
-
-        if (!string.IsNullOrWhiteSpace(filter))
-            query = query.Where(h => h.Name.ToLower().Contains(filter.Trim().ToLower()));
-
-        return await query.OrderBy(h => h.Id)
+        return await query.ApplyPaginationFilter(pagination)
+            .ApplyPaginationOrdering(pagination)
+            .ApplyPaginationPageSize(pagination)
             .ProjectToType<HiveDto>()
             .ToListAsync();
     }
