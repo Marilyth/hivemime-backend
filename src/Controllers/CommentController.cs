@@ -18,5 +18,5 @@ public class CommentController(CommentService commentService, HiveMimeContext co
 
     [HttpPost("browse")]
     public async Task<List<CommentDto>> GetComments(int? userId, int? postId, int? parentCommentId, [FromBody] CommentPaginationDto pagination)
-        => await commentService.GetCommentsAsync(userId, postId, parentCommentId, pagination);
+        => await commentService.BrowseCommentsAsync(userId, postId, parentCommentId, pagination);
 }

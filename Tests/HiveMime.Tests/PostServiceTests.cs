@@ -24,7 +24,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByUser_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(_defaultPost.CreatorId, null, null, new());
+        var result = await _service.BrowsePostsAsync(_defaultPost.CreatorId, null, new());
 
         // Assert
         Assert.Single(result);
@@ -35,7 +35,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByHive_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, _defaultHive.Id, null, new());
+        var result = await _service.BrowsePostsAsync(null, _defaultHive.Id, new());
 
         // Assert
         Assert.Single(result);
@@ -46,7 +46,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithoutFilter_ReturnsAll()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new());
+        var result = await _service.BrowsePostsAsync(null, null, new());
 
         // Assert
         Assert.Equal(4, result.Count);
@@ -56,7 +56,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithTextFilter_ReturnsExpected()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, "not a default poll", new());
+        var result = await _service.BrowsePostsAsync(null, null, new() { Filter = "not a default poll" });
 
         // Assert
         Assert.Single(result);
@@ -90,14 +90,14 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.NotNull(post);
-        Assert.Equal(_defaultUser.Id, post.Creator.Id);
-        Assert.Single(post.Polls);
-        Assert.Equal("Poll 1", post.Polls[0].Title);
-        Assert.Equal("Description 1", post.Polls[0].Description);
-        Assert.Equal(PollType.Choice, post.Polls[0].PollType);
-        Assert.Equal(2, post.Polls[0].Candidates.Count);
-        Assert.Equal("Option 1", post.Polls[0].Candidates[0].Name);
-        Assert.Equal("Option 2", post.Polls[0].Candidates[1].Name);
+        Assert.Equal(_defaultUser.Id, post.Dto.Creator.Id);
+        Assert.Single(post.Dto.Polls);
+        Assert.Equal("Poll 1", post.Dto.Polls[0].Title);
+        Assert.Equal("Description 1", post.Dto.Polls[0].Description);
+        Assert.Equal(PollType.Choice, post.Dto.Polls[0].PollType);
+        Assert.Equal(2, post.Dto.Polls[0].Candidates.Count);
+        Assert.Equal("Option 1", post.Dto.Polls[0].Candidates[0].Name);
+        Assert.Equal("Option 2", post.Dto.Polls[0].Candidates[1].Name);
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
+        var result = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
 
         // Assert
         Assert.True(Algorithms.HotnessFunction(result[0].Adapt<Post>()) > Algorithms.HotnessFunction(result[1].Adapt<Post>()));
@@ -241,7 +241,7 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act 2
-        var result2 = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
+        var result2 = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
 
         // Assert 2
         Assert.True(Algorithms.HotnessFunction(result2[0].Adapt<Post>()) > Algorithms.HotnessFunction(result2[1].Adapt<Post>()));
@@ -253,10 +253,10 @@ public class PostServiceTests : IntegrationTest
     {
         // Arrange
         PostPaginationDto paginationDto = new() { OrderBy = PostOrderBy.New };
-        var result = await _service.BrowsePostsAsync(null, null, null, paginationDto);
+        var result = await _service.BrowsePostsAsync(null, null, paginationDto);
 
         // Act
-        result = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = PostOrderBy.New, Cursor = result.Last().Id });
+        result = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.New, Cursor = result.Last().Id });
 
         // Assert
         Assert.Empty(result);
@@ -266,10 +266,10 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_InBetween_ReturnsNext()
     {
         // Arrange
-        var result = await _service.BrowsePostsAsync(null, null, null, new() { OrderBy = PostOrderBy.New, PageSize = 1 });
+        var result = await _service.BrowsePostsAsync(null, null, new() { OrderBy = PostOrderBy.New, PageSize = 1 });
 
         // Act
-        var result2 = await _service.BrowsePostsAsync(null, null, null, new PostPaginationDto { OrderBy = PostOrderBy.New, Cursor = result.Last().Id });
+        var result2 = await _service.BrowsePostsAsync(null, null, new() { OrderBy = PostOrderBy.New, Cursor = result.Last().Id });
 
         // Assert
         Assert.NotEmpty(result);
@@ -285,9 +285,9 @@ public class PostServiceTests : IntegrationTest
             Polls = [ new CreatePollDto { Title = "Poll", Description = "desc", PollType = PollType.Choice, Candidates = [ new CreateCandidateDto { Name = "A" } ], Categories = [] } ]
         };
         var post = await _service.CreatePostAsync(_defaultUser.Id, postDto);
-        await AddVotesToCandidate(post.Polls[0].Candidates[0].Id, post.Id, new[] { 1, 1 });
+        await AddVotesToCandidate(post.Dto.Polls[0].Candidates[0].Id, post.Dto.Id, new[] { 1, 1 });
         
-        var updated = await _service.GetPostAsync(post.Id);
+        var updated = await _service.GetPostAsync(post.Dto.Id);
 
         // Assert
         Assert.Equal(2, updated.VoteCount);

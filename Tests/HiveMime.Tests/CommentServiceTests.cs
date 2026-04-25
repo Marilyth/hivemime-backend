@@ -28,15 +28,15 @@ public class CommentServiceTests : IntegrationTest
 
         // Act
         var result = await _service.AddCommentAsync(_defaultUser!.Id, dto);
-        var postFeed = await _service.GetCommentsAsync(_defaultPost.Id, null, null);
-        var commentFeed = await _service.GetCommentsAsync(_defaultPost.Id, _defaultComment.Id, null);
+        var postFeed = await _service.BrowseCommentsAsync(null, _defaultPost.Id, null, new CommentPaginationDto { PageSize = 20 });
+        var commentFeed = await _service.BrowseCommentsAsync(null, _defaultPost.Id, _defaultComment.Id, new CommentPaginationDto { PageSize = 20 });
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(_defaultUser!.Id, result.User.Id);
-        Assert.Equal("Newly added reply", result.Content);
-        Assert.DoesNotContain(postFeed, c => c.Id == result.Id);
-        Assert.Contains(commentFeed, c => c.Id == result.Id);
+        Assert.Equal(_defaultUser!.Id, result.Dto.User.Id);
+        Assert.Equal("Newly added reply", result.Dto.Content);
+        Assert.DoesNotContain(postFeed, c => c.Id == result.Dto.Id);
+        Assert.Contains(commentFeed, c => c.Id == result.Dto.Id);
     }
 
     [Fact]
@@ -54,8 +54,8 @@ public class CommentServiceTests : IntegrationTest
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(_defaultUser!.Id, result.User.Id);
-        Assert.Equal("Newly added comment", result.Content);
+        Assert.Equal(_defaultUser!.Id, result.Dto.User.Id);
+        Assert.Equal("Newly added comment", result.Dto.Content);
     }
 
     [Fact]
@@ -134,34 +134,30 @@ public class CommentServiceTests : IntegrationTest
         Context.ChangeTracker.Clear();
 
         // Act
-        var comments = await _service.GetCommentsAsync(_defaultPost!.Id, null, null);
+        var comments = await _service.BrowseCommentsAsync(null, _defaultPost!.Id, null, new CommentPaginationDto { PageSize = 20 });
 
         // Assert
         Assert.Single(comments);
         Assert.Equal(_defaultComment!.Content, comments[0].Content);
         Assert.Equal(_defaultUser!.Id, comments[0].User.Id);
     }
-    
+
     [Fact]
-    public async Task GetCommentsAsync_WithCursor_ReturnsExpected()
+    public async Task GetCommentsAsync_Pagination_WorksWithFilterAndOrder()
     {
         // Arrange
-        Comment newComment = new()
-        {
-            Post = _defaultPost,
-            User = _defaultUser,
-            Content = "Test comment"
-        };
-
-        Context.Comments.Add(newComment);
+        var comment1 = new Comment { Post = _defaultPost, User = _defaultUser, Content = "Alpha comment" };
+        var comment2 = new Comment { Post = _defaultPost, User = _defaultUser, Content = "Beta comment" };
+        Context.Comments.AddRange(comment1, comment2);
         await Context.SaveChangesAsync();
+        var pagination = new CommentPaginationDto { Filter = "Alpha", OrderBy = CommentOrderBy.New, PageSize = 20 };
 
         // Act
-        var comments = await _service.GetCommentsAsync(_defaultPost!.Id, null, newComment.CreatedAt);
+        var comments = await _service.BrowseCommentsAsync(null, _defaultPost!.Id, null, pagination);
 
         // Assert
         Assert.Single(comments);
-        Assert.Equal(newComment.Content, comments[0].Content);
+        Assert.Contains("Alpha", comments[0].Content);
     }
 
     protected override void SeedDatabase()

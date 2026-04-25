@@ -82,7 +82,7 @@ public class HiveServiceTests : IntegrationTest
     public async Task BrowseHives_WithHives_ReturnsHives()
     {
         // Act
-        var result = await _service.BrowseHivesAsync(null, "");
+        var result = await _service.BrowseHivesAsync(new HivePaginationDto { PageSize = 20 });
 
         // Assert
         Assert.Single(result);
@@ -144,7 +144,25 @@ public class HiveServiceTests : IntegrationTest
         // Act & Assert
         await Assert.ThrowsAsync<ValidationException>(() => service.CreateHiveAsync(user.Id, hiveDto));
     }
-    
+
+    [Fact]
+    public async Task BrowseHivesAsync_Pagination_WorksWithFilterAndOrder()
+    {
+        // Arrange
+        var hive1 = new Hive { Name = "AlphaHive", Description = "desc", Creator = Context.Users.First() };
+        var hive2 = new Hive { Name = "BetaHive", Description = "desc", Creator = Context.Users.First() };
+        Context.Hives.AddRange(hive1, hive2);
+        await Context.SaveChangesAsync();
+        var pagination = new HivePaginationDto { Filter = "Alpha", OrderBy = HiveOrderBy.New, PageSize = 1 };
+
+        // Act
+        var hives = await _service.BrowseHivesAsync(pagination);
+
+        // Assert
+        Assert.Single(hives);
+        Assert.Contains("Alpha", hives[0].Name);
+    }
+
     protected override void SeedDatabase()
     {
         var user = new User { Username = "defaultuser", Settings = new() };
