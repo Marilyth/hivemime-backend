@@ -23,10 +23,8 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// <param name="creatorId">The ID of the user to fetch posts from.</param>
     /// <param name="filter">The filter to apply to the posts.</param>
     /// <param name="pagination">The pagination parameters.</param>
-    public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, string filter, PostPaginationDto pagination)
+    public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, PostPaginationDto pagination)
     {
-        pagination.PageSize = Math.Clamp(pagination.PageSize, 1, 100);
-
         IQueryable<Post> posts = context.Posts.AsNoTracking();
 
         if (creatorId.HasValue)
@@ -35,18 +33,10 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
 
-        posts = await posts.ApplyPaginationFilterAsync(pagination);
+        posts = posts.ApplyPaginationFilter(pagination)
+            .ApplyPaginationOrdering(pagination)
+            .ApplyPaginationPageSize(pagination);
 
-        // TODO 5: Add reverse index for filtering posts / polls. This does not scale well.
-        if (!string.IsNullOrWhiteSpace(filter))
-        {
-            filter = filter.Trim().ToLower();
-
-            posts = posts.Where(p => p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
-                                  || poll.Description.ToLower().Contains(filter)));
-        }
-
-        posts = posts.ApplyPaginationOrdering(pagination).Take(pagination.PageSize);
         var postsToUpdate = await posts.Where(p => DateTimeOffset.UtcNow - p.HotnessLastRecalculatedAt > TimeSpan.FromMinutes(60))
             .Select(p => p.Id).ToListAsync();
 

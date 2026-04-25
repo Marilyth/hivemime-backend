@@ -17,10 +17,6 @@ public class CommentController(CommentService commentService, HiveMimeContext co
         => await commentService.DeleteCommentAsync(await User.GetUserIdAsync(context), commentId);
 
     [HttpGet("getByPost")]
-    public async Task<List<CommentDto>> GetCommentsByPost(int postId, int? parentCommentId, DateTimeOffset? beforeDate)
-        => await commentService.GetCommentsByPostAsync(postId, parentCommentId, beforeDate);
-
-    [HttpGet("getByUser")]
-    public async Task<List<CommentDto>> GetCommentsByUser(int userId, DateTimeOffset? beforeDate)
-        => await commentService.GetCommentsByUserAsync(userId, beforeDate);
+    public async Task<List<CommentDto>> GetCommentsByPost(int? userId, int? postId, int? parentCommentId, CommentPaginationDto pagination)
+        => await commentService.GetCommentsAsync(userId, postId, parentCommentId, pagination);
 }

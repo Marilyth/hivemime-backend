@@ -28,8 +28,8 @@ public class CommentServiceTests : IntegrationTest
 
         // Act
         var result = await _service.AddCommentAsync(_defaultUser!.Id, dto);
-        var postFeed = await _service.GetCommentsByPostAsync(_defaultPost.Id, null, null);
-        var commentFeed = await _service.GetCommentsByPostAsync(_defaultPost.Id, _defaultComment.Id, null);
+        var postFeed = await _service.GetCommentsAsync(_defaultPost.Id, null, null);
+        var commentFeed = await _service.GetCommentsAsync(_defaultPost.Id, _defaultComment.Id, null);
 
         // Assert
         Assert.NotNull(result);
@@ -134,7 +134,7 @@ public class CommentServiceTests : IntegrationTest
         Context.ChangeTracker.Clear();
 
         // Act
-        var comments = await _service.GetCommentsByPostAsync(_defaultPost!.Id, null, null);
+        var comments = await _service.GetCommentsAsync(_defaultPost!.Id, null, null);
 
         // Assert
         Assert.Single(comments);
@@ -157,7 +157,7 @@ public class CommentServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act
-        var comments = await _service.GetCommentsByPostAsync(_defaultPost!.Id, null, newComment.CreatedAt);
+        var comments = await _service.GetCommentsAsync(_defaultPost!.Id, null, newComment.CreatedAt);
 
         // Assert
         Assert.Single(comments);
