@@ -23,8 +23,8 @@ public class HiveController(HiveService hiveService, HiveMimeContext context) : 
     public async Task LeaveHive(int hiveId)
         => await hiveService.LeaveHiveAsync(await User.GetUserIdAsync(context), hiveId);
 
-    [HttpGet("browse")]
-    public async Task<List<HiveDto>> BrowseHives(HivePaginationDto pagination)
+    [HttpPost("browse")]
+    public async Task<List<HiveDto>> BrowseHives([FromBody] HivePaginationDto pagination)
         => await hiveService.BrowseHivesAsync(pagination);
 
     [HttpPost("create")]

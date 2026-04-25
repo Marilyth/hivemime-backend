@@ -73,6 +73,7 @@ public class Program
         });
 
         // Add custom services.
+        services.AddMemoryCache();
         services.AddScoped<PostService>();
         services.AddScoped<UserService>();
         services.AddScoped<HiveService>();

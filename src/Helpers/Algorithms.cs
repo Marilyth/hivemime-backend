@@ -23,6 +23,11 @@ public static class Algorithms
     /// </summary>
     private const double CommentWeight = 0.5;
 
+    /// <summary>
+    /// The amount of honey by which each new level delta is increased.
+    /// </summary>
+    private const double HoneyScale = 20;
+
     public static UpdateSettersBuilder<Post> UpdateHotness(this UpdateSettersBuilder<Post> builder, int commentDifference = 0, int voteDifference = 0)
     {
         builder.SetProperty(p => p.HotnessLastRecalculatedAt, DateTimeOffset.UtcNow)
@@ -43,4 +48,10 @@ public static class Algorithms
                 Math.Pow(2, (DateTimeOffset.UtcNow - post.CreatedAt).TotalHours / HalflifeHours);
 
     public static Func<Post, double> HotnessFunction = GetHotnessUpdateExpression().Compile();
+
+    public static double GetHoneyLevel(double honey)
+        => Math.Floor(Math.Sqrt(honey / HoneyScale));
+
+    public static double GetLevelHoney(double level)
+        => level * level * HoneyScale;
 }

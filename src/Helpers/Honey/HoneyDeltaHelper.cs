@@ -56,7 +56,7 @@ public class HoneyDeltaCalculator(HiveMimeContext context, IMemoryCache cache)
         {
             // Decay expires at midnight.
             entry.AbsoluteExpiration = DateTimeOffset.UtcNow.Date.AddDays(1);
-            return 1;
+            return 1.0;
         });
 
         cache.Set(key, currentCount + 1);
