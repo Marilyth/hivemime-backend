@@ -1,9 +1,9 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class CommentService(HiveMimeContext context)
+public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyDeltaCalculator)
 {
-    public async Task<CommentDto> AddCommentAsync(int userId, CreateCommentDto dto)
+    public async Task<HoneyDeltaDto<CommentDto>> AddCommentAsync(int userId, CreateCommentDto dto)
     {
         var comment = dto.Adapt<Comment>();
         comment.UserId = userId;
@@ -11,7 +11,7 @@ public class CommentService(HiveMimeContext context)
 
         await context.SaveChangesAsync();
         
-        return comment.ToQueryable(context).ProjectToType<CommentDto>().FirstOrDefault();
+        return await honeyDeltaCalculator.FromCommentDtoAsync(userId, comment.ToQueryable(context).ProjectToType<CommentDto>().FirstOrDefault());
     }
 
     public async Task<CommentDto> EditCommentAsync(int userId, EditCommentDto dto)

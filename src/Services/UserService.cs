@@ -20,8 +20,27 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
         if (userId == 0)
             throw new NotFoundException("User does not exist.");
 
-        var user = await context.Users.AsNoTracking().Where(u => u.Id == userId).Include(u => u.Settings).FirstAsync();
-        return user.Adapt<UserDetailsDto>();
+        return await context.Users.AsNoTracking()
+            .QueryableFind(userId)
+            .ProjectToType<UserDetailsDto>()
+            .FirstAsync();
+    }
+
+    /// <summary>
+    /// Returns the basic public profile of a user, including their honey and post/comment counts.
+    /// </summary>
+    /// <param name="userId">The ID of the user to retrieve the profile for.</param>
+    /// <returns>The user's profile information.</returns>
+    /// <exception cref="NotFoundException">Thrown when the user does not exist.</exception>
+    public async Task<UserProfileDto> GetUserProfileAsync(int userId)
+    {
+        if (userId == 0)
+            throw new NotFoundException("User does not exist.");
+
+        return await context.Users.AsNoTracking()
+            .QueryableFind(userId)
+            .ProjectToType<UserProfileDto>()
+            .FirstAsync();
     }
 
     /// <summary>
@@ -155,6 +174,9 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
 
         foreach (var hive in await previousFollowedHives)
             currentUser.FollowedHives.Add(hive);
+
+        // Merge honey.
+        currentUser.Honey += previousUser.Honey;
         
         // Remove previous user.
         context.Users.Remove(previousUser);

@@ -9,6 +9,8 @@ public class Hive : EntityWithIdentifier
     public string Name { get; set; }
     [MaxLength(1024)]
     public string Description { get; set; }
+    public double HoneyToPost { get; set; }
+
     public List<Post> Posts { get; set; }
     public List<User> Followers { get; set; }
 

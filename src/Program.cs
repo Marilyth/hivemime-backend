@@ -77,6 +77,7 @@ public class Program
         services.AddScoped<UserService>();
         services.AddScoped<HiveService>();
         services.AddScoped<CommentService>();
+        services.AddScoped<HoneyDeltaCalculator>();
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
         services.AddSingleton<GeoIPService>();
         services.AddSingleton<HotnessUpdateQueue>();

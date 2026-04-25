@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 public class CommentController(CommentService commentService, HiveMimeContext context) : ControllerBase
 {
     [HttpPost("create")]
-    public async Task<CommentDto> CreateComment(CreateCommentDto dto)
+    public async Task<HoneyDeltaDto<CommentDto>> CreateComment(CreateCommentDto dto)
         => await commentService.AddCommentAsync(await User.GetUserIdAsync(context), dto);
 
     [HttpPut("edit")]
