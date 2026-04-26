@@ -1,5 +1,6 @@
 public class UserDetailsDto
 {
+    public int Id { get; set; }
     public string Username { get; set; }
     public double Honey {get; set;}
 
