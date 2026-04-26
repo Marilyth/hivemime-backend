@@ -1,4 +1,4 @@
-public class PostDto
+public class PostDto : IHasIdentifier
 {
     public HiveDto? Hive { get; set; }
     public UserDto Creator { get; set; }

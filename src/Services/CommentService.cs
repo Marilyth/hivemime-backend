@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyDeltaCalculator)
 {
+    public async Task<CommentDto> GetCommentByIdAsync(int commentId)
+        => await context.Comments.QueryableFind(commentId).ProjectToType<CommentDto>().FirstOrExceptionAsync();
+
     public async Task<HoneyDeltaDto<CommentDto>> AddCommentAsync(int userId, CreateCommentDto dto)
     {
         var comment = dto.Adapt<Comment>();
@@ -52,7 +55,7 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
     /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
     /// <returns>A list of comments matching the provided filters and pagination parameters.</returns>
     /// <exception cref="ValidationException">Thrown if none of the filters are provided.</exception>
-    public async Task<List<CommentDto>> BrowseCommentsAsync(int? userId, int? postId, int? parentCommentId, CommentPaginationDto pagination)
+    public async Task<PaginationResultDto<CommentDto>> BrowseCommentsAsync(int? userId, int? postId, int? parentCommentId, CommentPaginationDto pagination)
     {
         if (userId == null && postId == null && parentCommentId == null)
             throw new ValidationException("At least one of userId, postId, or parentCommentId must be provided.");
@@ -67,13 +70,13 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
 
         if (parentCommentId.HasValue)
             comments = comments.Where(c => c.ParentCommentId == parentCommentId.Value);
-        else
+        else if (!userId.HasValue)
             comments = comments.Where(c => c.ParentCommentId == null);
 
         return await comments.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
             .ApplyPaginationPageSize(pagination)
             .ProjectToType<CommentDto>()
-            .ToListAsync();
+            .FetchPaginationResultAsync(pagination);
     }
 }

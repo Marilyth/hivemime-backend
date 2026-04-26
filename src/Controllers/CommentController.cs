@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/[controller]")]
 public class CommentController(CommentService commentService, HiveMimeContext context) : ControllerBase
 {
+    [HttpGet("get")]
+    public async Task<CommentDto> GetComment(int commentId)
+        => await commentService.GetCommentByIdAsync(commentId);
+
     [HttpPost("create")]
     public async Task<HoneyDeltaDto<CommentDto>> CreateComment(CreateCommentDto dto)
         => await commentService.AddCommentAsync(await User.GetUserIdAsync(context), dto);
@@ -17,6 +21,6 @@ public class CommentController(CommentService commentService, HiveMimeContext co
         => await commentService.DeleteCommentAsync(await User.GetUserIdAsync(context), commentId);
 
     [HttpPost("browse")]
-    public async Task<List<CommentDto>> GetComments(int? userId, int? postId, int? parentCommentId, [FromBody] CommentPaginationDto pagination)
+    public async Task<PaginationResultDto<CommentDto>> GetComments(int? userId, int? postId, int? parentCommentId, [FromBody] CommentPaginationDto pagination)
         => await commentService.BrowseCommentsAsync(userId, postId, parentCommentId, pagination);
 }

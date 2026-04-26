@@ -1,4 +1,4 @@
-public class HiveDto
+public class HiveDto : IHasIdentifier
 {
     public int Id { get; set; }
     public string Name { get; set; }

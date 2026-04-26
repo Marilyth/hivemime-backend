@@ -35,8 +35,8 @@ public class CommentServiceTests : IntegrationTest
         Assert.NotNull(result);
         Assert.Equal(_defaultUser!.Id, result.Dto.User.Id);
         Assert.Equal("Newly added reply", result.Dto.Content);
-        Assert.DoesNotContain(postFeed, c => c.Id == result.Dto.Id);
-        Assert.Contains(commentFeed, c => c.Id == result.Dto.Id);
+        Assert.DoesNotContain(postFeed.Items, c => c.Id == result.Dto.Id);
+        Assert.Contains(commentFeed.Items, c => c.Id == result.Dto.Id);
     }
 
     [Fact]
@@ -137,9 +137,9 @@ public class CommentServiceTests : IntegrationTest
         var comments = await _service.BrowseCommentsAsync(null, _defaultPost!.Id, null, new CommentPaginationDto { PageSize = 20 });
 
         // Assert
-        Assert.Single(comments);
-        Assert.Equal(_defaultComment!.Content, comments[0].Content);
-        Assert.Equal(_defaultUser!.Id, comments[0].User.Id);
+        Assert.Single(comments.Items);
+        Assert.Equal(_defaultComment!.Content, comments.Items[0].Content);
+        Assert.Equal(_defaultUser!.Id, comments.Items[0].User.Id);
     }
 
     [Fact]
@@ -156,8 +156,8 @@ public class CommentServiceTests : IntegrationTest
         var comments = await _service.BrowseCommentsAsync(null, _defaultPost!.Id, null, pagination);
 
         // Assert
-        Assert.Single(comments);
-        Assert.Contains("Alpha", comments[0].Content);
+        Assert.Single(comments.Items);
+        Assert.Contains("Alpha", comments.Items[0].Content);
     }
 
     protected override void SeedDatabase()

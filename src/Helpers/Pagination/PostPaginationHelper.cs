@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 public static class PostPaginationHelper
 {
     public static IQueryable<Post> ApplyPaginationFilter(this IQueryable<Post> posts, PostPaginationDto pagination)
@@ -58,10 +60,22 @@ public static class PostPaginationHelper
         return orderedPosts.ThenBy(p => p.Id);
     }
 
-    public static IQueryable<Post> ApplyPaginationPageSize(this IQueryable<Post> posts, PostPaginationDto pagination, int maxPageSize = 100)
+    public static IQueryable<T> ApplyPaginationPageSize<T>(this IQueryable<T> entities, PaginationDto pagination, int maxPageSize = 100) where T : IHasIdentifier
     {
         pagination.PageSize = Math.Clamp(pagination.PageSize, 1, maxPageSize);
         
-        return posts.Take(pagination.PageSize);
+        return entities.Take(pagination.PageSize + 1);
+    }
+
+    public static async Task<PaginationResultDto<T>> FetchPaginationResultAsync<T>(this IQueryable<T> entities, PaginationDto pagination) where T : IHasIdentifier
+    {
+        var result = await entities.ToListAsync();
+        int? nextCursor = result.Count > pagination.PageSize ? result[pagination.PageSize].Id : null;
+
+        return new PaginationResultDto<T>
+        {
+            Items = result.Take(pagination.PageSize).ToList(),
+            NextCursor = nextCursor
+        };
     }
 }

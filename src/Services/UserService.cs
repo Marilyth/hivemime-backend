@@ -23,7 +23,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
         return await context.Users.AsNoTracking()
             .QueryableFind(userId)
             .ProjectToType<UserDetailsDto>()
-            .FirstAsync();
+            .FirstOrExceptionAsync();
     }
 
     /// <summary>
@@ -40,7 +40,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
         return await context.Users.AsNoTracking()
             .QueryableFind(userId)
             .ProjectToType<UserProfileDto>()
-            .FirstAsync();
+            .FirstOrExceptionAsync();
     }
 
     /// <summary>

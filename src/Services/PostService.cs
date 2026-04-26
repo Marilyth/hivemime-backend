@@ -23,7 +23,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// <param name="creatorId">The ID of the user to fetch posts from.</param>
     /// <param name="filter">The filter to apply to the posts.</param>
     /// <param name="pagination">The pagination parameters.</param>
-    public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, PostPaginationDto pagination)
+    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, PostPaginationDto pagination)
     {
         IQueryable<Post> posts = context.Posts.AsNoTracking();
 
@@ -42,7 +42,8 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
 
         hotnessQueue.EnqueuePosts(postsToUpdate);
 
-        return await posts.ProjectToType<PostDto>().ToListAsync();
+        return await posts.ProjectToType<PostDto>()
+            .FetchPaginationResultAsync(pagination);
     }
 
     /// <summary>

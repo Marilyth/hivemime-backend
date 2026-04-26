@@ -85,9 +85,9 @@ public class HiveServiceTests : IntegrationTest
         var result = await _service.BrowseHivesAsync(new HivePaginationDto { PageSize = 20 });
 
         // Assert
-        Assert.Single(result);
-        Assert.Equal(_defaultHive!.Id, result[0].Id);
-        Assert.Equal("Default Hive", result[0].Name);
+        Assert.Single(result.Items);
+        Assert.Equal(_defaultHive!.Id, result.Items[0].Id);
+        Assert.Equal("Default Hive", result.Items[0].Name);
     }
 
     [Fact]
@@ -159,8 +159,8 @@ public class HiveServiceTests : IntegrationTest
         var hives = await _service.BrowseHivesAsync(pagination);
 
         // Assert
-        Assert.Single(hives);
-        Assert.Contains("Alpha", hives[0].Name);
+        Assert.Single(hives.Items);
+        Assert.Contains("Alpha", hives.Items[0].Name);
     }
 
     protected override void SeedDatabase()

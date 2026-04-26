@@ -1,7 +1,12 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-public abstract class EntityWithIdentifier : Entity
+public interface IHasIdentifier
+{
+    int Id { get; set; }
+}
+
+public abstract class EntityWithIdentifier : Entity, IHasIdentifier
 {
     [Key]
     public int Id { get; set; }

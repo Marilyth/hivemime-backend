@@ -1,4 +1,4 @@
-public class CommentDto
+public class CommentDto : IHasIdentifier
 {
     public UserDto User { get; set; }
     public int Id { get; set; }
