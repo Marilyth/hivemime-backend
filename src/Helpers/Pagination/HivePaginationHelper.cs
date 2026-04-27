@@ -1,3 +1,5 @@
+using Mapster;
+
 public static class HivePaginationHelper
 {
     public static IQueryable<Hive> ApplyPaginationFilter(this IQueryable<Hive> hives, HivePaginationDto pagination)
@@ -12,24 +14,21 @@ public static class HivePaginationHelper
         if (pagination.Cursor is null)
             return hives;
 
-        var cursor = hives.QueryableFind(pagination.Cursor);
-        var intermediateQuery = hives.SelectMany(h => cursor.DefaultIfEmpty(), (h, cursor) => new { Current = h, Cursor = cursor });
-
         switch (pagination.OrderBy)
         {
             // ToDo: Implement hive scoring.
             case HiveOrderBy.New:
-                return intermediateQuery.Where(h => h.Current.CreatedAt < h.Cursor.CreatedAt ||
-                                                   (h.Current.CreatedAt == h.Cursor.CreatedAt && h.Current.Id > h.Cursor.Id))
-                    .Select(h => h.Current);
+                DateTimeOffset newCursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
+                return hives.Where(h => h.CreatedAt < newCursor ||
+                                       (h.CreatedAt == newCursor && h.Id > pagination.Cursor.Id));
             case HiveOrderBy.Old:
-                return intermediateQuery.Where(h => h.Current.CreatedAt > h.Cursor.CreatedAt ||
-                                                   (h.Current.CreatedAt == h.Cursor.CreatedAt && h.Current.Id > h.Cursor.Id))
-                    .Select(h => h.Current);
+                DateTimeOffset oldCursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
+                return hives.Where(h => h.CreatedAt > oldCursor ||
+                                       (h.CreatedAt == oldCursor && h.Id > pagination.Cursor.Id));
             case HiveOrderBy.Followers:
-                return intermediateQuery.Where(h => h.Current.FollowerCount < h.Cursor.FollowerCount ||
-                                                   (h.Current.FollowerCount == h.Cursor.FollowerCount && h.Current.Id > h.Cursor.Id))
-                    .Select(h => h.Current);
+                int followersCursor = int.Parse(pagination.Cursor.Cursor);
+                return hives.Where(h => h.FollowerCount < followersCursor ||
+                                       (h.FollowerCount == followersCursor && h.Id > pagination.Cursor.Id));
             default:
                 throw new ValidationException("Invalid order by option.");
         }
@@ -58,10 +57,14 @@ public static class HivePaginationHelper
         return orderedHives.ThenBy(h => h.Id);
     }
 
-    public static IQueryable<Hive> ApplyPaginationPageSize(this IQueryable<Hive> hives, HivePaginationDto pagination, int maxPageSize = 100)
+
+    public static async Task<PaginationResultDto<HiveDto>> FetchPaginationResultAsync(this IQueryable<Hive> entities, HivePaginationDto pagination)
     {
-        pagination.PageSize = Math.Clamp(pagination.PageSize, 1, maxPageSize);
-        
-        return hives.Take(pagination.PageSize);
+        return await PostPaginationHelper.BuildPaginationResultAsync(entities.ProjectToType<HiveDto>(), pagination, h => pagination.OrderBy switch
+        {
+            HiveOrderBy.New or HiveOrderBy.Old => h.CreatedAt,
+            HiveOrderBy.Followers => h.FollowerCount,
+            _ => throw new ValidationException("Invalid order by option.")
+        });
     }
 }

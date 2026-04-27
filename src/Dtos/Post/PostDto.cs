@@ -7,4 +7,5 @@ public class PostDto : IHasIdentifier
     public int CommentCount { get; set; }
     public int VoteCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public double Hotness { get; set; }
 }

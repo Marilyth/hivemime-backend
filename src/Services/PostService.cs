@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Mapster;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 
 public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue, HoneyDeltaCalculator honeyDeltaCalculator)
@@ -33,17 +34,14 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
 
-        posts = posts.ApplyPaginationFilter(pagination)
+        var result = await posts.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
-            .ApplyPaginationPageSize(pagination);
-
-        var postsToUpdate = await posts.Where(p => DateTimeOffset.UtcNow - p.HotnessLastRecalculatedAt > TimeSpan.FromMinutes(60))
-            .Select(p => p.Id).ToListAsync();
-
-        hotnessQueue.EnqueuePosts(postsToUpdate);
-
-        return await posts.ProjectToType<PostDto>()
+            .ApplyPaginationPageSize(pagination)
             .FetchPaginationResultAsync(pagination);
+
+        hotnessQueue.EnqueuePosts(result.Items.Select(p => p.Id));
+
+        return result;
     }
 
     /// <summary>

@@ -82,7 +82,6 @@ public class HiveService(HiveMimeContext context)
         return await query.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
             .ApplyPaginationPageSize(pagination)
-            .ProjectToType<HiveDto>()
             .FetchPaginationResultAsync(pagination);
     }
 

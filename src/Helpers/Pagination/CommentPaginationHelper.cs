@@ -1,3 +1,6 @@
+using Mapster;
+using Microsoft.EntityFrameworkCore;
+
 public static class CommentPaginationHelper
 {
     public static IQueryable<Comment> ApplyPaginationFilter(this IQueryable<Comment> comments, CommentPaginationDto pagination)
@@ -12,20 +15,17 @@ public static class CommentPaginationHelper
         if (pagination.Cursor is null)
             return comments;
 
-        var cursor = comments.QueryableFind(pagination.Cursor);
-        var intermediateQuery = comments.SelectMany(c => cursor.DefaultIfEmpty(), (c, cursor) => new { Current = c, Cursor = cursor });
-
         switch (pagination.OrderBy)
         {
             // ToDo: Implement comment scoring.
             case CommentOrderBy.New: case CommentOrderBy.Best:
-                return intermediateQuery.Where(c => c.Current.CreatedAt < c.Cursor.CreatedAt ||
-                                                   (c.Current.CreatedAt == c.Cursor.CreatedAt && c.Current.Id > c.Cursor.Id))
-                    .Select(c => c.Current);
+                DateTimeOffset newCursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
+                return comments.Where(c => c.CreatedAt < newCursor ||
+                                           (c.CreatedAt == newCursor && c.Id > pagination.Cursor.Id));
             case CommentOrderBy.Old:
-                return intermediateQuery.Where(c => c.Current.CreatedAt > c.Cursor.CreatedAt ||
-                                                   (c.Current.CreatedAt == c.Cursor.CreatedAt && c.Current.Id > c.Cursor.Id))
-                    .Select(c => c.Current);
+                DateTimeOffset oldCursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
+                return comments.Where(c => c.CreatedAt > oldCursor ||
+                                           (c.CreatedAt == oldCursor && c.Id > pagination.Cursor.Id));
             default:
                 throw new ValidationException("Invalid order by option.");
         }
@@ -51,10 +51,14 @@ public static class CommentPaginationHelper
         return orderedComments.ThenBy(c => c.Id);
     }
 
-    public static IQueryable<Comment> ApplyPaginationPageSize(this IQueryable<Comment> comments, CommentPaginationDto pagination, int maxPageSize = 100)
+    public static async Task<PaginationResultDto<CommentDto>> FetchPaginationResultAsync(this IQueryable<Comment> entities, CommentPaginationDto pagination)
     {
-        pagination.PageSize = Math.Clamp(pagination.PageSize, 1, maxPageSize);
-        
-        return comments.Take(pagination.PageSize);
+        return await PostPaginationHelper.BuildPaginationResultAsync(entities.ProjectToType<CommentDto>(), pagination, c => pagination.OrderBy switch
+        {
+            CommentOrderBy.New => c.CreatedAt,
+            CommentOrderBy.Old => c.CreatedAt,
+            CommentOrderBy.Best => c.CreatedAt, // ToDo: Implement comment scoring.
+            _ => throw new ValidationException("Invalid order by option.")
+        });
     }
 }

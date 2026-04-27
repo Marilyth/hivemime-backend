@@ -76,7 +76,6 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
         return await comments.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
             .ApplyPaginationPageSize(pagination)
-            .ProjectToType<CommentDto>()
             .FetchPaginationResultAsync(pagination);
     }
 }
