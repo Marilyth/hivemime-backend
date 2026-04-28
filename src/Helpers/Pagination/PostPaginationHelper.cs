@@ -83,8 +83,7 @@ public static class PostPaginationHelper
     {
         return await BuildPaginationResultAsync(entities.ProjectToType<PostDto>(), pagination, p => pagination.OrderBy switch
         {
-            PostOrderBy.New => p.CreatedAt,
-            PostOrderBy.Old => p.CreatedAt,
+            PostOrderBy.New or PostOrderBy.Old => p.CreatedAt,
             PostOrderBy.Hot => p.Hotness,
             _ => throw new ValidationException("Invalid order by option.")
         });

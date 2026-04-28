@@ -55,8 +55,7 @@ public static class CommentPaginationHelper
     {
         return await PostPaginationHelper.BuildPaginationResultAsync(entities.ProjectToType<CommentDto>(), pagination, c => pagination.OrderBy switch
         {
-            CommentOrderBy.New => c.CreatedAt,
-            CommentOrderBy.Old => c.CreatedAt,
+            CommentOrderBy.New or CommentOrderBy.Old => c.CreatedAt,
             CommentOrderBy.Best => c.CreatedAt, // ToDo: Implement comment scoring.
             _ => throw new ValidationException("Invalid order by option.")
         });
