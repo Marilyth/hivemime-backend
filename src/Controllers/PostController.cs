@@ -11,7 +11,7 @@ public class PostController(PostService postService, HiveMimeContext context) : 
         => await postService.GetPostAsync(postId);
 
     [HttpPost("browse")]
-    public async Task<List<PostDto>> BrowsePosts(int? creatorId, int? hiveId, PostPaginationDto pagination)
+    public async Task<PaginationResultDto<PostDto>> BrowsePosts(int? creatorId, int? hiveId, PostPaginationDto pagination)
         => await postService.BrowsePostsAsync(creatorId, hiveId, pagination);
 
     [HttpPost("create")]

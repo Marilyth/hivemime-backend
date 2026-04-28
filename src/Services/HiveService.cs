@@ -75,15 +75,14 @@ public class HiveService(HiveMimeContext context)
     /// </summary>
     /// <param name="afterId">The ID of the last hive seen, for pagination.</param>
     /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
-    public async Task<List<HiveDto>> BrowseHivesAsync(HivePaginationDto pagination)
+    public async Task<PaginationResultDto<HiveDto>> BrowseHivesAsync(HivePaginationDto pagination)
     {
         IQueryable<Hive> query = context.Hives.AsNoTracking();
 
         return await query.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
             .ApplyPaginationPageSize(pagination)
-            .ProjectToType<HiveDto>()
-            .ToListAsync();
+            .FetchPaginationResultAsync(pagination);
     }
 
     /// <summary>

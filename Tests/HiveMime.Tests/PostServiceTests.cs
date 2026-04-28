@@ -27,8 +27,8 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.BrowsePostsAsync(_defaultPost.CreatorId, null, new());
 
         // Assert
-        Assert.Single(result);
-        Assert.Equal(_defaultPost.Id, result[0].Id);
+        Assert.Single(result.Items);
+        Assert.Equal(_defaultPost.Id, result.Items[0].Id);
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.BrowsePostsAsync(null, _defaultHive.Id, new());
 
         // Assert
-        Assert.Single(result);
-        Assert.Equal(_defaultPost2.Id, result[0].Id);
+        Assert.Single(result.Items);
+        Assert.Equal(_defaultPost2.Id, result.Items[0].Id);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.BrowsePostsAsync(null, null, new());
 
         // Assert
-        Assert.Equal(4, result.Count);
+        Assert.Equal(4, result.Items.Count);
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.BrowsePostsAsync(null, null, new() { Filter = "not a default poll" });
 
         // Assert
-        Assert.Single(result);
-        Assert.Equal(_defaultPost2.Id, result[0].Id);
+        Assert.Single(result.Items);
+        Assert.Equal(_defaultPost2.Id, result.Items[0].Id);
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
 
         // Assert
-        Assert.True(Algorithms.HotnessFunction(result[0].Adapt<Post>()) > Algorithms.HotnessFunction(result[1].Adapt<Post>()));
+        Assert.True(Algorithms.HotnessFunction(result.Items[0].Adapt<Post>()) > Algorithms.HotnessFunction(result.Items[1].Adapt<Post>()));
 
         // Arrange 2
         await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1, 1, 1, 1, 1, 1 ]);
@@ -244,8 +244,8 @@ public class PostServiceTests : IntegrationTest
         var result2 = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
 
         // Assert 2
-        Assert.True(Algorithms.HotnessFunction(result2[0].Adapt<Post>()) > Algorithms.HotnessFunction(result2[1].Adapt<Post>()));
-        Assert.NotEqual(result[0].Id, result2[0].Id);
+        Assert.True(Algorithms.HotnessFunction(result2.Items[0].Adapt<Post>()) > Algorithms.HotnessFunction(result2.Items[1].Adapt<Post>()));
+        Assert.NotEqual(result.Items[0].Id, result2.Items[0].Id);
     }
 
     [Fact]
@@ -253,13 +253,13 @@ public class PostServiceTests : IntegrationTest
     {
         // Arrange
         PostPaginationDto paginationDto = new() { OrderBy = PostOrderBy.New };
-        var result = await _service.BrowsePostsAsync(null, null, paginationDto);
 
         // Act
-        result = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.New, Cursor = result.Last().Id });
+        var result = await _service.BrowsePostsAsync(null, null, paginationDto);
 
         // Assert
-        Assert.Empty(result);
+        Assert.NotEmpty(result.Items);
+        Assert.Null(result.NextCursor);
     }
 
     [Fact]
@@ -269,11 +269,11 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.BrowsePostsAsync(null, null, new() { OrderBy = PostOrderBy.New, PageSize = 1 });
 
         // Act
-        var result2 = await _service.BrowsePostsAsync(null, null, new() { OrderBy = PostOrderBy.New, Cursor = result.Last().Id });
+        var result2 = await _service.BrowsePostsAsync(null, null, new() { OrderBy = PostOrderBy.New, Cursor = result.NextCursor });
 
         // Assert
-        Assert.NotEmpty(result);
-        Assert.False(result.Any(r => r.Id != result.Last().Id));
+        Assert.NotEmpty(result.Items);
+        Assert.False(result.Items.Any(r => r.Id != result.Items.Last().Id));
     }
 
     [Fact]

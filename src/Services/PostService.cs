@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Mapster;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 
 public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue, HoneyDeltaCalculator honeyDeltaCalculator)
@@ -23,7 +24,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// <param name="creatorId">The ID of the user to fetch posts from.</param>
     /// <param name="filter">The filter to apply to the posts.</param>
     /// <param name="pagination">The pagination parameters.</param>
-    public async Task<List<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, PostPaginationDto pagination)
+    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, PostPaginationDto pagination)
     {
         IQueryable<Post> posts = context.Posts.AsNoTracking();
 
@@ -33,16 +34,14 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
 
-        posts = posts.ApplyPaginationFilter(pagination)
+        var result = await posts.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
-            .ApplyPaginationPageSize(pagination);
+            .ApplyPaginationPageSize(pagination)
+            .FetchPaginationResultAsync(pagination);
 
-        var postsToUpdate = await posts.Where(p => DateTimeOffset.UtcNow - p.HotnessLastRecalculatedAt > TimeSpan.FromMinutes(60))
-            .Select(p => p.Id).ToListAsync();
+        hotnessQueue.EnqueuePosts(result.Items.Select(p => p.Id));
 
-        hotnessQueue.EnqueuePosts(postsToUpdate);
-
-        return await posts.ProjectToType<PostDto>().ToListAsync();
+        return result;
     }
 
     /// <summary>

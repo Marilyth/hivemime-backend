@@ -9,9 +9,9 @@ public static class QueryableExtensions
     /// </summary>
     /// <param name="query">The source IQueryable to return an element from.</param>
     /// <param name="predicate">The condition to test against the elements of the sequence.</param>
-    public static async Task<T> FirstOrExceptionAsync<T>(this IQueryable<T> query, Expression<Func<T, bool>> predicate)
+    public static async Task<T> FirstOrExceptionAsync<T>(this IQueryable<T> query, Expression<Func<T, bool>>? predicate = null)
     {
-        return await query.FirstOrDefaultAsync(predicate) ?? 
+        return await (predicate != null ? query.FirstOrDefaultAsync(predicate) : query.FirstOrDefaultAsync()) ?? 
             throw new NotFoundException($"The requested {typeof(T).Name} was not found.");
     }
 

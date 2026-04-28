@@ -1,3 +1,6 @@
+using Mapster;
+using Microsoft.EntityFrameworkCore;
+
 public static class PostPaginationHelper
 {
     public static IQueryable<Post> ApplyPaginationFilter(this IQueryable<Post> posts, PostPaginationDto pagination)
@@ -14,23 +17,20 @@ public static class PostPaginationHelper
         if (pagination.Cursor is null)
             return posts;
 
-        var cursor = posts.QueryableFind(pagination.Cursor);
-        var intermediateQuery = posts.SelectMany(p => cursor.DefaultIfEmpty(), (p, cursor) => new { Current = p, Cursor = cursor });
-
         switch (pagination.OrderBy)
         {
             case PostOrderBy.New:
-                return intermediateQuery.Where(p => p.Current.CreatedAt < p.Cursor.CreatedAt ||
-                                                   (p.Current.CreatedAt == p.Cursor.CreatedAt && p.Current.Id > p.Cursor.Id))
-                    .Select(p => p.Current);
+                DateTimeOffset cursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
+                return posts.Where(p => p.CreatedAt < cursor ||
+                                       (p.CreatedAt == cursor && p.Id > pagination.Cursor.Id));
             case PostOrderBy.Old:
-                return intermediateQuery.Where(p => p.Current.CreatedAt > p.Cursor.CreatedAt ||
-                                                   (p.Current.CreatedAt == p.Cursor.CreatedAt && p.Current.Id > p.Cursor.Id))
-                    .Select(p => p.Current);
+                cursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
+                return posts.Where(p => p.CreatedAt > cursor ||
+                                       (p.CreatedAt == cursor && p.Id > pagination.Cursor.Id));
             case PostOrderBy.Hot:
-                return intermediateQuery.Where(p => p.Current.Hotness < p.Cursor.Hotness ||
-                                                   (p.Current.Hotness == p.Cursor.Hotness && p.Current.Id > p.Cursor.Id))
-                    .Select(p => p.Current);
+                double hotnessCursor = double.Parse(pagination.Cursor.Cursor);
+                return posts.Where(p => p.Hotness < hotnessCursor ||
+                                       (p.Hotness == hotnessCursor && p.Id > pagination.Cursor.Id));
             default:
                 throw new ValidationException("Invalid order by option.");
         }
@@ -58,10 +58,34 @@ public static class PostPaginationHelper
         return orderedPosts.ThenBy(p => p.Id);
     }
 
-    public static IQueryable<Post> ApplyPaginationPageSize(this IQueryable<Post> posts, PostPaginationDto pagination, int maxPageSize = 100)
+    public static IQueryable<T> ApplyPaginationPageSize<T>(this IQueryable<T> entities, PaginationDto pagination, int maxPageSize = 100)
     {
         pagination.PageSize = Math.Clamp(pagination.PageSize, 1, maxPageSize);
         
-        return posts.Take(pagination.PageSize);
+        return entities.Take(pagination.PageSize + 1);
+    }
+
+    public static async Task<PaginationResultDto<T>> BuildPaginationResultAsync<T>(IQueryable<T> entities, PaginationDto pagination, Func<T, object> cursorSelector) where T : IHasIdentifier
+    {
+        var result = await entities.ToListAsync();
+        T? lastItem = result.Count > pagination.PageSize ? result[pagination.PageSize - 1] : default;
+        PaginationCursorDto cursor = lastItem is null ? null :
+            new() { Cursor = cursorSelector(lastItem).ToString(), Id = lastItem.Id };
+
+        return new PaginationResultDto<T>
+        {
+            Items = result.Take(pagination.PageSize).ToList(),
+            NextCursor = cursor
+        };
+    }
+
+    public static async Task<PaginationResultDto<PostDto>> FetchPaginationResultAsync(this IQueryable<Post> entities, PostPaginationDto pagination)
+    {
+        return await BuildPaginationResultAsync(entities.ProjectToType<PostDto>(), pagination, p => pagination.OrderBy switch
+        {
+            PostOrderBy.New or PostOrderBy.Old => p.CreatedAt,
+            PostOrderBy.Hot => p.Hotness,
+            _ => throw new ValidationException("Invalid order by option.")
+        });
     }
 }

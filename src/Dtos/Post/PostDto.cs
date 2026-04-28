@@ -1,4 +1,4 @@
-public class PostDto
+public class PostDto : IHasIdentifier
 {
     public HiveDto? Hive { get; set; }
     public UserDto Creator { get; set; }
@@ -7,4 +7,5 @@ public class PostDto
     public int CommentCount { get; set; }
     public int VoteCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public double Hotness { get; set; }
 }
