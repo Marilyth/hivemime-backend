@@ -18,12 +18,8 @@ public class PostController(PostService postService, HiveMimeContext context) : 
     public async Task<HoneyDeltaDto<PostDto>> PublishPost(int postId)
         => await postService.PublishPostAsync(await User.GetUserIdAsync(context), postId);
 
-    [HttpPost("request-upload")]
-    public async Task<UploadPostDto> RequestUpload([FromBody] UploadPostRequestDto request)
-        => await postService.RequestFileUploadsAsync(await User.GetUserIdAsync(context), request);
-
     [HttpPost("create")]
-    public async Task<PostDto> CreatePost([FromBody] CreatePostDto postDto)
+    public async Task<UploadPostDto> CreatePost([FromBody] CreatePostDto postDto)
         => await postService.CreatePostAsync(await User.GetUserIdAsync(context), postDto);
 
     [HttpGet("results")]

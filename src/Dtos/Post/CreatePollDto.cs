@@ -2,6 +2,7 @@ public class CreatePollDto
 {
     public string Title { get; set; }
     public string? Description { get; set; }
+    public UploadMediaRequestDto Media { get; set; }
     public bool IsShuffled { get; set; }
     public bool IsOptional { get; set; }
 

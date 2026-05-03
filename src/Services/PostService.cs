@@ -103,70 +103,11 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     }
 
     /// <summary>
-    /// Generates pre-signed upload URLs for the media files associated with a post's polls and candidates,
-    /// allowing the client to upload files directly to Cloudflare R2. Validates the total content length
-    /// of the files to ensure it does not exceed the allowed limit.
-    /// </summary>
-    /// <param name="userId">The ID of the user requesting the upload URLs.</param>
-    /// <param name="postDto">The post for which to generate upload URLs.</param>
-    /// <returns>An <see cref="UploadPostDto"/> containing the pre-signed upload URLs.</returns>
-    /// <exception cref="ValidationException">Thrown if the post does not exist or is already published.</exception>
-    public async Task<UploadPostDto> RequestFileUploadsAsync(int userId, UploadPostRequestDto postDto)
-    {
-        if (!await context.Posts.AnyAsync(p => p.Id == postDto.Id && p.CreatorId == userId && !p.IsPublished))
-            throw new ValidationException("Unpublished post with the given ID does not exist for the current user.");
-
-        UploadPostDto uploadPost = await context.Posts.ProjectToType<UploadPostDto>()
-            .FirstAsync(p => p.Id == postDto.Id);
-
-        ulong totalContentLength = 0;
-
-        for (int i = 0; i < postDto.Polls.Count; i++)
-        {
-            var poll = postDto.Polls[i];
-            var uploadPoll = uploadPost.Polls[i];
-            
-            if (poll.Media is not null)
-            {
-                string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
-                string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
-                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, "image/webp");
-
-                uploadPoll.MediaUploadUrls = [signedUploadUrl, signedThumbnailUploadUrl];
-                totalContentLength += poll.Media.ContentLength;
-                totalContentLength += poll.Media.ThumbnailContentLength;
-            }
-
-            for (int j = 0; j < poll.Candidates.Count; j++)
-            {
-                var candidate = poll.Candidates[j];
-                var uploadCandidate = uploadPoll.Candidates[j];
-
-                if (candidate.Media is not null)
-                {
-                    string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
-                    string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
-                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, "image/webp");
-
-                    uploadCandidate.MediaUploadUrls = new List<string> { signedUploadUrl, signedThumbnailUploadUrl };
-                    totalContentLength += candidate.Media.ContentLength;
-                    totalContentLength += candidate.Media.ThumbnailContentLength;
-                }
-            }
-        }
-
-        if (totalContentLength > CloudflareR2Service.MaxTotalSize)
-            throw new ValidationException($"Total content length cannot exceed {CloudflareR2Service.MaxTotalSize} bytes.");
-
-        return uploadPost;
-    }
-
-    /// <summary>
     /// Creates and returns a new post based on the provided data. The post will be unpublished for further review.
     /// </summary>
     /// <param name="userId">The ID of the user creating the post.</param>
     /// <param name="postDto">The post to create.</param>
-    public async Task<PostDto> CreatePostAsync(int userId, CreatePostDto postDto)
+    public async Task<UploadPostDto> CreatePostAsync(int userId, CreatePostDto postDto)
     {
         using var transaction = await context.Database.BeginTransactionAsync();
 
@@ -195,9 +136,9 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         context.Posts.Add(newPost);
         await context.SaveChangesAsync();
 
-        return await context.Posts.Where(p => p.Id == newPost.Id)
-            .ProjectToType<PostDto>()
-            .FirstAsync();
+        UploadPostDto uploadPostDto = await CreateUploadPostDto(postDto, newPost);
+
+        return uploadPostDto;
     }
 
     /// <summary>
@@ -361,6 +302,60 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         await context.SaveChangesAsync();
 
         return honeyDelta;
+    }
+
+    /// <summary>
+    /// Generates pre-signed upload URLs for the media files associated with a post's polls and candidates,
+    /// allowing the client to upload files directly to Cloudflare R2. Validates the total content length
+    /// of the files to ensure it does not exceed the allowed limit.
+    /// </summary>
+    /// <param name="userId">The ID of the user requesting the upload URLs.</param>
+    /// <param name="postDto">The post for which to generate upload URLs.</param>
+    /// <returns>An <see cref="UploadPostDto"/> containing the pre-signed upload URLs.</returns>
+    /// <exception cref="ValidationException">Thrown if the post does not exist or is already published.</exception>
+    private async Task<UploadPostDto> CreateUploadPostDto(CreatePostDto postDto, Post post)
+    {
+        UploadPostDto uploadPost = post.Adapt<UploadPostDto>();
+        ulong totalContentLength = 0;
+
+        for (int i = 0; i < postDto.Polls.Count; i++)
+        {
+            var poll = postDto.Polls[i];
+            var uploadPoll = uploadPost.Polls[i];
+            
+            if (poll.Media is not null)
+            {
+                string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
+                string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
+                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, "image/webp");
+
+                uploadPoll.MediaUploadUrls = [signedUploadUrl, signedThumbnailUploadUrl];
+                totalContentLength += poll.Media.ContentLength;
+                totalContentLength += poll.Media.ThumbnailContentLength;
+            }
+
+            for (int j = 0; j < poll.Candidates.Count; j++)
+            {
+                var candidate = poll.Candidates[j];
+                var uploadCandidate = uploadPoll.Candidates[j];
+
+                if (candidate.Media is not null)
+                {
+                    string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
+                    string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
+                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, "image/webp");
+
+                    uploadCandidate.MediaUploadUrls = new List<string> { signedUploadUrl, signedThumbnailUploadUrl };
+                    totalContentLength += candidate.Media.ContentLength;
+                    totalContentLength += candidate.Media.ThumbnailContentLength;
+                }
+            }
+        }
+
+        if (totalContentLength > CloudflareR2Service.MaxTotalSize)
+            throw new ValidationException($"Total content length cannot exceed {CloudflareR2Service.MaxTotalSize} bytes.");
+
+        return uploadPost;
     }
 
     private IEnumerable<string> ValidateCreatePost(CreatePostDto postDto)
