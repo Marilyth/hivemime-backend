@@ -1,7 +1,7 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 
-public class CloudflareR2Service
+public class CloudflareR2Service : IMediaService
 {
     public const ulong MaxFileSize = 1024 * 1024; // 1 MB
     public const ulong MaxTotalSize = 10 * 1024 * 1024; // 10 MB
@@ -23,7 +23,7 @@ public class CloudflareR2Service
         _amazonS3 = new AmazonS3Client(accessKey, secretKey, config);
     }
 
-    public async Task<List<S3Object>> ListObjectsAsync(string prefix)
+    public async Task<List<string>> ListObjectsAsync(string prefix)
     {
         var request = new ListObjectsV2Request
         {
@@ -32,7 +32,7 @@ public class CloudflareR2Service
         };
 
         var response = await _amazonS3.ListObjectsV2Async(request);
-        return response.S3Objects;
+        return response.S3Objects.Select(o => o.Key).ToList();
     }
 
     public string GetPreSignedURL(string objectKey, ulong contentLength, string contentType)

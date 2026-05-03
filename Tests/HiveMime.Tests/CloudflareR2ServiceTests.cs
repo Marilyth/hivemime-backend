@@ -35,7 +35,7 @@ public class CloudflareR2ServiceTests
         // Assert.
         var result = await _service.ListObjectsAsync("prefix");
         Assert.Single(result);
-        Assert.Equal("test", result[0].Key);
+        Assert.Equal("test", result[0]);
     }
 
     [Fact]

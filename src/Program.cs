@@ -82,7 +82,7 @@ public class Program
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
         services.AddSingleton<GeoIPService>();
         services.AddSingleton<HotnessUpdateQueue>();
-        services.AddSingleton<CloudflareR2Service>();
+        services.AddSingleton<IMediaService, CloudflareR2Service>();
         services.AddHttpClient();
         
         // Add ITriggers.

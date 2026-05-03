@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue, HoneyDeltaCalculator honeyDeltaCalculator, CloudflareR2Service r2Service)
+public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue, HoneyDeltaCalculator honeyDeltaCalculator, IMediaService mediaService)
 {
     /// <summary>
     /// Fetches and returns a post by its ID, including all its polls and candidates.
@@ -68,19 +68,18 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
 
         post.IsPublished = true;
 
-        var uploadedFiles = await r2Service.ListObjectsAsync($"{post.Id}/");
+        var uploadedFiles = await mediaService.ListObjectsAsync($"{post.Id}/");
 
         foreach (var uploadedFile in uploadedFiles)
         {
-            string objectKey = uploadedFile.Key;
-            string[] keyParts = objectKey.Split('/');
+            string[] keyParts = uploadedFile.Split('/');
 
             if (keyParts.Length == 3)
             {
                 int pollId = int.Parse(keyParts[1]);
                 Poll poll = post.Polls.First(p => p.Id == pollId);
 
-                poll.MediaKeys.Add(objectKey);
+                poll.MediaKeys.Add(uploadedFile);
             }
 
             else if (keyParts.Length == 4)
@@ -90,7 +89,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
                 Poll poll = post.Polls.First(p => p.Id == pollId);
                 Candidate candidate = poll.Candidates.First(c => c.Id == candidateId);
 
-                candidate.MediaKeys.Add(objectKey);
+                candidate.MediaKeys.Add(uploadedFile);
             }
         }
 
@@ -130,8 +129,8 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             if (poll.Media is not null)
             {
                 string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
-                string signedUploadUrl = r2Service.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
-                string signedThumbnailUploadUrl = r2Service.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, "image/webp");
+                string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
+                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, "image/webp");
 
                 uploadPoll.MediaUploadUrls = [signedUploadUrl, signedThumbnailUploadUrl];
                 totalContentLength += poll.Media.ContentLength;
@@ -146,8 +145,8 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
                 if (candidate.Media is not null)
                 {
                     string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
-                    string signedUploadUrl = r2Service.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
-                    string signedThumbnailUploadUrl = r2Service.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, "image/webp");
+                    string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
+                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, "image/webp");
 
                     uploadCandidate.MediaUploadUrls = new List<string> { signedUploadUrl, signedThumbnailUploadUrl };
                     totalContentLength += candidate.Media.ContentLength;
