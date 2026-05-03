@@ -90,14 +90,14 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.NotNull(post);
-        Assert.Equal(_defaultUser.Id, post.Dto.Creator.Id);
-        Assert.Single(post.Dto.Polls);
-        Assert.Equal("Poll 1", post.Dto.Polls[0].Title);
-        Assert.Equal("Description 1", post.Dto.Polls[0].Description);
-        Assert.Equal(PollType.Choice, post.Dto.Polls[0].PollType);
-        Assert.Equal(2, post.Dto.Polls[0].Candidates.Count);
-        Assert.Equal("Option 1", post.Dto.Polls[0].Candidates[0].Name);
-        Assert.Equal("Option 2", post.Dto.Polls[0].Candidates[1].Name);
+        Assert.Equal(_defaultUser.Id, post.Creator.Id);
+        Assert.Single(post.Polls);
+        Assert.Equal("Poll 1", post.Polls[0].Title);
+        Assert.Equal("Description 1", post.Polls[0].Description);
+        Assert.Equal(PollType.Choice, post.Polls[0].PollType);
+        Assert.Equal(2, post.Polls[0].Candidates.Count);
+        Assert.Equal("Option 1", post.Polls[0].Candidates[0].Name);
+        Assert.Equal("Option 2", post.Polls[0].Candidates[1].Name);
     }
 
     [Fact]
@@ -285,9 +285,9 @@ public class PostServiceTests : IntegrationTest
             Polls = [ new CreatePollDto { Title = "Poll", Description = "desc", PollType = PollType.Choice, Candidates = [ new CreateCandidateDto { Name = "A" } ], Categories = [] } ]
         };
         var post = await _service.CreatePostAsync(_defaultUser.Id, postDto);
-        await AddVotesToCandidate(post.Dto.Polls[0].Candidates[0].Id, post.Dto.Id, new[] { 1, 1 });
+        await AddVotesToCandidate(post.Polls[0].Candidates[0].Id, post.Id, new[] { 1, 1 });
         
-        var updated = await _service.GetPostAsync(post.Dto.Id);
+        var updated = await _service.GetPostAsync(post.Id);
 
         // Assert
         Assert.Equal(2, updated.VoteCount);

@@ -65,7 +65,7 @@ public class CloudflareR2Service
         return _amazonS3.GetPreSignedURL(request);
     }
 
-    public string MimeTypeToExtension(string mimeType)
+    public static string MimeTypeToExtension(string mimeType)
     {
         return mimeType switch
         {
