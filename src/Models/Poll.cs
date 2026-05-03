@@ -7,6 +7,8 @@ public class Poll : EntityWithIdentifier
     public string Title { get; set; }
     [MaxLength(1024)]
     public string? Description { get; set; }
+    public List<string> MediaKeys { get; set; } = [];
+
     public bool AllowCustomAnswer { get; set; }
     public bool IsShuffled { get; set; }
     public bool IsOptional { get; set; }
@@ -23,8 +25,8 @@ public class Poll : EntityWithIdentifier
     public int MaxVotes { get; set; }
 
     public PollType PollType { get; set; }
-    public List<Candidate> Candidates { get; set; }
-    public List<Category> Categories { get; set; }
+    public List<Candidate> Candidates { get; set; } = [];
+    public List<Category> Categories { get; set; } = [];
 
     [ForeignKey(nameof(Post))]
     public int PostId { get; set; }

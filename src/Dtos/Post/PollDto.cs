@@ -2,6 +2,7 @@ public class PollDto
 {
     public int Id { get; set; }
     public string Title { get; set; }
+    public List<string> MediaKeys { get; set; }
     public string? Description { get; set; }
     public bool IsShuffled { get; set; }
     public bool IsOptional { get; set; }
