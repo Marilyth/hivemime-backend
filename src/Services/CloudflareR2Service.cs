@@ -38,16 +38,16 @@ public class CloudflareR2Service : IMediaService
     public string GetPreSignedURL(string objectKey, ulong contentLength, string contentType)
     {
         if (string.IsNullOrEmpty(objectKey))
-            throw new ArgumentException("Object key cannot be null or empty.", nameof(objectKey));
+            throw new ValidationException("Object key cannot be null or empty.");
 
         if (contentLength <= 0)
-            throw new ArgumentException("Content length must be greater than zero.", nameof(contentLength));
+            throw new ValidationException("Content length must be greater than zero.");
 
         if (contentLength > MaxFileSize)
-            throw new ArgumentException($"Content length cannot exceed {MaxFileSize} bytes.", nameof(contentLength));
+            throw new ValidationException($"Content length cannot exceed {MaxFileSize} bytes.");
 
         if (string.IsNullOrEmpty(contentType))
-            throw new ArgumentException("Content type cannot be null or empty.", nameof(contentType));
+            throw new ValidationException("Content type cannot be null or empty.");
 
         string extension = MimeTypeToExtension(contentType);
 
