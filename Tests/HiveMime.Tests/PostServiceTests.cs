@@ -1,17 +1,21 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Moq;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace HiveMime.Tests;
 
 public class PostServiceTests : IntegrationTest
 {
-    private Hive _defaultHive;
-    private Post _defaultPost;
-    private Post _defaultPost2;
-    private Post _scorePost;
-    private Post _categoryPost;
-    private User _defaultUser;
-    private User _defaultUser2;
+    private Hive? _defaultHive;
+    private Post? _defaultPost;
+    private Post? _defaultPost2;
+    private Post? _scorePost;
+    private Post? _categoryPost;
+    private Post? _privatePost;
+    private Post? _unpublishedPost;
+    private User? _defaultUser;
+    private User? _defaultUser2;
 
     private PostService _service;
 
@@ -38,8 +42,8 @@ public class PostServiceTests : IntegrationTest
         var result = await _service.BrowsePostsAsync(null, _defaultHive.Id, new());
 
         // Assert
-        Assert.Single(result.Items);
-        Assert.Equal(_defaultPost2.Id, result.Items[0].Id);
+        Assert.Equal(4, result.Items.Count);
+        Assert.All(result.Items, item => Assert.Equal(item.Hive.Id, _defaultHive.Id));
     }
 
     [Fact]
@@ -101,6 +105,156 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
+    public async Task CreatePostAsync_SetsIsPublishedFalse()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls = [ new CreatePollDto { Title = "Poll", Description = "desc", PollType = PollType.Choice, Candidates = [ new CreateCandidateDto { Name = "A" } ], Categories = [] } ]
+        };
+        var mediaServiceMock = new Mock<IMediaService>();
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var honeyDeltaCalculator = new HoneyDeltaCalculator(Context, memoryCache);
+        var service = new PostService(Context, new HotnessUpdateQueue(), honeyDeltaCalculator, mediaServiceMock.Object);
+
+        // Act
+        var post = await service.CreatePostAsync(_defaultUser.Id, postDto);
+        var dbPost = await Context.Posts.FindAsync(post.Id);
+
+        // Assert
+        Assert.NotNull(dbPost);
+        Assert.False(dbPost.IsPublished);
+    }
+
+    [Fact]
+    public async Task PublishPostAsync_SetsIsPublishedTrue_AndLinksMedia()
+    {
+        // Arrange
+        var post = new Post { Creator = _defaultUser, IsPublished = false, Polls = [new Poll { Title = "TestPoll", Candidates = [new() { Name = "TestCandidate" }] }] };
+        Context.Posts.Add(post);
+        await Context.SaveChangesAsync();
+        var mediaServiceMock = new Mock<IMediaService>();
+        mediaServiceMock.Setup(m => m.ListObjectsAsync(It.IsAny<string>()))
+            .ReturnsAsync([
+                $"{post.Id}/{post.Polls[0].Id}/asdf.png",
+                $"{post.Id}/{post.Polls[0].Id}/{post.Polls[0].Candidates[0].Id}/asdf.png"
+            ]);
+
+        var service = new PostService(Context, Context.GetService<HotnessUpdateQueue>(), Context.GetService<HoneyDeltaCalculator>(), mediaServiceMock.Object);
+
+        // Act
+        await service.PublishPostAsync(_defaultUser.Id, post.Id);
+        var dbPost = await Context.Posts.FindAsync(post.Id);
+
+        // Assert
+        Assert.True(dbPost.IsPublished);
+        Assert.Contains(dbPost.Polls[0].Candidates[0].MediaKeys, k => k.EndsWith("asdf.png"));
+        Assert.Contains(dbPost.Polls[0].MediaKeys, k => k.EndsWith("asdf.png"));
+    }
+
+    [Fact]
+    public async Task PublishPostAsync_ThrowsIfNotCreator()
+    {
+        // Arrange
+        var post = new Post { Creator = _defaultUser, IsPublished = false, Polls = [ new Poll { Title = "TestPoll", Candidates = [] } ] };
+        Context.Posts.Add(post);
+        await Context.SaveChangesAsync();
+        var mediaServiceMock = new Mock<IMediaService>();
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var honeyDeltaCalculator = new HoneyDeltaCalculator(Context, memoryCache);
+        var service = new PostService(Context, new HotnessUpdateQueue(), honeyDeltaCalculator, mediaServiceMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PublishPostAsync(_defaultUser2.Id, post.Id));
+    }
+
+    [Fact]
+    public async Task RequestFileUploadsAsync_ThrowsIfPostPublished()
+    {
+        // Arrange
+        var post = new Post { Creator = _defaultUser, IsPublished = true, Polls = new List<Poll> { new Poll { Candidates = new List<Candidate>() } } };
+        Context.Posts.Add(post);
+        await Context.SaveChangesAsync();
+        var mediaServiceMock = new Mock<IMediaService>();
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var honeyDeltaCalculator = new HoneyDeltaCalculator(Context, memoryCache);
+        var service = new PostService(Context, new HotnessUpdateQueue(), honeyDeltaCalculator, mediaServiceMock.Object);
+        var uploadRequest = new UploadPostRequestDto { Id = post.Id, Polls = new List<UploadPollRequestDto>() };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ValidationException>(() => service.RequestFileUploadsAsync(_defaultUser.Id, uploadRequest));
+    }
+
+    [Fact]
+    public async Task RequestFileUploadsAsync_ThrowsIfTotalContentLengthExceedsLimit()
+    {
+        // Arrange
+        var post = new Post { Creator = _defaultUser, IsPublished = false, Polls = new List<Poll> { new Poll { Candidates = new List<Candidate>() } } };
+        Context.Posts.Add(post);
+        await Context.SaveChangesAsync();
+        var mediaServiceMock = new Mock<IMediaService>();
+        mediaServiceMock.Setup(m => m.GetPreSignedURL(It.IsAny<string>(), It.IsAny<ulong>(), It.IsAny<string>())).Returns("url");
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var honeyDeltaCalculator = new HoneyDeltaCalculator(Context, memoryCache);
+        var service = new PostService(Context, new HotnessUpdateQueue(), honeyDeltaCalculator, mediaServiceMock.Object);
+        var uploadRequest = new UploadPostRequestDto
+        {
+            Id = post.Id,
+            Polls = new List<UploadPollRequestDto>
+            {
+                new UploadPollRequestDto
+                {
+                    Media = new UploadMediaRequestDto { ContentLength = CloudflareR2Service.MaxTotalSize + 1, ThumbnailContentLength = 0, ContentType = "image/png" },
+                    Candidates = new List<UploadCandidateRequestDto>()
+                }
+            }
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ValidationException>(() => service.RequestFileUploadsAsync(_defaultUser.Id, uploadRequest));
+    }
+
+    [Fact]
+    public async Task RequestFileUploadsAsync_GeneratesPreSignedUrls()
+    {
+        // Arrange
+        var post = new Post { Creator = _defaultUser, IsPublished = false, Polls = new List<Poll> { new Poll { Candidates = new List<Candidate> { new Candidate() } } } };
+        Context.Posts.Add(post);
+        await Context.SaveChangesAsync();
+        var mediaServiceMock = new Mock<IMediaService>();
+        mediaServiceMock.Setup(m => m.GetPreSignedURL(It.IsAny<string>(), It.IsAny<ulong>(), It.IsAny<string>())).Returns("url");
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var honeyDeltaCalculator = new HoneyDeltaCalculator(Context, memoryCache);
+        var service = new PostService(Context, new HotnessUpdateQueue(), honeyDeltaCalculator, mediaServiceMock.Object);
+        var uploadRequest = new UploadPostRequestDto
+        {
+            Id = post.Id,
+            Polls = new List<UploadPollRequestDto>
+            {
+                new UploadPollRequestDto
+                {
+                    Media = new UploadMediaRequestDto { ContentLength = 1, ThumbnailContentLength = 1, ContentType = "image/png" },
+                    Candidates = new List<UploadCandidateRequestDto>
+                    {
+                        new UploadCandidateRequestDto
+                        {
+                            Media = new UploadMediaRequestDto { ContentLength = 1, ThumbnailContentLength = 1, ContentType = "image/png" }
+                        }
+                    }
+                }
+            }
+        };
+
+        // Act
+        var result = await service.RequestFileUploadsAsync(_defaultUser.Id, uploadRequest);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.All(result.Polls, p => Assert.NotNull(p.MediaUploadUrls));
+        Assert.All(result.Polls, p => Assert.All(p.Candidates, c => Assert.NotNull(c.MediaUploadUrls)));
+    }
+
+    [Fact]
     public async Task GetPostResultAsync_WithScoreVotes_AggregatesCorrectly()
     {
         // Arrange
@@ -115,7 +269,7 @@ public class PostServiceTests : IntegrationTest
         // Assert
         Assert.Equal(50, result.Polls[0].Candidates[0].AverageScore);
         Assert.Equal(10, result.Polls[0].Candidates[0].VoterAmount);
-        Assert.Equal(null, result.Polls[1].Candidates[0].AverageScore);
+        Assert.Null(result.Polls[1].Candidates[0].AverageScore);
         Assert.Equal(0, result.Polls[1].Candidates[0].VoterAmount);
     }
 
@@ -130,6 +284,7 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.Equal(0, result.Polls[0].Candidates[0].MajorityVote);
+        Assert.NotNull(result.Polls[0].Candidates[0].MajorityRatio);
         Assert.Equal(0.6, result.Polls[0].Candidates[0].MajorityRatio.Value, 4);
     }
 
@@ -273,21 +428,15 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.NotEmpty(result.Items);
-        Assert.False(result.Items.Any(r => r.Id != result.Items.Last().Id));
+        Assert.DoesNotContain(result.Items, r => r.Id != result.Items.Last().Id);
     }
 
     [Fact]
     public async Task CreatePost_UpdatesVoteCount()
     {
-        // Arrange
-        var postDto = new CreatePostDto
-        {
-            Polls = [ new CreatePollDto { Title = "Poll", Description = "desc", PollType = PollType.Choice, Candidates = [ new CreateCandidateDto { Name = "A" } ], Categories = [] } ]
-        };
-        var post = await _service.CreatePostAsync(_defaultUser.Id, postDto);
-        await AddVotesToCandidate(post.Polls[0].Candidates[0].Id, post.Id, new[] { 1, 1 });
-        
-        var updated = await _service.GetPostAsync(post.Id);
+        // Act
+        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, new[] { 1, 1 });
+        var updated = await _service.GetPostAsync(_defaultPost.Id);
 
         // Assert
         Assert.Equal(2, updated.VoteCount);
@@ -350,6 +499,8 @@ public class PostServiceTests : IntegrationTest
         _defaultPost = new()
         {
             Creator = _defaultUser,
+            Hive = _defaultHive,
+            IsPublished = true,
             Polls = [
                 new Poll
                 {
@@ -369,6 +520,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser2,
             Hive = _defaultHive,
+            IsPublished = true,
             Polls = [
                 new Poll
                 {
@@ -387,6 +539,8 @@ public class PostServiceTests : IntegrationTest
         _scorePost = new()
         {
             Creator = _defaultUser2,
+            Hive = _defaultHive,
+            IsPublished = true,
             Polls = [
                 new Poll
                 {
@@ -418,6 +572,8 @@ public class PostServiceTests : IntegrationTest
         _categoryPost = new()
         {
             Creator = _defaultUser2,
+            Hive = _defaultHive,
+            IsPublished = true,
             Polls = [
                 new Poll
                 {
@@ -434,6 +590,43 @@ public class PostServiceTests : IntegrationTest
                     {
                         new Category { Name = "Category 1" },
                         new Category { Name = "Category 2" }
+                    }
+                }
+            ]
+        };
+
+        _privatePost = new()
+        {
+            Creator = _defaultUser,
+            Polls = [
+                new Poll
+                {
+                    Title = "Default Poll",
+                    Description = "This is a default poll.",
+                    PollType = PollType.Choice,
+                    Candidates = new List<Candidate>
+                    {
+                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                    }
+                }
+            ]
+        };
+
+        _unpublishedPost = new()
+        {
+            Creator = _defaultUser,
+            Hive = _defaultHive,
+            Polls = [
+                new Poll
+                {
+                    Title = "Default Poll",
+                    Description = "This is a default poll.",
+                    PollType = PollType.Choice,
+                    Candidates = new List<Candidate>
+                    {
+                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
                     }
                 }
             ]
