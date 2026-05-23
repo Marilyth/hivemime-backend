@@ -42,10 +42,10 @@ public class CloudflareR2ServiceTests
     public void GetPreSignedURL_InvalidInput_Throws()
     {
         // Act & Assert.
-        Assert.Throws<ArgumentException>(() => _service.GetPreSignedURL(null, 100, "image/png"));
-        Assert.Throws<ArgumentException>(() => _service.GetPreSignedURL("key", 0, "image/png"));
-        Assert.Throws<ArgumentException>(() => _service.GetPreSignedURL("key", CloudflareR2Service.MaxFileSize + 1, "image/png"));
-        Assert.Throws<ArgumentException>(() => _service.GetPreSignedURL("key", 100, null));
+        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL(null, 100, "image/png"));
+        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL("key", 0, "image/png"));
+        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL("key", CloudflareR2Service.MaxFileSize + 1, "image/png"));
+        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL("key", 100, null));
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class CloudflareR2ServiceTests
         var url = _service.GetPreSignedURL("key", 100, "image/png");
 
         // Assert.
-        Assert.StartsWith("https://localhost/HiveMime/key.png", url);
+        Assert.StartsWith("https://localhost/key.png", url);
     }
 
     [Theory]
