@@ -6,6 +6,7 @@ public class CloudflareR2Service : IMediaService
     public const ulong MaxFileSize = 1024 * 1024; // 1 MB
     public const ulong MaxTotalSize = 10 * 1024 * 1024; // 10 MB
 
+    private string BucketName;
     private readonly IAmazonS3 _amazonS3;
 
     public CloudflareR2Service(IConfiguration configuration)
@@ -13,6 +14,7 @@ public class CloudflareR2Service : IMediaService
         var accessKey = configuration["R2:AccessKey"];
         var secretKey = configuration["R2:SecretKey"];
         var serviceUrl = configuration["R2:S3API"];
+        BucketName = configuration["R2:BucketName"];
 
         var config = new AmazonS3Config
         {
@@ -27,7 +29,7 @@ public class CloudflareR2Service : IMediaService
     {
         var request = new ListObjectsV2Request
         {
-            BucketName = "HiveMime",
+            BucketName = BucketName,
             Prefix = prefix
         };
 
@@ -53,7 +55,7 @@ public class CloudflareR2Service : IMediaService
 
         var request = new GetPreSignedUrlRequest
         {
-            BucketName = "HiveMime",
+            BucketName = BucketName,
             Key = objectKey + extension,
             Verb = HttpVerb.PUT,
             Expires = DateTime.UtcNow.Add(TimeSpan.FromMinutes(5))

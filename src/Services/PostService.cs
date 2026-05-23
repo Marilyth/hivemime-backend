@@ -109,8 +109,6 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// <param name="postDto">The post to create.</param>
     public async Task<UploadPostDto> CreatePostAsync(int userId, CreatePostDto postDto)
     {
-        using var transaction = await context.Database.BeginTransactionAsync();
-
         IEnumerable<string> validationErrors = ValidateCreatePost(postDto);
         Hive hive = null;
 
@@ -327,7 +325,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             {
                 string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
                 string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
-                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, "image/webp");
+                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, poll.Media.ContentType);
 
                 uploadPoll.MediaUploadUrls = [signedUploadUrl, signedThumbnailUploadUrl];
                 totalContentLength += poll.Media.ContentLength;
@@ -343,7 +341,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
                 {
                     string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
                     string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
-                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, "image/webp");
+                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, candidate.Media.ContentType);
 
                     uploadCandidate.MediaUploadUrls = new List<string> { signedUploadUrl, signedThumbnailUploadUrl };
                     totalContentLength += candidate.Media.ContentLength;

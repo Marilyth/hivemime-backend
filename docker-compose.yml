@@ -23,3 +23,6 @@ services:
       - "8080:8080"
     environment:
       ConnectionStrings__Default: ${ConnectionStrings__Default}
+      R2__AccessKey: ${R2__AccessKey}
+      R2__SecretKey: ${R2__SecretKey}
+      R2__S3API: ${R2__S3API}
