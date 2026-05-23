@@ -26,3 +26,4 @@ services:
       R2__AccessKey: ${R2__AccessKey}
       R2__SecretKey: ${R2__SecretKey}
       R2__S3API: ${R2__S3API}
+      R2__BucketName: ${R2__BucketName}
