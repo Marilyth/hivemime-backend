@@ -34,7 +34,7 @@ public class CloudflareR2Service : IMediaService
         };
 
         var response = await _amazonS3.ListObjectsV2Async(request);
-        return response.S3Objects.Select(o => o.Key).ToList();
+        return response.S3Objects?.Select(o => o.Key).ToList() ?? [];
     }
 
     public string GetPreSignedURL(string objectKey, ulong contentLength, string contentType)
