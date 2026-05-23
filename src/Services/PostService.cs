@@ -1,9 +1,8 @@
 using System.Linq.Expressions;
 using Mapster;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 
-public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue, HoneyDeltaCalculator honeyDeltaCalculator)
+public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue, HoneyDeltaCalculator honeyDeltaCalculator, IMediaService mediaService)
 {
     /// <summary>
     /// Fetches and returns a post by its ID, including all its polls and candidates.
@@ -22,11 +21,13 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// Fetches and returns a pre selection of hot posts to show in the browse section.
     /// </summary>
     /// <param name="creatorId">The ID of the user to fetch posts from.</param>
-    /// <param name="filter">The filter to apply to the posts.</param>
+    /// <param name="hiveId">The ID of the hive to fetch posts from.</param>
     /// <param name="pagination">The pagination parameters.</param>
     public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, PostPaginationDto pagination)
     {
-        IQueryable<Post> posts = context.Posts.AsNoTracking();
+        IQueryable<Post> posts = context.Posts
+            .Where(p => p.IsPublished && p.HiveId != null)
+            .AsNoTracking();
 
         if (creatorId.HasValue)
             posts = posts.Where(p => p.CreatorId == creatorId.Value);
@@ -45,11 +46,68 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     }
 
     /// <summary>
-    /// Creates and returns a new post based on the provided data.
+    /// Publishes a post, making it visible to other users and linking any uploaded media to it.
+    /// </summary>
+    /// <param name="userId">The ID of the user attempting to publish the post.</param>
+    /// <param name="postId">The ID of the post to be published.</param>
+    /// <returns>True if the post was successfully published; otherwise, false.</returns>
+    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not the creator of the post.</exception>
+    /// <exception cref="ValidationException">Thrown if the post is already published.</exception>
+    public async Task<HoneyDeltaDto<PostDto>> PublishPostAsync(int userId, int postId)
+    {
+        Post post = await context.Posts
+            .Include(p => p.Polls)
+            .ThenInclude(p => p.Candidates)
+            .FirstOrExceptionAsync(p => p.Id == postId);
+
+        if (post.CreatorId != userId)
+            throw new UnauthorizedAccessException("You are not the creator of this post.");
+
+        if (post.IsPublished)
+            throw new ValidationException("Post is already published.");
+
+        post.IsPublished = true;
+
+        var uploadedFiles = await mediaService.ListObjectsAsync($"{post.Id}/");
+
+        foreach (var uploadedFile in uploadedFiles)
+        {
+            string[] keyParts = uploadedFile.Split('/');
+
+            if (keyParts.Length == 3)
+            {
+                int pollId = int.Parse(keyParts[1]);
+                Poll poll = post.Polls.First(p => p.Id == pollId);
+
+                poll.MediaKeys.Add(uploadedFile);
+            }
+
+            else if (keyParts.Length == 4)
+            {
+                int pollId = int.Parse(keyParts[1]);
+                int candidateId = int.Parse(keyParts[2]);
+                Poll poll = post.Polls.First(p => p.Id == pollId);
+                Candidate candidate = poll.Candidates.First(c => c.Id == candidateId);
+
+                candidate.MediaKeys.Add(uploadedFile);
+            }
+        }
+
+        await context.SaveChangesAsync();
+        
+        PostDto postDto = await context.Posts.Where(p => p.Id == postId)
+            .ProjectToType<PostDto>()
+            .FirstAsync();
+
+        return await honeyDeltaCalculator.FromPostDtoAsync(userId, postDto);
+    }
+
+    /// <summary>
+    /// Creates and returns a new post based on the provided data. The post will be unpublished for further review.
     /// </summary>
     /// <param name="userId">The ID of the user creating the post.</param>
     /// <param name="postDto">The post to create.</param>
-    public async Task<HoneyDeltaDto<PostDto>> CreatePostAsync(int userId, CreatePostDto postDto)
+    public async Task<UploadPostDto> CreatePostAsync(int userId, CreatePostDto postDto)
     {
         IEnumerable<string> validationErrors = ValidateCreatePost(postDto);
         Hive hive = null;
@@ -61,6 +119,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             throw new ValidationException("Post validation failed: " + string.Join("; ", validationErrors));
 
         Post newPost = postDto.Adapt<Post>();
+        newPost.IsPublished = false;
 
         // Each category requires a value for easier evaluation and filtering.
         foreach (Poll poll in newPost.Polls.Where(p => p.PollType == PollType.Category))
@@ -75,13 +134,9 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         context.Posts.Add(newPost);
         await context.SaveChangesAsync();
 
-        PostDto createdPostDto = await context.Posts
-            .AsNoTracking()
-            .QueryableFind(newPost.Id)
-            .ProjectToType<PostDto>()
-            .FirstAsync();
+        UploadPostDto uploadPostDto = await CreateUploadPostDto(postDto, newPost);
 
-        return await honeyDeltaCalculator.FromPostDtoAsync(userId, createdPostDto);
+        return uploadPostDto;
     }
 
     /// <summary>
@@ -245,6 +300,60 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         await context.SaveChangesAsync();
 
         return honeyDelta;
+    }
+
+    /// <summary>
+    /// Generates pre-signed upload URLs for the media files associated with a post's polls and candidates,
+    /// allowing the client to upload files directly to Cloudflare R2. Validates the total content length
+    /// of the files to ensure it does not exceed the allowed limit.
+    /// </summary>
+    /// <param name="userId">The ID of the user requesting the upload URLs.</param>
+    /// <param name="postDto">The post for which to generate upload URLs.</param>
+    /// <returns>An <see cref="UploadPostDto"/> containing the pre-signed upload URLs.</returns>
+    /// <exception cref="ValidationException">Thrown if the post does not exist or is already published.</exception>
+    private async Task<UploadPostDto> CreateUploadPostDto(CreatePostDto postDto, Post post)
+    {
+        UploadPostDto uploadPost = post.Adapt<UploadPostDto>();
+        ulong totalContentLength = 0;
+
+        for (int i = 0; i < postDto.Polls.Count; i++)
+        {
+            var poll = postDto.Polls[i];
+            var uploadPoll = uploadPost.Polls[i];
+            
+            if (poll.Media is not null)
+            {
+                string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
+                string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
+                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, poll.Media.ContentType);
+
+                uploadPoll.MediaUploadUrls = [signedUploadUrl, signedThumbnailUploadUrl];
+                totalContentLength += poll.Media.ContentLength;
+                totalContentLength += poll.Media.ThumbnailContentLength;
+            }
+
+            for (int j = 0; j < poll.Candidates.Count; j++)
+            {
+                var candidate = poll.Candidates[j];
+                var uploadCandidate = uploadPoll.Candidates[j];
+
+                if (candidate.Media is not null)
+                {
+                    string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
+                    string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
+                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, candidate.Media.ContentType);
+
+                    uploadCandidate.MediaUploadUrls = new List<string> { signedUploadUrl, signedThumbnailUploadUrl };
+                    totalContentLength += candidate.Media.ContentLength;
+                    totalContentLength += candidate.Media.ThumbnailContentLength;
+                }
+            }
+        }
+
+        if (totalContentLength > CloudflareR2Service.MaxTotalSize)
+            throw new ValidationException($"Total content length cannot exceed {CloudflareR2Service.MaxTotalSize} bytes.");
+
+        return uploadPost;
     }
 
     private IEnumerable<string> ValidateCreatePost(CreatePostDto postDto)

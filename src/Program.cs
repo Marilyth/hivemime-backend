@@ -21,6 +21,7 @@ public class Program
 
     public static void Main(string[] args)
     {
+        DotNetEnv.Env.TraversePath().Load();
         var builder = WebApplication.CreateBuilder(args);
         var services = builder.Services;
 
@@ -82,6 +83,7 @@ public class Program
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
         services.AddSingleton<GeoIPService>();
         services.AddSingleton<HotnessUpdateQueue>();
+        services.AddSingleton<IMediaService, CloudflareR2Service>();
         services.AddHttpClient();
         
         // Add ITriggers.

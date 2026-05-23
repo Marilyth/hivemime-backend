@@ -8,6 +8,8 @@ public static class MapsterConfiguration
     {
         ConfigureComment();
         ConfigureUser();
+        ConfigureCandidate();
+        ConfigurePoll();
     }
 
     private static void ConfigureComment()
@@ -21,5 +23,23 @@ public static class MapsterConfiguration
         _config.NewConfig<User, UserProfileDto>()
             .Map(dest => dest.PostCount, src => src.CreatedPosts.Count)
             .Map(dest => dest.CommentCount, src => src.Comments.Count);
+    }
+
+    private static void ConfigureCandidate()
+    {
+        _config.NewConfig<Candidate, CandidateDto>()
+            .Map(dest => dest.MediaKeys, src => src.MediaKeys.Select(m => "https://media.mayiscoding.com/" + m));
+
+        _config.NewConfig<Candidate, PollCandidateResultDto>()
+            .Map(dest => dest.MediaKeys, src => src.MediaKeys.Select(m => "https://media.mayiscoding.com/" + m));
+    }
+
+    private static void ConfigurePoll()
+    {
+        _config.NewConfig<Poll, PollDto>()
+            .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m));
+
+        _config.NewConfig<Poll, PollResultDto>()
+            .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m));
     }
 }

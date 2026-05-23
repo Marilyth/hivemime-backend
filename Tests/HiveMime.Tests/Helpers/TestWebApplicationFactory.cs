@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -25,6 +26,18 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
             // Register DbContext with Testcontainers connection string
             services.AddDbContextFactory<HiveMimeContext>(options =>
                 options.UseNpgsql(_connectionString), ServiceLifetime.Scoped);
+
+            // Add a mock IConfiguration with dummy values.
+            var builder = new ConfigurationBuilder();
+            builder.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["R2:AccessKey"] = "test-access-key",
+                ["R2:SecretKey"] = "test-secret-key",
+                ["R2:S3API"] = "https://localhost"
+            });
+
+            services.RemoveAll<IConfiguration>();
+            services.AddSingleton<IConfiguration>(builder.Build());
         });
     }
 }

@@ -1,17 +1,21 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Moq;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace HiveMime.Tests;
 
 public class PostServiceTests : IntegrationTest
 {
-    private Hive _defaultHive;
-    private Post _defaultPost;
-    private Post _defaultPost2;
-    private Post _scorePost;
-    private Post _categoryPost;
-    private User _defaultUser;
-    private User _defaultUser2;
+    private Hive? _defaultHive;
+    private Post? _defaultPost;
+    private Post? _defaultPost2;
+    private Post? _scorePost;
+    private Post? _categoryPost;
+    private Post? _privatePost;
+    private Post? _unpublishedPost;
+    private User? _defaultUser;
+    private User? _defaultUser2;
 
     private PostService _service;
 
@@ -24,7 +28,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByUser_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(_defaultPost.CreatorId, null, new());
+        var result = await _service.BrowsePostsAsync(_defaultPost!.CreatorId, null, new());
 
         // Assert
         Assert.Single(result.Items);
@@ -35,11 +39,11 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByHive_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, _defaultHive.Id, new());
+        var result = await _service.BrowsePostsAsync(null, _defaultHive!.Id, new());
 
         // Assert
-        Assert.Single(result.Items);
-        Assert.Equal(_defaultPost2.Id, result.Items[0].Id);
+        Assert.Equal(4, result.Items.Count);
+        Assert.All(result.Items, item => Assert.Equal(item.Hive!.Id, _defaultHive!.Id));
     }
 
     [Fact]
@@ -60,7 +64,7 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.Single(result.Items);
-        Assert.Equal(_defaultPost2.Id, result.Items[0].Id);
+        Assert.Equal(_defaultPost2!.Id, result.Items[0].Id);
     }
 
     [Fact]
@@ -86,25 +90,107 @@ public class PostServiceTests : IntegrationTest
         };
 
         // Act
-        var post = await _service.CreatePostAsync(_defaultUser.Id, postDto);
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
 
         // Assert
         Assert.NotNull(post);
-        Assert.Equal(_defaultUser.Id, post.Dto.Creator.Id);
-        Assert.Single(post.Dto.Polls);
-        Assert.Equal("Poll 1", post.Dto.Polls[0].Title);
-        Assert.Equal("Description 1", post.Dto.Polls[0].Description);
-        Assert.Equal(PollType.Choice, post.Dto.Polls[0].PollType);
-        Assert.Equal(2, post.Dto.Polls[0].Candidates.Count);
-        Assert.Equal("Option 1", post.Dto.Polls[0].Candidates[0].Name);
-        Assert.Equal("Option 2", post.Dto.Polls[0].Candidates[1].Name);
+        Assert.NotNull(post.Polls);
+        Assert.Single(post.Polls);
+        Assert.NotNull(post.Polls[0].Candidates);
+        Assert.Equal(2, post.Polls[0].Candidates.Count);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_SetsIsPublishedFalse()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls = [ new CreatePollDto { Title = "Poll", Description = "desc", PollType = PollType.Choice, Candidates = [ new CreateCandidateDto { Name = "A" } ], Categories = [] } ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var dbPost = await Context.Posts.FindAsync(post.Id);
+
+        // Assert
+        Assert.NotNull(dbPost);
+        Assert.False(dbPost.IsPublished);
+    }
+
+    [Fact]
+    public async Task PublishPostAsync_SetsIsPublishedTrue_AndLinksMedia()
+    {
+        // Arrange
+        var post = AddPost(false);
+        
+        var mediaServiceMock = new Mock<IMediaService>();
+        mediaServiceMock.Setup(m => m.ListObjectsAsync(It.IsAny<string>()))
+            .ReturnsAsync([
+                $"{post.Id}/{post.Polls[0].Id}/asdf.png",
+                $"{post.Id}/{post.Polls[0].Id}/{post.Polls[0].Candidates[0].Id}/asdf.png"
+            ]);
+
+        var service = new PostService(Context, Context.GetService<HotnessUpdateQueue>(), Context.GetService<HoneyDeltaCalculator>(), mediaServiceMock.Object);
+
+        // Act
+        await service.PublishPostAsync(_defaultUser!.Id, post.Id);
+        var dbPost = await Context.Posts.FindAsync(post.Id);
+
+        // Assert
+        Assert.True(dbPost!.IsPublished);
+        Assert.Contains(dbPost.Polls[0].Candidates[0].MediaKeys, k => k.EndsWith("asdf.png"));
+        Assert.Contains(dbPost.Polls[0].MediaKeys, k => k.EndsWith("asdf.png"));
+    }
+
+    [Fact]
+    public async Task PublishPostAsync_ThrowsIfNotCreator()
+    {
+        // Arrange
+        var post = AddPost(false);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.PublishPostAsync(_defaultUser2!.Id, post.Id));
+    }
+
+
+    [Fact]
+    public async Task CreatePostAsync_GeneratesPreSignedUrls_WhenMediaRequested()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Poll 1",
+                    Description = "Description 1",
+                    PollType = PollType.Choice,
+                    Candidates = [
+                        new CreateCandidateDto { Name = "Option 1", Description = "Option 1 Description" },
+                        new CreateCandidateDto { Name = "Option 2", Description = "Option 2 Description" }
+                    ],
+                    Categories = [],
+                    Media = new UploadMediaRequestDto { ContentLength = 1, ThumbnailContentLength = 1, ContentType = "image/png" }
+                }
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+
+        // Assert
+        Assert.NotNull(post);
+        Assert.All(post.Polls, p => Assert.NotNull(p.MediaUploadUrls));
+        Assert.All(post.Polls, p => Assert.All(p.Candidates, c => Assert.Null(c.MediaUploadUrls)));
     }
 
     [Fact]
     public async Task GetPostResultAsync_WithScoreVotes_AggregatesCorrectly()
     {
         // Arrange
-        var candidate = _scorePost.Polls[0].Candidates[0];
+        var candidate = _scorePost!.Polls[0].Candidates[0];
 
         // Add votes across the range
         await AddVotesToCandidate(candidate.Id, _scorePost.Id, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]);
@@ -115,7 +201,7 @@ public class PostServiceTests : IntegrationTest
         // Assert
         Assert.Equal(50, result.Polls[0].Candidates[0].AverageScore);
         Assert.Equal(10, result.Polls[0].Candidates[0].VoterAmount);
-        Assert.Equal(null, result.Polls[1].Candidates[0].AverageScore);
+        Assert.Null(result.Polls[1].Candidates[0].AverageScore);
         Assert.Equal(0, result.Polls[1].Candidates[0].VoterAmount);
     }
 
@@ -123,21 +209,22 @@ public class PostServiceTests : IntegrationTest
     public async Task GetPostResultAsync_WithCategoryVotes_AggregatesCorrectly()
     {
         // Arrange
-        await AddVotesToCandidate(_categoryPost.Polls[0].Candidates[0].Id, _categoryPost.Id, [0, 0, 0, 0, 0, 0, 1, 1, 1, 1]);
+        await AddVotesToCandidate(_categoryPost!.Polls[0].Candidates[0].Id, _categoryPost.Id, [0, 0, 0, 0, 0, 0, 1, 1, 1, 1]);
 
         // Act
         var result = await _service.GetPostResultAsync(_categoryPost.Id, "");
 
         // Assert
         Assert.Equal(0, result.Polls[0].Candidates[0].MajorityVote);
-        Assert.Equal(0.6, result.Polls[0].Candidates[0].MajorityRatio.Value, 4);
+        Assert.NotNull(result.Polls[0].Candidates[0].MajorityRatio);
+        Assert.Equal(0.6, result.Polls[0].Candidates[0].MajorityRatio!.Value, 4);
     }
 
     [Fact]
     public async Task GetPostResultAsync_WithChoiceVotes_AggregatesCorrectly()
     {
         // Arrange
-        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [1, 1, 1, 1]);
+        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, [1, 1, 1, 1]);
         await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[1].Id, _defaultPost.Id, [1, 1]);
 
         // Act
@@ -152,7 +239,7 @@ public class PostServiceTests : IntegrationTest
     public async Task GetCandidateDistributionResultsAsync_ScoreWithLargeRange_BucketsValues()
     {
         // Arrange
-        var candidate = _scorePost.Polls[0].Candidates[0];
+        var candidate = _scorePost!.Polls[0].Candidates[0];
 
         // Add votes across the range
         await AddVotesToCandidate(candidate.Id, _scorePost.Id, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]);
@@ -169,7 +256,7 @@ public class PostServiceTests : IntegrationTest
     public async Task GetCandidateDistributionResultsAsync_ScoreWithSmallRange_NoBucketing()
     {
         // Arrange
-        var candidate = _scorePost.Polls[1].Candidates[0]; // Use small range score poll
+        var candidate = _scorePost!.Polls[1].Candidates[0]; // Use small range score poll
 
         // Add votes
         await AddVotesToCandidate(candidate.Id, _scorePost.Id, [1, 1, 2, 2, 3]);
@@ -188,7 +275,7 @@ public class PostServiceTests : IntegrationTest
     public async Task GetCandidateDistributionResultsAsync_NoVotes_ReturnsEmpty()
     {
         // Arrange
-        var candidate = _defaultPost.Polls[0].Candidates[0];
+        var candidate = _defaultPost!.Polls[0].Candidates[0];
 
         // Act
         var result = await _service.GetCandidateDistributionResultsAsync(candidate.Id, "");
@@ -201,7 +288,7 @@ public class PostServiceTests : IntegrationTest
     public async Task GetCandidateDistributionResultsAsync_OrderedByKey_ReturnsInOrder()
     {
         // Arrange
-        var candidate = _scorePost.Polls[1].Candidates[0]; // Use small range score poll
+        var candidate = _scorePost!.Polls[1].Candidates[0]; // Use small range score poll
         
         // Add votes in random order
         await AddVotesToCandidate(candidate.Id, _scorePost.Id, [3, 1, 5, 2, 4]);
@@ -222,8 +309,8 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_OrderByHotness_ReturnsOrdered()
     {
         // Arrange
-        await AddVotesToCandidate(_defaultPost2.Polls[0].Candidates[0].Id, _defaultPost2.Id, [ 1, 1, 1 ]);
-        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1 ]);
+        await AddVotesToCandidate(_defaultPost2!.Polls[0].Candidates[0].Id, _defaultPost2.Id, [ 1, 1, 1 ]);
+        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1 ]);
         
         _defaultPost2.Comments = [new() { Content = "c1", User = _defaultUser }, new() { Content = "c2", User = _defaultUser }];
         _defaultPost.Comments = [new() { Content = "c1", User = _defaultUser2 }];
@@ -273,21 +360,15 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.NotEmpty(result.Items);
-        Assert.False(result.Items.Any(r => r.Id != result.Items.Last().Id));
+        Assert.DoesNotContain(result.Items, r => r.Id != result.Items.Last().Id);
     }
 
     [Fact]
     public async Task CreatePost_UpdatesVoteCount()
     {
-        // Arrange
-        var postDto = new CreatePostDto
-        {
-            Polls = [ new CreatePollDto { Title = "Poll", Description = "desc", PollType = PollType.Choice, Candidates = [ new CreateCandidateDto { Name = "A" } ], Categories = [] } ]
-        };
-        var post = await _service.CreatePostAsync(_defaultUser.Id, postDto);
-        await AddVotesToCandidate(post.Dto.Polls[0].Candidates[0].Id, post.Dto.Id, new[] { 1, 1 });
-        
-        var updated = await _service.GetPostAsync(post.Dto.Id);
+        // Act
+        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, new[] { 1, 1 });
+        var updated = await _service.GetPostAsync(_defaultPost.Id);
 
         // Assert
         Assert.Equal(2, updated.VoteCount);
@@ -298,10 +379,10 @@ public class PostServiceTests : IntegrationTest
     {
         // Arrange
         var commentService = Context.GetService<CommentService>();
-        var post = _defaultPost;
+        var post = _defaultPost!;
         var dto = new CreateCommentDto { PostId = post.Id, Content = "test", ParentCommentId = null };
         // Act
-        await commentService.AddCommentAsync(_defaultUser.Id, dto);
+        await commentService.AddCommentAsync(_defaultUser!.Id, dto);
         var updated = await _service.GetPostAsync(post.Id);
         // Assert
         Assert.Equal(1, updated.CommentCount);
@@ -350,6 +431,8 @@ public class PostServiceTests : IntegrationTest
         _defaultPost = new()
         {
             Creator = _defaultUser,
+            Hive = _defaultHive,
+            IsPublished = true,
             Polls = [
                 new Poll
                 {
@@ -369,6 +452,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser2,
             Hive = _defaultHive,
+            IsPublished = true,
             Polls = [
                 new Poll
                 {
@@ -387,6 +471,8 @@ public class PostServiceTests : IntegrationTest
         _scorePost = new()
         {
             Creator = _defaultUser2,
+            Hive = _defaultHive,
+            IsPublished = true,
             Polls = [
                 new Poll
                 {
@@ -418,6 +504,8 @@ public class PostServiceTests : IntegrationTest
         _categoryPost = new()
         {
             Creator = _defaultUser2,
+            Hive = _defaultHive,
+            IsPublished = true,
             Polls = [
                 new Poll
                 {
@@ -439,9 +527,74 @@ public class PostServiceTests : IntegrationTest
             ]
         };
 
+        _privatePost = new()
+        {
+            Creator = _defaultUser,
+            Polls = [
+                new Poll
+                {
+                    Title = "Default Poll",
+                    Description = "This is a default poll.",
+                    PollType = PollType.Choice,
+                    Candidates = new List<Candidate>
+                    {
+                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                    }
+                }
+            ]
+        };
+
+        _unpublishedPost = new()
+        {
+            Creator = _defaultUser,
+            Hive = _defaultHive,
+            Polls = [
+                new Poll
+                {
+                    Title = "Default Poll",
+                    Description = "This is a default poll.",
+                    PollType = PollType.Choice,
+                    Candidates = new List<Candidate>
+                    {
+                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                    }
+                }
+            ]
+        };
+
         Context.Posts.Add(_defaultPost);
         Context.Posts.Add(_defaultPost2);
         Context.Posts.Add(_scorePost);
         Context.Posts.Add(_categoryPost);
+    }
+
+    private Post AddPost(bool isPublished = true)
+    {
+        var post = new Post
+        {
+            Creator = _defaultUser!,
+            Hive = _defaultHive!,
+            IsPublished = isPublished,
+            Polls = [
+                new Poll
+                {
+                    Title = "Default Poll",
+                    Description = "This is a default poll.",
+                    PollType = PollType.Choice,
+                    Candidates = new List<Candidate>
+                    {
+                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                    }
+                }
+            ]
+        };
+
+        Context.Posts.Add(post);
+        Context.SaveChanges();
+
+        return post;
     }
 }
