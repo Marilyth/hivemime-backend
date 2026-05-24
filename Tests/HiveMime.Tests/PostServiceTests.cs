@@ -68,6 +68,75 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
+    public async Task BrowsePosts_OutstandingWithoutHive_ThrowsValidationException()
+    {
+        await Assert.ThrowsAsync<ValidationException>(() => _service.BrowsePostsAsync(_defaultUser!.Id, null, null, new(), true));
+    }
+
+    [Fact]
+    public async Task BrowsePosts_OutstandingUnauthorizedUser_ThrowsUnauthorizedAccessException()
+    {
+        var outsider = new User { Username = "outsider-user", Settings = new() };
+        Context.Users.Add(outsider);
+        await Context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.BrowsePostsAsync(outsider.Id, null, _defaultHive!.Id, new(), true));
+    }
+
+    [Fact]
+    public async Task BrowsePosts_OutstandingAuthorizedUser_ReturnsOnlyUnapproved()
+    {
+        var unapprovedPost = AddPost();
+        unapprovedPost.IsApproved = false;
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        var result = await _service.BrowsePostsAsync(_defaultUser!.Id, null, _defaultHive!.Id, new(), true);
+
+        Assert.NotEmpty(result.Items);
+        Assert.All(result.Items, p => Assert.False(p.IsApproved));
+        Assert.Contains(result.Items, p => p.Id == unapprovedPost.Id);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_DefaultView_HidesUnapprovedAndPrivateHiveForNonFollower()
+    {
+        var privateHive = new Hive
+        {
+            Name = "Private Hive",
+            Description = "Private",
+            Creator = _defaultUser!,
+            Settings = new HiveSettings { IsPrivate = true, MustBeApprovedToJoin = false, MustBeApprovedToPost = false, PostPolicy = PostPolicy.Anyone },
+            Followers = [new() { User = _defaultUser!, IsApproved = true }]
+        };
+
+        var hiddenByApproval = new Post
+        {
+            Creator = _defaultUser!,
+            Hive = _defaultHive!,
+            IsApproved = false,
+            Polls = [new Poll { Title = "Hidden approval", Description = "hidden", PollType = PollType.Choice, Candidates = [new Candidate { Name = "A" }] }]
+        };
+
+        var hiddenByPrivacy = new Post
+        {
+            Creator = _defaultUser!,
+            Hive = privateHive,
+            IsApproved = true,
+            Polls = [new Poll { Title = "Hidden privacy", Description = "hidden", PollType = PollType.Choice, Candidates = [new Candidate { Name = "A" }] }]
+        };
+
+        Context.Posts.AddRange(hiddenByApproval, hiddenByPrivacy);
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        var result = await _service.BrowsePostsAsync(_defaultUser2!.Id, null, null, new());
+
+        Assert.DoesNotContain(result.Items, p => p.Id == hiddenByApproval.Id);
+        Assert.DoesNotContain(result.Items, p => p.Id == hiddenByPrivacy.Id);
+    }
+
+    [Fact]
     public async Task CreatePost_ValidPost_AddsToDatabase()
     {
         // Arrange

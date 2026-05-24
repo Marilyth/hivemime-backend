@@ -32,9 +32,11 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// <param name="userId">The ID of the user performing the action.</param>
     /// <param name="moderatorId">The ID of the user to be added as a moderator.</param>
     /// <param name="hiveId">The ID of the hive to which the moderator will be added.</param>
-    public async Task AddModeratorAsync(int userId, int moderatorId, int hiveId)
+    public async Task ModifyModeratorAsync(int userId, int moderatorId, int hiveId)
     {
-        User user = new() { Id = userId };
+        await authorizationService.VerifyModifyModeratorAsync(userId, hiveId);
+
+        User user = new() { Id = moderatorId };
         Hive hive = new()
         {
             Id = hiveId,
@@ -45,6 +47,33 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
         context.Users.Attach(user);
 
         hive.Moderators.Add(user);
+
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Removes a moderator from the hive, revoking their permissions to manage the hive and its content.
+    /// </summary>
+    /// <param name="userId">The ID of the user performing the action.</param>
+    /// <param name="moderatorId">The ID of the user to be removed as a moderator.</param>
+    /// <param name="hiveId">The ID of the hive from which the moderator will be removed.</param>
+    /// <returns></returns>
+    /// <exception cref="UnauthorizedAccessException">Thrown if the user does not have permission to modify moderators for the hive.</exception>
+    public async Task RemoveModeratorAsync(int userId, int moderatorId, int hiveId)
+    {
+        await authorizationService.VerifyModifyModeratorAsync(userId, hiveId);
+
+        User user = new() { Id = moderatorId };
+        Hive hive = new()
+        {
+            Id = hiveId,
+            Moderators = [user]
+        };
+
+        context.Hives.Attach(hive);
+        context.Users.Attach(user);
+
+        hive.Moderators.Remove(user);
 
         await context.SaveChangesAsync();
     }

@@ -22,9 +22,13 @@ public class HiveController(HiveService hiveService, HiveMimeContext context) : 
     public async Task ApproveFollowRequest(int followRequestId, bool approve)
         => await hiveService.ModifyFollowRequestAsync(await User.GetUserIdAsync(context), followRequestId, approve);
 
-    [HttpPost("addModerator")]
+    [HttpPut("addModerator")]
     public async Task AddModerator(int hiveId, int userId)
-        => await hiveService.AddModeratorAsync(await User.GetUserIdAsync(context), hiveId, userId);
+        => await hiveService.ModifyModeratorAsync(await User.GetUserIdAsync(context), hiveId, userId);
+
+    [HttpDelete("removeModerator")]
+    public async Task RemoveModerator(int hiveId, int userId)
+        => await hiveService.RemoveModeratorAsync(await User.GetUserIdAsync(context), hiveId, userId);
 
     [HttpPost("leave")]
     public async Task LeaveHive(int hiveId)

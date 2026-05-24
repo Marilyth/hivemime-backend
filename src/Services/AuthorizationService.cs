@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 public class AuthorizationService(HiveMimeContext context)
 {
-    public async Task VerifyAddModeratorAsync(int userId, int hiveId)
+    public async Task VerifyModifyModeratorAsync(int userId, int hiveId)
     {
         if (!await context.Hives.AnyAsync(h => h.Id == hiveId &&
             (h.CreatorId == userId || h.Moderators.Any(m => m.Id == userId))))

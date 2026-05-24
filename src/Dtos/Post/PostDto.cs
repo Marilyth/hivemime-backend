@@ -8,4 +8,6 @@ public class PostDto : IHasIdentifier
     public int VoteCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public double Hotness { get; set; }
+    public bool IsApproved { get; set; }
+    public bool IsDraft { get; set; }
 }

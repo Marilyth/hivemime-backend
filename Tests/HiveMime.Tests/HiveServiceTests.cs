@@ -163,6 +163,102 @@ public class HiveServiceTests : IntegrationTest
         Assert.Contains("Alpha", hives.Items[0].Name);
     }
 
+    [Fact]
+    public async Task AddModeratorAsync_ValidRequest_AddsRequestedModerator()
+    {
+        // Arrange
+        var creator = new User { Username = "creator-mod", Settings = new() };
+        var requestedModerator = new User { Username = "requested-mod", Settings = new() };
+        Context.Users.AddRange(creator, requestedModerator);
+        await Context.SaveChangesAsync();
+
+        var hive = new Hive { Name = "Mod Hive", Description = "desc", Creator = creator, Moderators = [], Followers = [] };
+        Context.Hives.Add(hive);
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        // Act
+        await _service.ModifyModeratorAsync(creator.Id, requestedModerator.Id, hive.Id);
+        var moderators = await Context.Hives.Where(h => h.Id == hive.Id).SelectMany(h => h.Moderators).ToListAsync();
+
+        // Assert
+        Assert.Contains(moderators, m => m.Id == requestedModerator.Id);
+    }
+
+    [Fact]
+    public async Task AddModeratorAsync_UnauthorizedUser_ThrowsException()
+    {
+        // Arrange
+        var creator = new User { Username = "creator-noauth", Settings = new() };
+        var outsider = new User { Username = "outsider-noauth", Settings = new() };
+        var requestedModerator = new User { Username = "requested-noauth", Settings = new() };
+        Context.Users.AddRange(creator, outsider, requestedModerator);
+        await Context.SaveChangesAsync();
+
+        var hive = new Hive { Name = "No Auth Hive", Description = "desc", Creator = creator, Moderators = [], Followers = [] };
+        Context.Hives.Add(hive);
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.ModifyModeratorAsync(outsider.Id, requestedModerator.Id, hive.Id));
+    }
+
+    [Fact]
+    public async Task RemoveModeratorAsync_ValidRequest_RemovesModerator()
+    {
+        // Arrange
+        var creator = new User { Username = "creator-remove", Settings = new() };
+        var moderator = new User { Username = "moderator-remove", Settings = new() };
+        Context.Users.AddRange(creator, moderator);
+        await Context.SaveChangesAsync();
+
+        var hive = new Hive
+        {
+            Name = "Remove Mod Hive",
+            Description = "desc",
+            Creator = creator,
+            Moderators = [moderator],
+            Followers = []
+        };
+        Context.Hives.Add(hive);
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        // Act
+        await _service.RemoveModeratorAsync(creator.Id, moderator.Id, hive.Id);
+        var moderators = await Context.Hives.Where(h => h.Id == hive.Id).SelectMany(h => h.Moderators).ToListAsync();
+
+        // Assert
+        Assert.DoesNotContain(moderators, m => m.Id == moderator.Id);
+    }
+
+    [Fact]
+    public async Task RemoveModeratorAsync_UnauthorizedUser_ThrowsException()
+    {
+        // Arrange
+        var creator = new User { Username = "creator-remove-noauth", Settings = new() };
+        var moderator = new User { Username = "moderator-remove-noauth", Settings = new() };
+        var outsider = new User { Username = "outsider-remove-noauth", Settings = new() };
+        Context.Users.AddRange(creator, moderator, outsider);
+        await Context.SaveChangesAsync();
+
+        var hive = new Hive
+        {
+            Name = "Remove No Auth Hive",
+            Description = "desc",
+            Creator = creator,
+            Moderators = [moderator],
+            Followers = []
+        };
+        Context.Hives.Add(hive);
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.RemoveModeratorAsync(outsider.Id, moderator.Id, hive.Id));
+    }
+
     protected override void SeedDatabase()
     {
         var user = new User { Username = "defaultuser", Settings = new() };

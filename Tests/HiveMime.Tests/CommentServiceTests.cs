@@ -128,6 +128,78 @@ public class CommentServiceTests : IntegrationTest
     }
 
     [Fact]
+    public async Task AddCommentAsync_HivePostByOutsider_ThrowsException()
+    {
+        // Arrange
+        var outsider = new User { Username = "outsider", Settings = new() };
+        var hive = new Hive { Name = "comment-hive", Description = "desc", Creator = _defaultUser!, Settings = new() };
+        var hivePost = new Post { Creator = _defaultUser!, Hive = hive, IsApproved = true, Polls = [] };
+        Context.Users.Add(outsider);
+        Context.Posts.Add(hivePost);
+        await Context.SaveChangesAsync();
+
+        var dto = new CreateCommentDto
+        {
+            PostId = hivePost.Id,
+            Content = "blocked"
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.AddCommentAsync(outsider.Id, dto));
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_PublicPostByOutsider_AddsComment()
+    {
+        // Arrange
+        var outsider = new User { Username = "public-outsider", Settings = new() };
+        var publicPost = new Post { Creator = _defaultUser!, IsApproved = true, Polls = [] };
+        Context.Users.Add(outsider);
+        Context.Posts.Add(publicPost);
+        await Context.SaveChangesAsync();
+
+        var dto = new CreateCommentDto
+        {
+            PostId = publicPost.Id,
+            Content = "allowed"
+        };
+
+        // Act
+        var result = await _service.AddCommentAsync(outsider.Id, dto);
+
+        // Assert
+        Assert.Equal(outsider.Id, result.Dto.User.Id);
+        Assert.Equal("allowed", result.Dto.Content);
+    }
+
+    [Fact]
+    public async Task DeleteCommentAsync_HiveModerator_DeletesComment()
+    {
+        // Arrange
+        var moderator = new User { Username = "mod", Settings = new() };
+        var author = new User { Username = "comment-author", Settings = new() };
+        var hive = new Hive
+        {
+            Name = "delete-comment-hive",
+            Description = "desc",
+            Creator = _defaultUser!,
+            Moderators = [moderator],
+            Settings = new()
+        };
+        var post = new Post { Creator = _defaultUser!, Hive = hive, IsApproved = true, Polls = [] };
+        var comment = new Comment { Post = post, User = author, Content = "to delete" };
+
+        Context.Comments.Add(comment);
+        await Context.SaveChangesAsync();
+
+        // Act
+        await _service.DeleteCommentAsync(moderator.Id, comment.Id);
+
+        // Assert
+        Assert.Null(await Context.Comments.FindAsync(comment.Id));
+    }
+
+    [Fact]
     public async Task GetCommentsAsync_WithComments_ReturnsComments()
     {
         // Arrange
