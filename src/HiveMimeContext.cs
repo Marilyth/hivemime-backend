@@ -8,6 +8,7 @@ public class HiveMimeContext : DbContext
     public HiveMimeContext(DbContextOptions<HiveMimeContext> options) : base(options) { }
 
     public DbSet<Hive> Hives { get; set; }
+    public DbSet<HiveFollower> HiveFollowers { get; set; }
     public DbSet<Post> Posts { get; set; }
     public DbSet<Comment> Comments { get; set; }
     public DbSet<User> Users { get; set; }
@@ -34,18 +35,15 @@ public class HiveMimeContext : DbContext
     {
         // Define relationships and constraints here if needed.
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
-        {
             SetEntityRules(entity);
-        }
 
         modelBuilder.Entity<User>()
             .HasMany(u => u.CreatedHives)
             .WithOne(h => h.Creator);
 
         modelBuilder.Entity<Hive>()
-            .HasMany(h => h.Followers)
-            .WithMany(u => u.FollowedHives);
-
+            .HasMany(h => h.Moderators)
+            .WithMany(u => u.ModeratedHives);
     }
 
     private void SetEntityRules(IMutableEntityType entityType)

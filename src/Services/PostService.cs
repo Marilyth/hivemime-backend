@@ -2,7 +2,11 @@ using System.Linq.Expressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue, HoneyDeltaCalculator honeyDeltaCalculator, IMediaService mediaService)
+public class PostService(HiveMimeContext context,
+    HotnessUpdateQueue hotnessQueue,
+    HoneyDeltaCalculator honeyDeltaCalculator,
+    IMediaService mediaService,
+    AuthorizationService authorizationService)
 {
     /// <summary>
     /// Fetches and returns a post by its ID, including all its polls and candidates.
@@ -23,10 +27,11 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// <param name="creatorId">The ID of the user to fetch posts from.</param>
     /// <param name="hiveId">The ID of the hive to fetch posts from.</param>
     /// <param name="pagination">The pagination parameters.</param>
-    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, PostPaginationDto pagination)
+    /// <param name="onlyOutstanding">Whether to fetch only outstanding posts.</param>
+    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int userId, int? creatorId, int? hiveId, PostPaginationDto pagination, bool onlyOutstanding = false)
     {
         IQueryable<Post> posts = context.Posts
-            .Where(p => p.IsPublished && p.HiveId != null)
+            .Where(p => !p.IsDraft)
             .AsNoTracking();
 
         if (creatorId.HasValue)
@@ -34,6 +39,20 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
+
+        if (onlyOutstanding)
+        {
+            if (!hiveId.HasValue)
+                throw new ValidationException("Hive ID must be provided for outstanding posts.");
+
+            await authorizationService.VerifyApprovePostsAsync(userId, hiveId.Value);
+            posts = posts.Where(p => !p.IsApproved);
+        }
+        else
+        {
+            posts = posts.Where(p => p.IsApproved &&
+                p.HiveId != null && (!p.Hive!.Settings.IsPrivate || p.Hive.Followers.Any(f => f.UserId == userId && f.IsApproved)));
+        }
 
         var result = await posts.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
@@ -46,7 +65,26 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     }
 
     /// <summary>
-    /// Publishes a post, making it visible to other users and linking any uploaded media to it.
+    /// Approves a post, making it visible to other users if it was not already. Only users with the appropriate permissions can approve a post.
+    /// </summary>
+    /// <param name="userId">The ID of the user attempting to approve the post.</param>
+    /// <param name="postId">The ID of the post to approve.</param>
+    /// <returns>The approved post.</returns>
+    public async Task<PostDto> ApprovePostAsync(int userId, int postId)
+    {
+        await authorizationService.VerifyApprovePostAsync(userId, postId);
+        IQueryable<Post> postQuery = context.Posts.Where(p => p.Id == postId);
+
+        await postQuery.ExecuteUpdateAsync(p => p.SetProperty(p => p.IsApproved, true));
+
+        return await postQuery.AsNoTracking()
+            .ProjectToType<PostDto>()
+            .FirstAsync();
+    }
+
+    /// <summary>
+    /// Publishes a post, marking it as no longer a draft and linking any uploaded media to it.
+    /// If the hive the post belongs to does not require approval to post, the post will be approved as well.
     /// </summary>
     /// <param name="userId">The ID of the user attempting to publish the post.</param>
     /// <param name="postId">The ID of the post to be published.</param>
@@ -57,16 +95,18 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     {
         Post post = await context.Posts
             .Include(p => p.Polls)
-            .ThenInclude(p => p.Candidates)
+                .ThenInclude(p => p.Candidates)
+            .Include(p => p.Hive)
+                .ThenInclude(h => h.Settings)
             .FirstOrExceptionAsync(p => p.Id == postId);
 
         if (post.CreatorId != userId)
             throw new UnauthorizedAccessException("You are not the creator of this post.");
 
-        if (post.IsPublished)
+        if (!post.IsDraft)
             throw new ValidationException("Post is already published.");
 
-        post.IsPublished = true;
+        post.IsDraft = false;
 
         var uploadedFiles = await mediaService.ListObjectsAsync($"{post.Id}/");
 
@@ -93,6 +133,9 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             }
         }
 
+        if (post.HiveId is null || !post.Hive!.Settings.MustBeApprovedToPost)
+            post.IsApproved = true;
+
         await context.SaveChangesAsync();
         
         PostDto postDto = await context.Posts.Where(p => p.Id == postId)
@@ -118,8 +161,10 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         if (validationErrors.Any())
             throw new ValidationException("Post validation failed: " + string.Join("; ", validationErrors));
 
+        await authorizationService.VerifyCreatePostAsync(userId, postDto.HiveId);
+
         Post newPost = postDto.Adapt<Post>();
-        newPost.IsPublished = false;
+        newPost.IsDraft = true;
 
         // Each category requires a value for easier evaluation and filtering.
         foreach (Poll poll in newPost.Polls.Where(p => p.PollType == PollType.Category))
@@ -137,6 +182,24 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         UploadPostDto uploadPostDto = await CreateUploadPostDto(postDto, newPost);
 
         return uploadPostDto;
+    }
+
+    /// <summary>
+    /// Deletes a post. Also deletes any media associated with the post from Cloudflare R2.
+    /// </summary>
+    /// <param name="userId">The ID of the user attempting to delete the post.</param>
+    /// <param name="postId">The ID of the post to delete.</param>
+    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authorized to delete the post.</exception>
+    public async Task DeletePostAsync(int userId, int postId)
+    {
+        await authorizationService.VerifyDeletePostAsync(userId, postId);
+
+        Post post = await context.Posts.FirstOrExceptionAsync(p => p.Id == postId);
+
+        context.Posts.Remove(post);
+
+        await mediaService.DeleteObjectsAsync($"{post.Id}/");
+        await context.SaveChangesAsync();
     }
 
     /// <summary>

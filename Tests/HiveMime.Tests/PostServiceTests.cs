@@ -28,7 +28,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByUser_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(_defaultPost!.CreatorId, null, new());
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, _defaultPost!.CreatorId, null, new());
 
         // Assert
         Assert.Single(result.Items);
@@ -39,7 +39,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByHive_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, _defaultHive!.Id, new());
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, _defaultHive!.Id, new());
 
         // Assert
         Assert.Equal(4, result.Items.Count);
@@ -50,7 +50,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithoutFilter_ReturnsAll()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, new());
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new());
 
         // Assert
         Assert.Equal(4, result.Items.Count);
@@ -60,7 +60,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithTextFilter_ReturnsExpected()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, new() { Filter = "not a default poll" });
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new() { Filter = "not a default poll" });
 
         // Assert
         Assert.Single(result.Items);
@@ -101,7 +101,7 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task CreatePostAsync_SetsIsPublishedFalse()
+    public async Task CreatePostAsync_SetsIsDraftTrue()
     {
         // Arrange
         var postDto = new CreatePostDto
@@ -115,11 +115,11 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.NotNull(dbPost);
-        Assert.False(dbPost.IsPublished);
+        Assert.True(dbPost.IsDraft);
     }
 
     [Fact]
-    public async Task PublishPostAsync_SetsIsPublishedTrue_AndLinksMedia()
+    public async Task PublishPostAsync_SetsIsDraftFalse_AndLinksMedia()
     {
         // Arrange
         var post = AddPost(false);
@@ -131,14 +131,14 @@ public class PostServiceTests : IntegrationTest
                 $"{post.Id}/{post.Polls[0].Id}/{post.Polls[0].Candidates[0].Id}/asdf.png"
             ]);
 
-        var service = new PostService(Context, Context.GetService<HotnessUpdateQueue>(), Context.GetService<HoneyDeltaCalculator>(), mediaServiceMock.Object);
+        var service = new PostService(Context, Context.GetService<HotnessUpdateQueue>(), Context.GetService<HoneyDeltaCalculator>(), mediaServiceMock.Object, Context.GetService<AuthorizationService>());
 
         // Act
         await service.PublishPostAsync(_defaultUser!.Id, post.Id);
         var dbPost = await Context.Posts.FindAsync(post.Id);
 
         // Assert
-        Assert.True(dbPost!.IsPublished);
+        Assert.False(dbPost!.IsDraft);
         Assert.Contains(dbPost.Polls[0].Candidates[0].MediaKeys, k => k.EndsWith("asdf.png"));
         Assert.Contains(dbPost.Polls[0].MediaKeys, k => k.EndsWith("asdf.png"));
     }
@@ -318,7 +318,7 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
 
         // Assert
         Assert.True(Algorithms.HotnessFunction(result.Items[0].Adapt<Post>()) > Algorithms.HotnessFunction(result.Items[1].Adapt<Post>()));
@@ -328,7 +328,7 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act 2
-        var result2 = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
+        var result2 = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
 
         // Assert 2
         Assert.True(Algorithms.HotnessFunction(result2.Items[0].Adapt<Post>()) > Algorithms.HotnessFunction(result2.Items[1].Adapt<Post>()));
@@ -342,7 +342,7 @@ public class PostServiceTests : IntegrationTest
         PostPaginationDto paginationDto = new() { OrderBy = PostOrderBy.New };
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, paginationDto);
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, paginationDto);
 
         // Assert
         Assert.NotEmpty(result.Items);
@@ -353,10 +353,10 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_InBetween_ReturnsNext()
     {
         // Arrange
-        var result = await _service.BrowsePostsAsync(null, null, new() { OrderBy = PostOrderBy.New, PageSize = 1 });
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new() { OrderBy = PostOrderBy.New, PageSize = 1 });
 
         // Act
-        var result2 = await _service.BrowsePostsAsync(null, null, new() { OrderBy = PostOrderBy.New, Cursor = result.NextCursor });
+        var result2 = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new() { OrderBy = PostOrderBy.New, Cursor = result.NextCursor });
 
         // Assert
         Assert.NotEmpty(result.Items);
@@ -432,7 +432,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser,
             Hive = _defaultHive,
-            IsPublished = true,
+            IsApproved = true,
             Polls = [
                 new Poll
                 {
@@ -452,7 +452,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser2,
             Hive = _defaultHive,
-            IsPublished = true,
+            IsApproved = true,
             Polls = [
                 new Poll
                 {
@@ -472,7 +472,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser2,
             Hive = _defaultHive,
-            IsPublished = true,
+            IsApproved = true,
             Polls = [
                 new Poll
                 {
@@ -505,7 +505,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser2,
             Hive = _defaultHive,
-            IsPublished = true,
+            IsApproved = true,
             Polls = [
                 new Poll
                 {
@@ -530,6 +530,7 @@ public class PostServiceTests : IntegrationTest
         _privatePost = new()
         {
             Creator = _defaultUser,
+            IsApproved = true,
             Polls = [
                 new Poll
                 {
@@ -549,6 +550,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser,
             Hive = _defaultHive,
+            IsDraft = true,
             Polls = [
                 new Poll
                 {
@@ -576,7 +578,8 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser!,
             Hive = _defaultHive!,
-            IsPublished = isPublished,
+            IsDraft = !isPublished,
+            IsApproved = true,
             Polls = [
                 new Poll
                 {

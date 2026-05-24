@@ -160,8 +160,8 @@ public class UserServiceTests : IntegrationTest
     public async Task MergeAccountsAsync_ValidUserIds_MergesAccounts()
     {
         // Arrange
-        var currentUser = new User { Username = "current", Settings = new(), FollowedHives = new List<Hive>() };
-        var previousUser = new User { Username = "previous", Settings = new(), FollowedHives = new List<Hive>() };
+        var currentUser = new User { Username = "current", Settings = new(), FollowedHives = [] };
+        var previousUser = new User { Username = "previous", Settings = new(), FollowedHives = [] };
         Context.Users.AddRange(currentUser, previousUser);
         await Context.SaveChangesAsync();
 
@@ -170,7 +170,7 @@ public class UserServiceTests : IntegrationTest
         previousUser = Context.Users.First(u => u.Username == "previous");
 
         // Create a hive and have previousUser follow it
-        var hive = new Hive { Name = "TestHive", Description = "desc", CreatorId = previousUser.Id, Followers = new List<User>() };
+        var hive = new Hive { Name = "TestHive", Description = "desc", CreatorId = previousUser.Id, Followers = [] };
         Context.Hives.Add(hive);
         await Context.SaveChangesAsync();
 
@@ -178,7 +178,7 @@ public class UserServiceTests : IntegrationTest
         hive = Context.Hives.First(h => h.Name == "TestHive");
 
         // Only set navigation from one side
-        previousUser.FollowedHives.Add(hive);
+        previousUser.FollowedHives.Add(new HiveFollower { HiveId = hive.Id, UserId = previousUser.Id, IsApproved = true });
         await Context.SaveChangesAsync();
 
         // Create a post by previousUser

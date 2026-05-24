@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HiveMime.Controllers;
@@ -12,13 +11,21 @@ public class HiveController(HiveService hiveService, HiveMimeContext context) : 
         => await hiveService.GetHiveAsync(hiveId);
 
     [HttpGet("followed")]
-    public async Task<List<HiveDto>> GetFollowedHives(int? userId)
+    public async Task<List<HiveFollowerDto>> GetFollowedHives(int? userId)
         => await hiveService.GetFollowedHivesAsync(userId ?? await User.GetUserIdAsync(context));
 
     [HttpPost("join")]
     public async Task JoinHive(int hiveId)
         => await hiveService.JoinHiveAsync(await User.GetUserIdAsync(context), hiveId);
-        
+    
+    [HttpGet("modifyFollowRequest")]
+    public async Task ApproveFollowRequest(int followRequestId, bool approve)
+        => await hiveService.ModifyFollowRequestAsync(await User.GetUserIdAsync(context), followRequestId, approve);
+
+    [HttpPost("addModerator")]
+    public async Task AddModerator(int hiveId, int userId)
+        => await hiveService.AddModeratorAsync(await User.GetUserIdAsync(context), hiveId, userId);
+
     [HttpPost("leave")]
     public async Task LeaveHive(int hiveId)
         => await hiveService.LeaveHiveAsync(await User.GetUserIdAsync(context), hiveId);
@@ -30,4 +37,8 @@ public class HiveController(HiveService hiveService, HiveMimeContext context) : 
     [HttpPost("create")]
     public async Task<HiveDto> CreateHive([FromBody] CreateHiveDto hiveDto)
         => await hiveService.CreateHiveAsync(await User.GetUserIdAsync(context), hiveDto);
+
+    [HttpPost("update")]
+    public async Task<HiveDto> UpdateHive([FromBody] HiveDto hiveDto)
+        => await hiveService.UpdateHiveAsync(await User.GetUserIdAsync(context), hiveDto);
 }

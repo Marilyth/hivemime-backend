@@ -21,7 +21,8 @@ public class User : EntityWithIdentifier
     public List<PostVote> Votes { get; set; }
     public List<Post> CreatedPosts { get; set; }
     public List<Comment> Comments { get; set; }
-    public List<Hive> FollowedHives { get; set; }
+    public List<HiveFollower> FollowedHives { get; set; }
+    public List<Hive> ModeratedHives { get; set; }
     public List<Hive> CreatedHives { get; set; }
     public UserSettings Settings { get; set; }
 }

@@ -1,13 +1,15 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyDeltaCalculator)
+public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyDeltaCalculator, AuthorizationService authorizationService)
 {
     public async Task<CommentDto> GetCommentByIdAsync(int commentId)
         => await context.Comments.QueryableFind(commentId).ProjectToType<CommentDto>().FirstOrExceptionAsync();
 
     public async Task<HoneyDeltaDto<CommentDto>> AddCommentAsync(int userId, CreateCommentDto dto)
     {
+        await authorizationService.VerifyCreateCommentAsync(userId, dto.PostId);
+
         var comment = dto.Adapt<Comment>();
         comment.UserId = userId;
         context.Comments.Add(comment);
@@ -37,10 +39,9 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
 
     public async Task DeleteCommentAsync(int userId, int commentId)
     {
-        var comment = await context.Comments.FindAsync(commentId);
+        await authorizationService.VerifyDeleteCommentAsync(userId, commentId);
 
-        if (comment == null || comment.UserId != userId)
-            throw new UnauthorizedAccessException("You do not have permission to delete this comment.");
+        var comment = await context.Comments.FindAsync(commentId);
 
         context.Comments.Remove(comment);
         await context.SaveChangesAsync();

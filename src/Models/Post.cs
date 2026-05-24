@@ -12,7 +12,8 @@ public class Post : EntityWithIdentifier
     public int VoteCount { get; set; }
     public double Hotness { get; set; }
 
-    public bool IsPublished { get; set; }
+    public bool IsApproved { get; set; }
+    public bool IsDraft { get; set; }
 
     [ForeignKey(nameof(Creator))]
     public int CreatorId { get; set; }

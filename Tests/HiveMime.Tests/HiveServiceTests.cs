@@ -174,7 +174,7 @@ public class HiveServiceTests : IntegrationTest
             Description = "This is a default hive.",
             Creator = user,
             Posts = [],
-            Followers = [user]
+            Followers = [new() { User = user, IsApproved = true }]
         };
         Context.Hives.Add(_defaultHive);
     }
