@@ -8,5 +8,5 @@ public enum HiveOrderBy
 {
     New,
     Old,
-    Followers
+    Users
 }

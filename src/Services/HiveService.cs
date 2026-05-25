@@ -12,127 +12,117 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
         => await context.Hives.AsNoTracking()
             .QueryableFind(hiveId)
             .ProjectToType<HiveDto>()
-            .FirstAsync();
+            .FirstOrExceptionAsync();
 
     /// <summary>
     /// Fetches and returns all hives followed by the user.
     /// </summary>
     /// <param name="userId">The ID of the user whose followed hives to fetch.</param>
-    public async Task<List<HiveFollowerDto>> GetFollowedHivesAsync(int userId)
+    public async Task<List<HiveUserDto>> GetJoinedHivesAsync(int userId)
         => await context.Users.AsNoTracking()
             .Where(u => u.Id == userId)
-            .SelectMany(u => u.FollowedHives)
+            .SelectMany(u => u.JoinedHives)
             .OrderByDescending(h => h.Id)
-            .ProjectToType<HiveFollowerDto>()
+            .ProjectToType<HiveUserDto>()
             .ToListAsync();
 
     /// <summary>
     /// Adds a moderator to the hive, allowing them to manage the hive and its content.
     /// </summary>
     /// <param name="userId">The ID of the user performing the action.</param>
-    /// <param name="moderatorId">The ID of the user to be added as a moderator.</param>
-    /// <param name="hiveId">The ID of the hive to which the moderator will be added.</param>
-    public async Task ModifyModeratorAsync(int userId, int moderatorId, int hiveId)
+    /// <param name="hiveUserId">The ID of the user to be added as a moderator.</param>
+    public async Task ModifyHiveUserAsync(int userId, int hiveUserId, MemberRole role, ApprovalStatus approvalStatus)
     {
-        await authorizationService.VerifyModifyModeratorAsync(userId, hiveId);
+        await authorizationService.VerifyModifyHiveUserAsync(userId, hiveUserId, role);
 
-        User user = new() { Id = moderatorId };
-        Hive hive = new()
-        {
-            Id = hiveId,
-            Moderators = []
-        };
+        HiveUser user = await context.HiveUsers.FirstOrExceptionAsync(h => h.Id == hiveUserId);
 
-        context.Hives.Attach(hive);
-        context.Users.Attach(user);
-
-        hive.Moderators.Add(user);
+        user.Role = role;
+        user.ApprovalStatus = approvalStatus;
 
         await context.SaveChangesAsync();
     }
 
     /// <summary>
-    /// Removes a moderator from the hive, revoking their permissions to manage the hive and its content.
+    /// Lists the moderators of a hive, allowing users to see who manages the hive and its content.
     /// </summary>
-    /// <param name="userId">The ID of the user performing the action.</param>
-    /// <param name="moderatorId">The ID of the user to be removed as a moderator.</param>
-    /// <param name="hiveId">The ID of the hive from which the moderator will be removed.</param>
-    /// <returns></returns>
-    /// <exception cref="UnauthorizedAccessException">Thrown if the user does not have permission to modify moderators for the hive.</exception>
-    public async Task RemoveModeratorAsync(int userId, int moderatorId, int hiveId)
-    {
-        await authorizationService.VerifyModifyModeratorAsync(userId, hiveId);
-
-        User user = new() { Id = moderatorId };
-        Hive hive = new()
-        {
-            Id = hiveId,
-            Moderators = [user]
-        };
-
-        context.Hives.Attach(hive);
-        context.Users.Attach(user);
-
-        hive.Moderators.Remove(user);
-
-        await context.SaveChangesAsync();
-    }
+    /// <param name="hiveId">The ID of the hive whose moderators to list.</param>
+    public async Task<List<HiveUserDto>> GetModeratorsAsync(int hiveId)
+        => await context.HiveUsers.AsNoTracking()
+            .Where(h => h.HiveId == hiveId && h.Role >= MemberRole.Moderator)
+            .ProjectToType<HiveUserDto>()
+            .ToListAsync();
 
     /// <summary>
     /// Adds the user as a follower to the hive, effectively "joining" it.
+    /// </summary>
     /// <param name="userId">The ID of the user joining the hive.</param>
     /// <param name="hiveId">The ID of the hive to join.</param>
-    /// <returns></returns>
-    public async Task JoinHiveAsync(int userId, int hiveId)
+    /// <returns>The DTO representing the follow relationship.</returns>
+    public async Task<HiveUserDto> JoinHiveAsync(int userId, int hiveId)
     {
         bool requiresApproval = await context.Hives
             .Where(h => h.Id == hiveId)
             .Select(h => h.Settings.MustBeApprovedToJoin)
             .FirstOrExceptionAsync();
 
-        if (await context.HiveFollowers.AnyAsync(r => r.HiveId == hiveId && r.UserId == userId))
+        if (await context.HiveUsers.AnyAsync(r => r.HiveId == hiveId && r.UserId == userId))
                 throw new ValidationException("You have already requested to join this hive.");
         
-        HiveFollower joinRequest = new()
+        HiveUser joinRequest = new()
         {
             HiveId = hiveId,
             UserId = userId
         };
 
-        context.HiveFollowers.Add(joinRequest);
+        context.HiveUsers.Add(joinRequest);
 
         if (!requiresApproval)
-            joinRequest.IsApproved = true;
+            joinRequest.ApprovalStatus = ApprovalStatus.Approved;
 
         await context.SaveChangesAsync();
+
+        return context.HiveUsers.AsNoTracking()
+            .Where(r => r.Id == joinRequest.Id)
+            .ProjectToType<HiveUserDto>()
+            .First();
     }
 
     /// <summary>
-    /// Approves a user's request to follow a hive, adding them as a follower and removing the join request.
+    /// Fetches and returns the users of a hive, optionally filtering by pending approval status, and applying pagination.
     /// </summary>
-    /// <param name="userId">The ID of the user approving the follow request.</param>
-    /// <param name="followRequestId">The ID of the follow request to approve.</param>
-    public async Task ModifyFollowRequestAsync(int userId, int followRequestId, bool approve)
-    {   
-        HiveFollower request = await context.HiveFollowers.FirstOrExceptionAsync(r => r.Id == followRequestId);
-        await authorizationService.VerifyApproveFollowRequestAsync(userId, followRequestId);
+    /// <param name="userId">The ID of the user requesting the users. Must be a moderator or the creator of the hive.</param>
+    /// <param name="hiveId">The ID of the hive whose users to fetch.</param>
+    /// <param name="status">Whether to fetch users with pending approval status or approved users.</param>
+    /// <param name="pagination">The pagination parameters, including cursor and order by options.</param>
+    /// <returns>A paginated list of users for the specified hive.</returns>
+    public async Task<PaginationResultDto<HiveUserDto>> GetUsersAsync(int userId, int hiveId, ApprovalStatus status, HiveUserPaginationDto pagination)
+    {
+        await authorizationService.VerifyViewHiveUsersAsync(userId, hiveId);
 
-        if (!approve)
-            context.HiveFollowers.Remove(request);
-        else
-            request.IsApproved = true;
+        IQueryable<HiveUser> query = context.HiveUsers.AsNoTracking()
+            .Where(r => r.HiveId == hiveId && r.ApprovalStatus == status)
+            .OrderByDescending(r => r.Role);
 
-        await context.SaveChangesAsync();
+        return await query.ApplyPaginationFilter(pagination)
+            .ApplyPaginationOrdering(pagination)
+            .ApplyPaginationPageSize(pagination)
+            .FetchPaginationResultAsync(pagination);
     }
 
     /// <summary>
-    /// Removes the user as a follower from the hive, effectively "leaving" it.
+    /// Removes the user as a user from the hive, effectively "leaving" it.
     /// </summary>
     /// <param name="userId">The ID of the user leaving the hive.</param>
-    /// <param name="hiveId">The ID of the hive to leave.</param>
-    public async Task LeaveHiveAsync(int userId, int hiveId)
+    /// <param name="hiveUserId">The ID of the user relationship to remove.</param>
+    public async Task LeaveHiveAsync(int userId, int hiveUserId)
     {
-        await context.HiveFollowers.Where(f => f.HiveId == hiveId && f.UserId == userId).ExecuteDeleteAsync();
+        await authorizationService.VerifyLeaveHiveAsync(userId, hiveUserId);
+        HiveUser hiveUser = await context.HiveUsers.FirstOrExceptionAsync(f => f.Id == hiveUserId);
+
+        context.HiveUsers.Remove(hiveUser);
+
+        await context.SaveChangesAsync();
     }
 
     /// <summary>
@@ -170,9 +160,9 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
         {
             Name = name,
             Description = description,
-            CreatorId = userId,
             Posts = [],
-            Followers = [new() { UserId = userId, IsApproved = true }]
+            Users = [new() { UserId = userId, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }],
+            Settings = new()
         };
 
         context.Hives.Add(hive);
@@ -184,7 +174,6 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     public async Task<HiveDto> UpdateHiveAsync(int userId, HiveDto hiveDto)
     {
         Hive hive = await context.Hives
-            .Include(h => h.Moderators)
             .Include(h => h.Settings)
             .FirstOrExceptionAsync(h => h.Id == hiveDto.Id);
 

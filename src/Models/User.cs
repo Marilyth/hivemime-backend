@@ -11,8 +11,6 @@ public class User : EntityWithIdentifier
 
     [MaxLength(64)]
     public string Username { get; set; }
-    [MaxLength(256)]
-    public string? Email { get; set; }
     public double Honey { get; set; }
 
     public DateTimeOffset? DateOfBirth { get; set; }
@@ -21,8 +19,6 @@ public class User : EntityWithIdentifier
     public List<PostVote> Votes { get; set; }
     public List<Post> CreatedPosts { get; set; }
     public List<Comment> Comments { get; set; }
-    public List<HiveFollower> FollowedHives { get; set; }
-    public List<Hive> ModeratedHives { get; set; }
-    public List<Hive> CreatedHives { get; set; }
+    public List<HiveUser> JoinedHives { get; set; }
     public UserSettings Settings { get; set; }
 }

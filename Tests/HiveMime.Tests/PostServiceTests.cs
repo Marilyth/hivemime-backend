@@ -107,7 +107,7 @@ public class PostServiceTests : IntegrationTest
             Description = "Private",
             Creator = _defaultUser!,
             Settings = new HiveSettings { IsPrivate = true, MustBeApprovedToJoin = false, MustBeApprovedToPost = false, PostPolicy = PostPolicy.Anyone },
-            Followers = [new() { User = _defaultUser!, IsApproved = true }]
+            Users = [new() { User = _defaultUser!, IsApproved = true }]
         };
 
         var hiddenByApproval = new Post

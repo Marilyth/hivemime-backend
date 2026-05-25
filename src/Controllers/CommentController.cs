@@ -12,7 +12,7 @@ public class CommentController(CommentService commentService, HiveMimeContext co
     public async Task<HoneyDeltaDto<CommentDto>> CreateComment(CreateCommentDto dto)
         => await commentService.AddCommentAsync(await User.GetUserIdAsync(context), dto);
 
-    [HttpPut("edit")]
+    [HttpPatch("edit")]
     public async Task<CommentDto> EditComment(EditCommentDto dto)
         => await commentService.EditCommentAsync(await User.GetUserIdAsync(context), dto);
 

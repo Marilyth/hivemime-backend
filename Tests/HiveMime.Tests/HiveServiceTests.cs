@@ -27,7 +27,7 @@ public class HiveServiceTests : IntegrationTest
         // Act
         await _service.JoinHiveAsync(user.Id, hive.Id);
         bool isFollower = await Context.Hives.Where(h => h.Id == hive.Id)
-            .SelectMany(h => h.Followers)
+            .SelectMany(h => h.Users)
             .AnyAsync(u => u.Id == user.Id);
 
         // Assert
@@ -45,7 +45,7 @@ public class HiveServiceTests : IntegrationTest
         // Act
         await _service.LeaveHiveAsync(user.Id, hive.Id);
         bool isFollower = await Context.Hives.Where(h => h.Id == hive.Id)
-            .SelectMany(h => h.Followers)
+            .SelectMany(h => h.Users)
             .AnyAsync(u => u.Id == user.Id);
 
         // Assert
@@ -60,7 +60,7 @@ public class HiveServiceTests : IntegrationTest
         Context.ChangeTracker.Clear();
 
         // Act
-        var hives = await _service.GetFollowedHivesAsync(user.Id);
+        var hives = await _service.GetJoinedHivesAsync(user.Id);
 
         // Assert
         Assert.Equal(_defaultHive!.Id, hives.Single().Id);
@@ -172,13 +172,13 @@ public class HiveServiceTests : IntegrationTest
         Context.Users.AddRange(creator, requestedModerator);
         await Context.SaveChangesAsync();
 
-        var hive = new Hive { Name = "Mod Hive", Description = "desc", Creator = creator, Moderators = [], Followers = [] };
+        var hive = new Hive { Name = "Mod Hive", Description = "desc", Creator = creator, Moderators = [], Users = [] };
         Context.Hives.Add(hive);
         await Context.SaveChangesAsync();
         Context.ChangeTracker.Clear();
 
         // Act
-        await _service.ModifyModeratorAsync(creator.Id, requestedModerator.Id, hive.Id);
+        await _service.AddModeratorAsync(creator.Id, requestedModerator.Id, hive.Id);
         var moderators = await Context.Hives.Where(h => h.Id == hive.Id).SelectMany(h => h.Moderators).ToListAsync();
 
         // Assert
@@ -195,13 +195,13 @@ public class HiveServiceTests : IntegrationTest
         Context.Users.AddRange(creator, outsider, requestedModerator);
         await Context.SaveChangesAsync();
 
-        var hive = new Hive { Name = "No Auth Hive", Description = "desc", Creator = creator, Moderators = [], Followers = [] };
+        var hive = new Hive { Name = "No Auth Hive", Description = "desc", Creator = creator, Moderators = [], Users = [] };
         Context.Hives.Add(hive);
         await Context.SaveChangesAsync();
         Context.ChangeTracker.Clear();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.ModifyModeratorAsync(outsider.Id, requestedModerator.Id, hive.Id));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.AddModeratorAsync(outsider.Id, requestedModerator.Id, hive.Id));
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public class HiveServiceTests : IntegrationTest
             Description = "desc",
             Creator = creator,
             Moderators = [moderator],
-            Followers = []
+            Users = []
         };
         Context.Hives.Add(hive);
         await Context.SaveChangesAsync();
@@ -249,7 +249,7 @@ public class HiveServiceTests : IntegrationTest
             Description = "desc",
             Creator = creator,
             Moderators = [moderator],
-            Followers = []
+            Users = []
         };
         Context.Hives.Add(hive);
         await Context.SaveChangesAsync();
@@ -270,7 +270,7 @@ public class HiveServiceTests : IntegrationTest
             Description = "This is a default hive.",
             Creator = user,
             Posts = [],
-            Followers = [new() { User = user, IsApproved = true }]
+            Users = [new() { User = user, IsApproved = true }]
         };
         Context.Hives.Add(_defaultHive);
     }

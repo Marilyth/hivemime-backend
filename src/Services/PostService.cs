@@ -51,7 +51,7 @@ public class PostService(HiveMimeContext context,
         else
         {
             posts = posts.Where(p => p.IsApproved &&
-                p.HiveId != null && (!p.Hive!.Settings.IsPrivate || p.Hive.Followers.Any(f => f.UserId == userId && f.IsApproved)));
+                p.HiveId != null && (!p.Hive!.Settings.IsPrivate || p.Hive.Users.Any(f => f.UserId == userId && f.ApprovalStatus == ApprovalStatus.Approved)));
         }
 
         var result = await posts.ApplyPaginationFilter(pagination)

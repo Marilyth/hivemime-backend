@@ -2,31 +2,37 @@ using Microsoft.EntityFrameworkCore;
 
 public class AuthorizationService(HiveMimeContext context)
 {
-    public async Task VerifyModifyModeratorAsync(int userId, int hiveId)
+    public async Task VerifyViewHiveUsersAsync(int userId, int hiveId)
     {
-        if (!await context.Hives.AnyAsync(h => h.Id == hiveId &&
-            (h.CreatorId == userId || h.Moderators.Any(m => m.Id == userId))))
-            throw new UnauthorizedAccessException("You do not have permission to add a moderator.");
+        if (!await context.HiveUsers.AnyAsync(h => h.HiveId == hiveId && h.UserId == userId && h.Role >= MemberRole.Moderator))
+            throw new UnauthorizedAccessException("You do not have permission to view hive users.");
     }
 
-    public async Task VerifyApproveFollowRequestAsync(int userId, int followRequestId)
+    public async Task VerifyModifyHiveUserAsync(int assignerId, int hiveUserId, MemberRole role)
     {
-        if (!await context.HiveFollowers.AnyAsync(r => r.Id == followRequestId &&
-            (r.Hive.CreatorId == userId || r.Hive.Moderators.Any(m => m.Id == userId))))
-            throw new UnauthorizedAccessException("You do not have permission to approve this follow request.");
+        // Only allow assigning roles lower than the assigner's role and the assigner must have a role higher than the user being modified.
+        if (!await context.HiveUsers.AnyAsync(h => h.Id == hiveUserId &&
+            h.Hive.Users.Any(u => u.UserId == assignerId && u.Role > role && u.Role > h.Role)))
+            throw new UnauthorizedAccessException("You do not have permission to assign this role to the user.");
+    }
+
+    public async Task VerifyLeaveHiveAsync(int userId, int hiveUserId)
+    {
+        if (!await context.HiveUsers.AnyAsync(f => f.Id == hiveUserId && f.UserId == userId))
+            throw new UnauthorizedAccessException("You do not have permission to unassign the user from the hive.");
     }
 
     public async Task VerifyApprovePostsAsync(int userId, int hiveId)
     {
         if (!await context.Posts.AnyAsync(p => p.HiveId == hiveId &&
-            (p.Hive.Moderators.Any(m => m.Id == userId) || p.Hive.CreatorId == userId)))
+            p.Hive.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator)))
             throw new UnauthorizedAccessException("You do not have permission to approve posts in this hive.");
      }
 
     public async Task VerifyApprovePostAsync(int userId, int postId)
     {
         if (!await context.Posts.AnyAsync(p => p.Id == postId &&
-            (p.Hive.Moderators.Any(m => m.Id == userId) || p.Hive.CreatorId == userId)))
+            p.Hive.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator)))
             throw new UnauthorizedAccessException("You do not have permission to approve this post.");
     }
 
@@ -36,10 +42,10 @@ public class AuthorizationService(HiveMimeContext context)
             return;
 
         if (!await context.Hives.AnyAsync(h => h.Id == hiveId &&
-            (h.CreatorId == userId || h.Moderators.Any(m => m.Id == userId)) || (
+            h.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator) || (
                 (h.Settings.PostPolicy == PostPolicy.Anyone ||
-                (h.Settings.PostPolicy == PostPolicy.FollowersOnly && h.Followers.Any(f => f.Id == userId)) ||
-                (h.Settings.PostPolicy == PostPolicy.ModeratorsOnly && h.Moderators.Any(m => m.Id == userId))) &&
+                (h.Settings.PostPolicy == PostPolicy.FollowersOnly && h.Users.Any(f => f.Id == userId)) ||
+                (h.Settings.PostPolicy == PostPolicy.ModeratorsOnly && h.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator))) &&
                 context.Users.Where(u => u.Id == userId).Select(u => u.Honey).All(honey => honey >= h.Settings.MinHoneyToPost)
             )))
             throw new UnauthorizedAccessException("You do not have permission to create a post in this hive.");
@@ -48,7 +54,7 @@ public class AuthorizationService(HiveMimeContext context)
     public async Task VerifyDeletePostAsync(int userId, int postId)
     {
         if (!await context.Posts.AnyAsync(p => p.Id == postId &&
-            (p.CreatorId == userId || p.Hive.Moderators.Any(m => m.Id == userId) || p.Hive.CreatorId == userId)))
+            (p.CreatorId == userId || p.Hive.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator))))
             throw new UnauthorizedAccessException("You do not have permission to delete this post.");
     }
 
@@ -57,22 +63,21 @@ public class AuthorizationService(HiveMimeContext context)
         if (await context.Posts.Where(p => p.Id == postId).Select(p => p.HiveId == null).FirstAsync())
             return;
 
-        if (!await context.Posts.AnyAsync(p => p.Id == postId &&
-            (p.Hive.Moderators.Any(m => m.Id == userId) || p.Hive.CreatorId == userId)))
+        if (!await context.Posts.AnyAsync(p => p.Id == postId))
             throw new UnauthorizedAccessException("You do not have permission to create a comment in this hive.");
     }
 
     public async Task VerifyDeleteCommentAsync(int userId, int commentId)
     {
         if (!await context.Comments.AnyAsync(c => c.Id == commentId &&
-            (c.UserId == userId || c.Post.Hive.Moderators.Any(m => m.Id == userId) || c.Post.Hive.CreatorId == userId)))
+            (c.UserId == userId || c.Post.Hive.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator))))
             throw new UnauthorizedAccessException("You do not have permission to delete this comment.");
     }
 
     public async Task VerifyEditHiveAsync(int userId, int hiveId)
     {
         if (!await context.Hives.AnyAsync(h => h.Id == hiveId &&
-            (h.CreatorId == userId || h.Moderators.Any(m => m.Id == userId))))
+            h.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Admin)))
             throw new UnauthorizedAccessException("You do not have permission to edit this hive.");
     }
 }

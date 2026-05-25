@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 public abstract class BaseTrigger<T> : ITrigger
 {
@@ -8,10 +9,10 @@ public abstract class BaseTrigger<T> : ITrigger
     public virtual Task OnAddedAsync(T entity)
         => Task.CompletedTask;
 
-    public virtual Task OnUpdatingAsync(T entity)
+    public virtual Task OnUpdatingAsync(T entity, IEnumerable<PropertyEntry> properties)
         => Task.CompletedTask;
 
-    public virtual Task OnUpdatedAsync(T entity)
+    public virtual Task OnUpdatedAsync(T entity, IEnumerable<PropertyEntry> properties)
         => Task.CompletedTask;
 
     public virtual Task OnDeletingAsync(T entity)
@@ -20,12 +21,12 @@ public abstract class BaseTrigger<T> : ITrigger
     public virtual Task OnDeletedAsync(T entity)
         => Task.CompletedTask;
 
-    public async Task ExecuteAsync(object entity, EntityState state, bool isBefore = false)
+    public async Task ExecuteAsync(TriggerDispatcher.TriggerEntry entry, bool isBefore = false)
     {
-        if (entity is not T typedEntity)
+        if (entry.Entity is not T typedEntity)
             throw new ArgumentException($"Invalid entity type for {GetType().Name}.");
 
-        switch (state)
+        switch (entry.State)
         {
             case EntityState.Added:
                 if (isBefore)
@@ -35,9 +36,9 @@ public abstract class BaseTrigger<T> : ITrigger
                 break;
             case EntityState.Modified:
                 if (isBefore)
-                    await OnUpdatingAsync(typedEntity);
+                    await OnUpdatingAsync(typedEntity, entry.Properties);
                 else
-                    await OnUpdatedAsync(typedEntity);
+                    await OnUpdatedAsync(typedEntity, entry.Properties);
                 break;
             case EntityState.Deleted:
                 if (isBefore)
@@ -54,6 +55,6 @@ public abstract class BaseTrigger<T> : ITrigger
 
 public interface ITrigger
 {
-    Task ExecuteAsync(object entity, EntityState state, bool isBefore = false);
+    Task ExecuteAsync(TriggerDispatcher.TriggerEntry entry, bool isBefore = false);
     bool CanHandle(Type entityType);
 }

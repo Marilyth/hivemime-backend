@@ -1,4 +1,4 @@
-public class UserProfileDto
+public class UserProfileDto : IHasIdentifier
 {
     public int Id { get; set; }
     public string Username { get; set; }

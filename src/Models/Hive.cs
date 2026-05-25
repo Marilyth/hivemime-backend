@@ -13,19 +13,14 @@ public class Hive : EntityWithIdentifier
     public HiveSettings Settings { get; set; } = new();
 
     public List<Post> Posts { get; set; }
-    public List<HiveFollower> Followers { get; set; }
-    public List<User> Moderators { get; set; }
+    public List<HiveUser> Users { get; set; }
 
     public int PostCount { get; set; }
-    public int FollowerCount { get; set; }
-
-    [ForeignKey(nameof(Creator))]
-    public int CreatorId { get; set; }
-    public User? Creator { get; set; }
+    public int UserCount { get; set; }
 }
 
 [Index(nameof(UserId), nameof(HiveId), IsUnique = true)]
-public class HiveFollower : EntityWithIdentifier
+public class HiveUser : EntityWithIdentifier
 {
     [ForeignKey(nameof(User))]
     public int UserId { get; set; }
@@ -35,5 +30,21 @@ public class HiveFollower : EntityWithIdentifier
     public int HiveId { get; set; }
     public Hive Hive { get; set; }
 
-    public bool IsApproved { get; set; }
+    public ApprovalStatus ApprovalStatus { get; set; }
+    public MemberRole Role { get; set; }
+}
+
+public enum MemberRole
+{
+    Follower,
+    Moderator,
+    Admin,
+    Creator
+}
+
+public enum ApprovalStatus
+{
+    Pending,
+    Approved,
+    Rejected
 }

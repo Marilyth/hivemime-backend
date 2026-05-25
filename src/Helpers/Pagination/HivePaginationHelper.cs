@@ -25,10 +25,10 @@ public static class HivePaginationHelper
                 DateTimeOffset oldCursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
                 return hives.Where(h => h.CreatedAt > oldCursor ||
                                        (h.CreatedAt == oldCursor && h.Id > pagination.Cursor.Id));
-            case HiveOrderBy.Followers:
-                int followersCursor = int.Parse(pagination.Cursor.Cursor);
-                return hives.Where(h => h.FollowerCount < followersCursor ||
-                                       (h.FollowerCount == followersCursor && h.Id > pagination.Cursor.Id));
+            case HiveOrderBy.Users:
+                int usersCursor = int.Parse(pagination.Cursor.Cursor);
+                return hives.Where(h => h.UserCount < usersCursor ||
+                                       (h.UserCount == usersCursor && h.Id > pagination.Cursor.Id));
             default:
                 throw new ValidationException("Invalid order by option.");
         }
@@ -47,8 +47,8 @@ public static class HivePaginationHelper
             case HiveOrderBy.Old:
                 orderedHives = hives.OrderBy(h => h.CreatedAt);
                 break;
-            case HiveOrderBy.Followers:
-                orderedHives = hives.OrderByDescending(h => h.FollowerCount);
+            case HiveOrderBy.Users:
+                orderedHives = hives.OrderByDescending(h => h.UserCount);
                 break;
             default:
                 throw new ValidationException("Invalid order by option.");
@@ -63,7 +63,7 @@ public static class HivePaginationHelper
         return await PostPaginationHelper.BuildPaginationResultAsync(entities.ProjectToType<HiveDto>(), pagination, h => pagination.OrderBy switch
         {
             HiveOrderBy.New or HiveOrderBy.Old => h.CreatedAt,
-            HiveOrderBy.Followers => h.FollowerCount,
+            HiveOrderBy.Users => h.UserCount,
             _ => throw new ValidationException("Invalid order by option.")
         });
     }

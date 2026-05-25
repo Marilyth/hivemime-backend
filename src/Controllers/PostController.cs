@@ -38,7 +38,7 @@ public class PostController(PostService postService, HiveMimeContext context) : 
     public async Task<List<CandidateDistributionDto>> GetCandidateResult(int candidateId, string? filter)
         => await postService.GetCandidateDistributionResultsAsync(candidateId, filter);
 
-    [HttpPut("vote")]
+    [HttpPost("vote")]
     public async Task<HoneyDeltaDto<bool>> UpsertVoteToPost([FromBody] PostVoteDto vote)
         => await postService.VoteOnPostAsync(await User.GetUserIdAsync(context), vote);
 }

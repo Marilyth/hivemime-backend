@@ -27,6 +27,19 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     }
 
     /// <summary>
+    /// Returns a paginated list of users based on the provided pagination parameters, including filtering and sorting options.
+    /// </summary>
+    /// <param name="pagination">The pagination parameters, including filtering and sorting options.</param>
+    /// <returns>A paginated list of user profiles.</returns>
+    public async Task<PaginationResultDto<UserDto>> BrowseUsersAsync(UserPaginationDto pagination)
+    {
+        return await context.Users.AsNoTracking()
+            .ApplyPaginationFilter(pagination)
+            .ApplyPaginationOrdering(pagination)
+            .FetchPaginationResultAsync(pagination);
+    }
+
+    /// <summary>
     /// Returns the basic public profile of a user, including their honey and post/comment counts.
     /// </summary>
     /// <param name="userId">The ID of the user to retrieve the profile for.</param>
@@ -136,7 +149,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     /// <param name="previousUserId">The ID of the previous user to merge.</param>
     public async Task MergeAccountsAsync(int currentUserId, int previousUserId)
     {
-        var currentUser = await context.Users.Include(u => u.FollowedHives)
+        var currentUser = await context.Users.Include(u => u.JoinedHives)
             .FirstOrExceptionAsync(u => u.Id == currentUserId);
         var previousUser = await context.Users.FirstOrExceptionAsync(u => u.Id == previousUserId);
 
@@ -158,22 +171,16 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
             .Where(v => !currentVotes.Contains(v.PostId))
             .ExecuteUpdateAsync(v => v.SetProperty(vote => vote.UserId, currentUserId));
 
-        // Merge hives.
-        await context.Hives.Where(h => h.CreatorId == previousUserId)
-            .ExecuteUpdateAsync(h => h.SetProperty(hive => hive.CreatorId, currentUserId));
-
         // Merge followed hives.
-        var currentFollowedHives = context.Users.Where(u => u.Id == currentUserId)
-            .SelectMany(u => u.FollowedHives)
-            .Select(h => h.Id);
+        var currentFollowedHives = context.HiveUsers.Where(u => u.UserId == currentUserId)
+            .Select(h => h.HiveId);
 
-        var previousFollowedHives = context.Users.Where(u => u.Id == previousUserId)
-            .SelectMany(u => u.FollowedHives)
-            .Where(h => !currentFollowedHives.Contains(h.Id))
+        var previousFollowedHives = await context.HiveUsers.Where(u => u.UserId == previousUserId)
+            .Where(h => !currentFollowedHives.Contains(h.HiveId))
             .ToListAsync();
 
-        foreach (var hive in await previousFollowedHives)
-            currentUser.FollowedHives.Add(hive);
+        foreach (var hive in previousFollowedHives)
+            hive.UserId = currentUserId;
 
         // Merge honey.
         currentUser.Honey += previousUser.Honey;

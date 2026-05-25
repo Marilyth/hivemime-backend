@@ -22,13 +22,13 @@ public class AuthorizationServiceTests : IntegrationTest
     [Fact]
     public async Task VerifyAddModeratorAsync_Creator_DoesNotThrow()
     {
-        await _service.VerifyModifyModeratorAsync(_creator!.Id, _hive!.Id);
+        await _service.VerifyModifyHiveUserAsync(_creator!.Id, _hive!.Id);
     }
 
     [Fact]
     public async Task VerifyAddModeratorAsync_Outsider_Throws()
     {
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.VerifyModifyModeratorAsync(_outsider!.Id, _hive!.Id));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.VerifyModifyHiveUserAsync(_outsider!.Id, _hive!.Id));
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class AuthorizationServiceTests : IntegrationTest
             Description = "Main hive description",
             Creator = _creator,
             Moderators = [_moderator],
-            Followers = [new() { User = _follower, IsApproved = true }],
+            Users = [new() { User = _follower, IsApproved = true }],
             Settings = new HiveSettings
             {
                 IsPrivate = false,
