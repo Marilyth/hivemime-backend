@@ -18,7 +18,10 @@ public class AuthorizationService(HiveMimeContext context)
 
     public async Task VerifyLeaveHiveAsync(int userId, int hiveUserId)
     {
-        if (!await context.HiveUsers.AnyAsync(f => f.Id == hiveUserId && f.UserId == userId))
+        if (!await context.HiveUsers.AnyAsync(f => f.Id == hiveUserId &&
+                                              f.UserId == userId &&
+                                              f.ApprovalStatus != ApprovalStatus.Rejected &&
+                                              f.Role != MemberRole.Creator))
             throw new UnauthorizedAccessException("You do not have permission to unassign the user from the hive.");
     }
 

@@ -105,9 +105,8 @@ public class PostServiceTests : IntegrationTest
         {
             Name = "Private Hive",
             Description = "Private",
-            Creator = _defaultUser!,
             Settings = new HiveSettings { IsPrivate = true, MustBeApprovedToJoin = false, MustBeApprovedToPost = false, PostPolicy = PostPolicy.Anyone },
-            Users = [new() { User = _defaultUser!, IsApproved = true }]
+            Users = [new() { User = _defaultUser!, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }]
         };
 
         var hiddenByApproval = new Post
@@ -495,7 +494,16 @@ public class PostServiceTests : IntegrationTest
         _defaultUser = new User { Username = "defaultuser", Settings = new() };
         _defaultUser2 = new User { Username = "defaultuser2", Settings = new() };
 
-        _defaultHive = new Hive { Name = "Default Hive", Description = "This is a default hive.", Creator = _defaultUser };
+        _defaultHive = new Hive
+        {
+            Name = "Default Hive",
+            Description = "This is a default hive.",
+            Users =
+            [
+                new() { User = _defaultUser, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator },
+                new() { User = _defaultUser2, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Follower }
+            ]
+        };
 
         _defaultPost = new()
         {

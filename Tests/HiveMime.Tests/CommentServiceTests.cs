@@ -128,11 +128,17 @@ public class CommentServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task AddCommentAsync_HivePostByOutsider_ThrowsException()
+    public async Task AddCommentAsync_HivePostByOutsider_AddsComment()
     {
         // Arrange
         var outsider = new User { Username = "outsider", Settings = new() };
-        var hive = new Hive { Name = "comment-hive", Description = "desc", Creator = _defaultUser!, Settings = new() };
+        var hive = new Hive
+        {
+            Name = "comment-hive",
+            Description = "desc",
+            Settings = new(),
+            Users = [new() { User = _defaultUser!, Role = MemberRole.Creator, ApprovalStatus = ApprovalStatus.Approved }]
+        };
         var hivePost = new Post { Creator = _defaultUser!, Hive = hive, IsApproved = true, Polls = [] };
         Context.Users.Add(outsider);
         Context.Posts.Add(hivePost);
@@ -144,8 +150,12 @@ public class CommentServiceTests : IntegrationTest
             Content = "blocked"
         };
 
-        // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.AddCommentAsync(outsider.Id, dto));
+        // Act
+        var result = await _service.AddCommentAsync(outsider.Id, dto);
+
+        // Assert
+        Assert.Equal(outsider.Id, result.Dto.User.Id);
+        Assert.Equal("blocked", result.Dto.Content);
     }
 
     [Fact]
@@ -182,9 +192,13 @@ public class CommentServiceTests : IntegrationTest
         {
             Name = "delete-comment-hive",
             Description = "desc",
-            Creator = _defaultUser!,
-            Moderators = [moderator],
-            Settings = new()
+            Settings = new(),
+            Users =
+            [
+                new() { User = _defaultUser!, Role = MemberRole.Creator, ApprovalStatus = ApprovalStatus.Approved },
+                new() { User = moderator, Role = MemberRole.Moderator, ApprovalStatus = ApprovalStatus.Approved },
+                new() { User = author, Role = MemberRole.Follower, ApprovalStatus = ApprovalStatus.Approved }
+            ]
         };
         var post = new Post { Creator = _defaultUser!, Hive = hive, IsApproved = true, Polls = [] };
         var comment = new Comment { Post = post, User = author, Content = "to delete" };

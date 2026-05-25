@@ -6,7 +6,9 @@ namespace HiveMime.Tests;
 public class HiveServiceTests : IntegrationTest
 {
     private HiveService _service;
+    private User? _defaultUser;
     private Hive? _defaultHive;
+    private HiveUser? _defaultMembership;
 
     public HiveServiceTests(DatabaseContainer fixture) : base(fixture)
     {
@@ -14,56 +16,109 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task JoinHive_WithNewFollow_JoinsUser()
+    public async Task JoinHive_WithNewUser_CreatesApprovedMembershipWhenApprovalNotRequired()
     {
         // Arrange
         var user = new User { Username = "newuser", Settings = new() };
         Context.Users.Add(user);
         await Context.SaveChangesAsync();
 
-        var hive = Context.Hives.First();
         Context.ChangeTracker.Clear();
 
         // Act
-        await _service.JoinHiveAsync(user.Id, hive.Id);
-        bool isFollower = await Context.Hives.Where(h => h.Id == hive.Id)
-            .SelectMany(h => h.Users)
-            .AnyAsync(u => u.Id == user.Id);
+        var joined = await _service.JoinHiveAsync(user.Id, _defaultHive!.Id);
+        var hiveUser = await Context.HiveUsers.FirstOrDefaultAsync(h => h.Id == joined.Id);
 
         // Assert
-        Assert.True(isFollower);
+        Assert.NotNull(hiveUser);
+        Assert.Equal(ApprovalStatus.Approved, hiveUser!.ApprovalStatus);
+        Assert.Equal(MemberRole.Follower, hiveUser.Role);
     }
 
     [Fact]
-    public async Task LeaveHive_WithExistingFollow_RemovesUser()
+    public async Task LeaveHive_WithFollowerMembership_RemovesUserFromHive()
     {
         // Arrange
-        var hive = Context.Hives.First();
-        var user = Context.Users.First();
+        var follower = new User { Username = "leaving-follower", Settings = new() };
+        Context.Users.Add(follower);
+        await Context.SaveChangesAsync();
+
+        var followerMembership = new HiveUser
+        {
+            HiveId = _defaultHive!.Id,
+            UserId = follower.Id,
+            Role = MemberRole.Follower,
+            ApprovalStatus = ApprovalStatus.Approved
+        };
+        Context.HiveUsers.Add(followerMembership);
+        await Context.SaveChangesAsync();
+
         Context.ChangeTracker.Clear();
 
         // Act
-        await _service.LeaveHiveAsync(user.Id, hive.Id);
-        bool isFollower = await Context.Hives.Where(h => h.Id == hive.Id)
-            .SelectMany(h => h.Users)
-            .AnyAsync(u => u.Id == user.Id);
+        await _service.LeaveHiveAsync(follower.Id, followerMembership.Id);
+        var exists = await Context.HiveUsers.AnyAsync(h => h.Id == followerMembership.Id);
 
         // Assert
-        Assert.False(isFollower);
+        Assert.False(exists);
     }
 
     [Fact]
-    public async Task GetFollowedHives_WithExistingFollow_ReturnsExpected()
+    public async Task LeaveHive_WithOtherUsersMembership_ThrowsUnauthorized()
     {
         // Arrange
-        var user = Context.Users.First();
+        var otherUser = new User { Username = "other-user", Settings = new() };
+        Context.Users.Add(otherUser);
+        await Context.SaveChangesAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.LeaveHiveAsync(otherUser.Id, _defaultMembership!.Id));
+    }
+
+    [Fact]
+    public async Task LeaveHive_WithCreatorMembership_ThrowsUnauthorized()
+    {
+        // Arrange
+        Context.ChangeTracker.Clear();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.LeaveHiveAsync(_defaultUser!.Id, _defaultMembership!.Id));
+    }
+
+    [Fact]
+    public async Task LeaveHive_WithRejectedMembership_ThrowsUnauthorized()
+    {
+        // Arrange
+        var rejectedUser = new User { Username = "rejected-user", Settings = new() };
+        Context.Users.Add(rejectedUser);
+        await Context.SaveChangesAsync();
+
+        var rejectedMembership = new HiveUser
+        {
+            HiveId = _defaultHive!.Id,
+            UserId = rejectedUser.Id,
+            Role = MemberRole.Follower,
+            ApprovalStatus = ApprovalStatus.Rejected
+        };
+        Context.HiveUsers.Add(rejectedMembership);
+        await Context.SaveChangesAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.LeaveHiveAsync(rejectedUser.Id, rejectedMembership.Id));
+    }
+
+    [Fact]
+    public async Task GetJoinedHives_WithExistingMembership_ReturnsExpectedHive()
+    {
+        // Arrange
         Context.ChangeTracker.Clear();
 
         // Act
-        var hives = await _service.GetJoinedHivesAsync(user.Id);
+        var hives = await _service.GetJoinedHivesAsync(_defaultUser!.Id);
 
         // Assert
-        Assert.Equal(_defaultHive!.Id, hives.Single().Id);
+        Assert.Single(hives);
+        Assert.Equal(_defaultHive!.Id, hives[0].Hive.Id);
     }
 
     [Fact]
@@ -91,34 +146,29 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task CreateHive_ValidHive_AddsToDatabase()
+    public async Task CreateHive_ValidHive_AddsCreatorMembership()
     {
         // Arrange
-        var user = Context.Users.First();
         var hiveDto = new CreateHiveDto
         {
             Name = "New Hive",
             Description = "New hive description"
         };
-        var service = _service;
 
         // Act
-        var result = await service.CreateHiveAsync(user.Id, hiveDto);
-        var hive = Context.Hives.FirstOrDefault(h => h.Name == "New Hive");
+        var result = await _service.CreateHiveAsync(_defaultUser!.Id, hiveDto);
+        var membership = await Context.HiveUsers.FirstOrDefaultAsync(h => h.HiveId == result.Id && h.UserId == _defaultUser.Id);
 
         // Assert
-        Assert.NotNull(hive);
-        Assert.Equal("New Hive", hive.Name);
-        Assert.Equal("New hive description", hive.Description);
-        Assert.Equal(user.Id, hive.CreatorId);
+        Assert.NotNull(membership);
+        Assert.Equal(MemberRole.Creator, membership!.Role);
+        Assert.Equal(ApprovalStatus.Approved, membership.ApprovalStatus);
     }
 
     [Fact]
     public async Task CreateHive_InvalidName_ThrowsException()
     {
         // Arrange
-        var user = Context.Users.First();
-        var service = _service;
         var hiveDto = new CreateHiveDto
         {
             Name = "ab",
@@ -126,15 +176,13 @@ public class HiveServiceTests : IntegrationTest
         };
 
         // Act & Assert
-        await Assert.ThrowsAsync<ValidationException>(() => service.CreateHiveAsync(user.Id, hiveDto));
+        await Assert.ThrowsAsync<ValidationException>(() => _service.CreateHiveAsync(_defaultUser!.Id, hiveDto));
     }
 
     [Fact]
     public async Task CreateHive_DuplicateName_ThrowsException()
     {
         // Arrange
-        var user = Context.Users.First();
-        var service = _service;
         var hiveDto = new CreateHiveDto
         {
             Name = "Default Hive",
@@ -142,15 +190,15 @@ public class HiveServiceTests : IntegrationTest
         };
 
         // Act & Assert
-        await Assert.ThrowsAsync<ValidationException>(() => service.CreateHiveAsync(user.Id, hiveDto));
+        await Assert.ThrowsAsync<ValidationException>(() => _service.CreateHiveAsync(_defaultUser!.Id, hiveDto));
     }
 
     [Fact]
     public async Task BrowseHivesAsync_Pagination_WorksWithFilterAndOrder()
     {
         // Arrange
-        var hive1 = new Hive { Name = "AlphaHive", Description = "desc", Creator = Context.Users.First() };
-        var hive2 = new Hive { Name = "BetaHive", Description = "desc", Creator = Context.Users.First() };
+        var hive1 = new Hive { Name = "AlphaHive", Description = "desc", Users = [new() { User = _defaultUser!, Role = MemberRole.Creator, ApprovalStatus = ApprovalStatus.Approved }] };
+        var hive2 = new Hive { Name = "BetaHive", Description = "desc", Users = [new() { User = _defaultUser!, Role = MemberRole.Creator, ApprovalStatus = ApprovalStatus.Approved }] };
         Context.Hives.AddRange(hive1, hive2);
         await Context.SaveChangesAsync();
         var pagination = new HivePaginationDto { Filter = "Alpha", OrderBy = HiveOrderBy.New, PageSize = 1 };
@@ -164,114 +212,146 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task AddModeratorAsync_ValidRequest_AddsRequestedModerator()
+    public async Task ModifyHiveUserAsync_CreatorPromotesFollower_UpdatesRoleAndApproval()
     {
         // Arrange
-        var creator = new User { Username = "creator-mod", Settings = new() };
-        var requestedModerator = new User { Username = "requested-mod", Settings = new() };
-        Context.Users.AddRange(creator, requestedModerator);
+        var follower = new User { Username = "member-user", Settings = new() };
+        Context.Users.Add(follower);
         await Context.SaveChangesAsync();
 
-        var hive = new Hive { Name = "Mod Hive", Description = "desc", Creator = creator, Moderators = [], Users = [] };
-        Context.Hives.Add(hive);
+        var membership = new HiveUser
+        {
+            HiveId = _defaultHive!.Id,
+            UserId = follower.Id,
+            Role = MemberRole.Follower,
+            ApprovalStatus = ApprovalStatus.Pending
+        };
+        Context.HiveUsers.Add(membership);
         await Context.SaveChangesAsync();
-        Context.ChangeTracker.Clear();
 
         // Act
-        await _service.AddModeratorAsync(creator.Id, requestedModerator.Id, hive.Id);
-        var moderators = await Context.Hives.Where(h => h.Id == hive.Id).SelectMany(h => h.Moderators).ToListAsync();
+        await _service.ModifyHiveUserAsync(_defaultUser!.Id, membership.Id, MemberRole.Moderator, ApprovalStatus.Approved);
+        var updated = await Context.HiveUsers.FirstAsync(h => h.Id == membership.Id);
 
         // Assert
-        Assert.Contains(moderators, m => m.Id == requestedModerator.Id);
+        Assert.Equal(MemberRole.Moderator, updated.Role);
+        Assert.Equal(ApprovalStatus.Approved, updated.ApprovalStatus);
     }
 
     [Fact]
-    public async Task AddModeratorAsync_UnauthorizedUser_ThrowsException()
+    public async Task ModifyHiveUserAsync_ModeratorCannotAssignEqualRole_ThrowsUnauthorized()
     {
         // Arrange
-        var creator = new User { Username = "creator-noauth", Settings = new() };
-        var outsider = new User { Username = "outsider-noauth", Settings = new() };
-        var requestedModerator = new User { Username = "requested-noauth", Settings = new() };
-        Context.Users.AddRange(creator, outsider, requestedModerator);
+        var moderator = new User { Username = "mod-user", Settings = new() };
+        var member = new User { Username = "member-user-2", Settings = new() };
+        Context.Users.AddRange(moderator, member);
         await Context.SaveChangesAsync();
 
-        var hive = new Hive { Name = "No Auth Hive", Description = "desc", Creator = creator, Moderators = [], Users = [] };
-        Context.Hives.Add(hive);
+        var moderatorMembership = new HiveUser
+        {
+            HiveId = _defaultHive!.Id,
+            UserId = moderator.Id,
+            Role = MemberRole.Moderator,
+            ApprovalStatus = ApprovalStatus.Approved
+        };
+        var targetMembership = new HiveUser
+        {
+            HiveId = _defaultHive.Id,
+            UserId = member.Id,
+            Role = MemberRole.Follower,
+            ApprovalStatus = ApprovalStatus.Pending
+        };
+
+        Context.HiveUsers.AddRange(moderatorMembership, targetMembership);
         await Context.SaveChangesAsync();
-        Context.ChangeTracker.Clear();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.AddModeratorAsync(outsider.Id, requestedModerator.Id, hive.Id));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            _service.ModifyHiveUserAsync(moderator.Id, targetMembership.Id, MemberRole.Moderator, ApprovalStatus.Approved));
     }
 
     [Fact]
-    public async Task RemoveModeratorAsync_ValidRequest_RemovesModerator()
+    public async Task GetUsersAsync_ModeratorCanViewPendingUsers()
     {
         // Arrange
-        var creator = new User { Username = "creator-remove", Settings = new() };
-        var moderator = new User { Username = "moderator-remove", Settings = new() };
-        Context.Users.AddRange(creator, moderator);
+        var moderator = new User { Username = "viewer-mod", Settings = new() };
+        var pendingUser = new User { Username = "pending-user", Settings = new() };
+        Context.Users.AddRange(moderator, pendingUser);
         await Context.SaveChangesAsync();
 
-        var hive = new Hive
-        {
-            Name = "Remove Mod Hive",
-            Description = "desc",
-            Creator = creator,
-            Moderators = [moderator],
-            Users = []
-        };
-        Context.Hives.Add(hive);
+        Context.HiveUsers.AddRange(
+            new HiveUser { HiveId = _defaultHive!.Id, UserId = moderator.Id, Role = MemberRole.Moderator, ApprovalStatus = ApprovalStatus.Approved },
+            new HiveUser { HiveId = _defaultHive.Id, UserId = pendingUser.Id, Role = MemberRole.Follower, ApprovalStatus = ApprovalStatus.Pending }
+        );
         await Context.SaveChangesAsync();
-        Context.ChangeTracker.Clear();
 
         // Act
-        await _service.RemoveModeratorAsync(creator.Id, moderator.Id, hive.Id);
-        var moderators = await Context.Hives.Where(h => h.Id == hive.Id).SelectMany(h => h.Moderators).ToListAsync();
+        var result = await _service.GetUsersAsync(moderator.Id, _defaultHive.Id, ApprovalStatus.Pending, new HiveUserPaginationDto { PageSize = 20 });
 
         // Assert
-        Assert.DoesNotContain(moderators, m => m.Id == moderator.Id);
+        Assert.Single(result.Items);
+        Assert.Equal(pendingUser.Id, result.Items[0].User.Id);
     }
 
     [Fact]
-    public async Task RemoveModeratorAsync_UnauthorizedUser_ThrowsException()
+    public async Task GetUsersAsync_Outsider_ThrowsUnauthorized()
     {
         // Arrange
-        var creator = new User { Username = "creator-remove-noauth", Settings = new() };
-        var moderator = new User { Username = "moderator-remove-noauth", Settings = new() };
-        var outsider = new User { Username = "outsider-remove-noauth", Settings = new() };
-        Context.Users.AddRange(creator, moderator, outsider);
+        var outsider = new User { Username = "outsider", Settings = new() };
+        Context.Users.Add(outsider);
         await Context.SaveChangesAsync();
-
-        var hive = new Hive
-        {
-            Name = "Remove No Auth Hive",
-            Description = "desc",
-            Creator = creator,
-            Moderators = [moderator],
-            Users = []
-        };
-        Context.Hives.Add(hive);
-        await Context.SaveChangesAsync();
-        Context.ChangeTracker.Clear();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.RemoveModeratorAsync(outsider.Id, moderator.Id, hive.Id));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            _service.GetUsersAsync(outsider.Id, _defaultHive!.Id, ApprovalStatus.Approved, new HiveUserPaginationDto { PageSize = 20 }));
+    }
+
+    [Fact]
+    public async Task GetModeratorsAsync_ReturnsUsersWithModeratorOrHigherRole()
+    {
+        // Arrange
+        var moderator = new User { Username = "listed-mod", Settings = new() };
+        Context.Users.Add(moderator);
+        await Context.SaveChangesAsync();
+
+        Context.HiveUsers.Add(new HiveUser
+        {
+            HiveId = _defaultHive!.Id,
+            UserId = moderator.Id,
+            Role = MemberRole.Moderator,
+            ApprovalStatus = ApprovalStatus.Approved
+        });
+        await Context.SaveChangesAsync();
+
+        // Act
+        var moderators = await _service.GetModeratorsAsync(_defaultHive.Id);
+
+        // Assert
+        Assert.Contains(moderators, m => m.User.Id == moderator.Id);
+        Assert.Contains(moderators, m => m.User.Id == _defaultUser!.Id);
     }
 
     protected override void SeedDatabase()
     {
-        var user = new User { Username = "defaultuser", Settings = new() };
-        Context.Users.Add(user);
+        _defaultUser = new User { Username = "defaultuser", Settings = new() };
+        Context.Users.Add(_defaultUser);
 
         _defaultHive = new Hive
         {
             Name = "Default Hive",
             Description = "This is a default hive.",
-            Creator = user,
             Posts = [],
-            Users = [new() { User = user, IsApproved = true }]
+            Settings = new HiveSettings
+            {
+                MustBeApprovedToJoin = false,
+                MustBeApprovedToPost = false,
+                PostPolicy = PostPolicy.Anyone
+            },
+            Users = [new() { User = _defaultUser, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }]
         };
         Context.Hives.Add(_defaultHive);
+        Context.SaveChanges();
+
+        _defaultMembership = Context.HiveUsers.First(h => h.HiveId == _defaultHive.Id && h.UserId == _defaultUser.Id);
     }
 }

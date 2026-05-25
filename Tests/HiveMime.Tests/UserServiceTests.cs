@@ -170,16 +170,17 @@ public class UserServiceTests : IntegrationTest
         previousUser = Context.Users.First(u => u.Username == "previous");
 
         // Create a hive and have previousUser follow it
-        var hive = new Hive { Name = "TestHive", Description = "desc", CreatorId = previousUser.Id, Users = [] };
+        var hive = new Hive
+        {
+            Name = "TestHive",
+            Description = "desc",
+            Users = [new() { UserId = previousUser.Id, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }]
+        };
         Context.Hives.Add(hive);
         await Context.SaveChangesAsync();
 
         // Reload hive to get tracked entity with ID
         hive = Context.Hives.First(h => h.Name == "TestHive");
-
-        // Only set navigation from one side
-        previousUser.JoinedHives.Add(new HiveUser { HiveId = hive.Id, UserId = previousUser.Id, IsApproved = true });
-        await Context.SaveChangesAsync();
 
         // Create a post by previousUser
         var post = new Post { CreatorId = previousUser.Id, HiveId = hive.Id, Hotness = 1.0, CommentCount = 0, VoteCount = 0 };
@@ -214,7 +215,7 @@ public class UserServiceTests : IntegrationTest
 
         // Followed hives should be merged
         var refreshedCurrentUser = Context.Users.Include(u => u.JoinedHives).First(u => u.Id == currentUser.Id);
-        Assert.Contains(refreshedCurrentUser.JoinedHives, h => h.Id == hive.Id);
+        Assert.Contains(refreshedCurrentUser.JoinedHives, h => h.HiveId == hive.Id);
     }
 
     [Fact]
