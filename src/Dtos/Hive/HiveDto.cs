@@ -25,5 +25,5 @@ public class HiveOptionsDto
     public bool MustBeApprovedToJoin { get; set; }
 
     public double MinHoneyToPost { get; set; }
-    public PostPolicy PostPolicy { get; set; }
+    public MemberRole MinRoleToPost { get; set; }
 }

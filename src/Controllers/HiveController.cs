@@ -26,6 +26,10 @@ public class HiveController(HiveService hiveService, HiveMimeContext context) : 
     public async Task ModifyHiveUser(int followRequestId, ApprovalStatus approvalStatus, MemberRole role)
         => await hiveService.ModifyHiveUserAsync(await User.GetUserIdAsync(context), followRequestId, role, approvalStatus);
 
+    [HttpPatch("banUser")]
+    public async Task BanHiveUser(int userId, int hiveId)
+        => await hiveService.BanHiveUserAsync(await User.GetUserIdAsync(context), userId, hiveId);
+
     [HttpDelete("leave")]
     public async Task LeaveHive(int followId)
         => await hiveService.LeaveHiveAsync(await User.GetUserIdAsync(context), followId);

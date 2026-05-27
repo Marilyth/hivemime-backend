@@ -8,12 +8,5 @@ public class HiveSettings
     public bool MustBeApprovedToJoin { get; set; }
 
     public double MinHoneyToPost { get; set; }
-    public PostPolicy PostPolicy { get; set; }
-}
-
-public enum PostPolicy
-{
-    Anyone,
-    FollowersOnly,
-    ModeratorsOnly
+    public MemberRole? MinRoleToPost { get; set; }
 }

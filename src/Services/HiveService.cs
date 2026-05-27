@@ -43,15 +43,28 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
         await context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Lists the moderators of a hive, allowing users to see who manages the hive and its content.
-    /// </summary>
-    /// <param name="hiveId">The ID of the hive whose moderators to list.</param>
-    public async Task<List<HiveUserDto>> GetModeratorsAsync(int hiveId)
-        => await context.HiveUsers.AsNoTracking()
-            .Where(h => h.HiveId == hiveId && h.Role >= MemberRole.Moderator)
-            .ProjectToType<HiveUserDto>()
-            .ToListAsync();
+    public async Task BanHiveUserAsync(int currentUserId, int userId, int hiveId)
+    {
+        await authorizationService.VerifyBanHiveUserAsync(currentUserId, userId, hiveId);
+
+        HiveUser user = await context.HiveUsers.FirstOrDefaultAsync(h => h.UserId == userId && h.HiveId == hiveId);
+
+        if (user is null)
+        {
+            user = new HiveUser
+            {
+                UserId = userId,
+                HiveId = hiveId,
+                Role = MemberRole.Guest
+            };
+
+            context.HiveUsers.Add(user);
+        }
+
+        user.ApprovalStatus = ApprovalStatus.Banned;
+
+        await context.SaveChangesAsync();
+    }
 
     /// <summary>
     /// Adds the user as a follower to the hive, effectively "joining" it.
@@ -66,24 +79,31 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
             .Select(h => h.Settings.MustBeApprovedToJoin)
             .FirstOrExceptionAsync();
 
-        if (await context.HiveUsers.AnyAsync(r => r.HiveId == hiveId && r.UserId == userId))
-                throw new ValidationException("You have already requested to join this hive.");
+        HiveUser hiveUser = await context.HiveUsers.FirstOrDefaultAsync(r => r.HiveId == hiveId && r.UserId == userId);
+
+        if (hiveUser != null && hiveUser.Role != MemberRole.Guest)
+            throw new ValidationException("You have already requested to join this hive.");
         
-        HiveUser joinRequest = new()
+        if (hiveUser is null)
         {
-            HiveId = hiveId,
-            UserId = userId
-        };
+            hiveUser = new HiveUser
+            {
+                HiveId = hiveId,
+                UserId = userId
+            };
 
-        context.HiveUsers.Add(joinRequest);
+            if (!requiresApproval)
+                hiveUser.ApprovalStatus = ApprovalStatus.Approved;
 
-        if (!requiresApproval)
-            joinRequest.ApprovalStatus = ApprovalStatus.Approved;
+            context.HiveUsers.Add(hiveUser);
+        }
+
+        hiveUser.Role = MemberRole.Follower;
 
         await context.SaveChangesAsync();
 
         return context.HiveUsers.AsNoTracking()
-            .Where(r => r.Id == joinRequest.Id)
+            .Where(r => r.Id == hiveUser.Id)
             .ProjectToType<HiveUserDto>()
             .First();
     }
@@ -187,7 +207,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
         hive.Settings.MinHoneyToPost = hiveDto.Settings.MinHoneyToPost;
         hive.Settings.MustBeApprovedToJoin = hiveDto.Settings.MustBeApprovedToJoin;
         hive.Settings.MustBeApprovedToPost = hiveDto.Settings.MustBeApprovedToPost;
-        hive.Settings.PostPolicy = hiveDto.Settings.PostPolicy;
+        hive.Settings.MinRoleToPost = hiveDto.Settings.MinRoleToPost;
 
         context.Hives.Update(hive);
         await context.SaveChangesAsync();

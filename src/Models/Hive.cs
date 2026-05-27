@@ -36,6 +36,7 @@ public class HiveUser : EntityWithIdentifier
 
 public enum MemberRole
 {
+    Guest,
     Follower,
     Moderator,
     Admin,
@@ -46,5 +47,6 @@ public enum ApprovalStatus
 {
     Pending,
     Approved,
-    Rejected
+    Rejected,
+    Banned
 }

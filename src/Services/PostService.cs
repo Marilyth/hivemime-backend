@@ -50,7 +50,7 @@ public class PostService(HiveMimeContext context,
         else
         {
             posts = posts.Where(p => p.HiveId != null &&
-            (!p.Hive!.Settings.IsPrivate || p.Hive.Users.Any(f => f.UserId == userId && f.ApprovalStatus == ApprovalStatus.Approved)));
+            (!p.Hive!.Settings.IsPrivate || p.Hive.Users.Any(f => f.UserId == userId && f.Role > MemberRole.Guest && f.ApprovalStatus == ApprovalStatus.Approved)));
         }
 
         var result = await posts.ApplyPaginationFilter(pagination)

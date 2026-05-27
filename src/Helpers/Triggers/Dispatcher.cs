@@ -9,7 +9,7 @@ public class TriggerDispatcher(IEnumerable<ITrigger> triggers)
     {
         entries = changeTracker.Entries()
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
-            .Select(e => new TriggerEntry(e.Entity, e.State, e.Properties.Where(p => p.IsModified)))
+            .Select(e => new TriggerEntry(e.Entity, e.State, e.Properties.Where(p => p.IsModified).ToList()))
             .ToList();
     }
 
@@ -26,5 +26,5 @@ public class TriggerDispatcher(IEnumerable<ITrigger> triggers)
         }
     }
 
-    public record TriggerEntry(object Entity, EntityState State, IEnumerable<PropertyEntry> Properties);
+    public record TriggerEntry(object Entity, EntityState State, List<PropertyEntry> Properties);
 }
