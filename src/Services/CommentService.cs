@@ -53,10 +53,11 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
     /// <param name="userId">The ID of the user whose comments to fetch.</param>
     /// <param name="postId">The ID of the post whose comments to fetch.</param>
     /// <param name="parentCommentId">The ID of the parent comment whose replies to fetch.</param>
+    /// <param name="onlyRoot">Whether to fetch only root comments (i.e., comments without a parent).</param>
     /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
     /// <returns>A list of comments matching the provided filters and pagination parameters.</returns>
     /// <exception cref="ValidationException">Thrown if none of the filters are provided.</exception>
-    public async Task<PaginationResultDto<CommentDto>> BrowseCommentsAsync(int? userId, int? postId, int? parentCommentId, CommentPaginationDto pagination)
+    public async Task<PaginationResultDto<CommentDto>> BrowseCommentsAsync(int? userId, int? postId, int? parentCommentId, bool onlyRoot, CommentPaginationDto pagination)
     {
         if (userId == null && postId == null && parentCommentId == null)
             throw new ValidationException("At least one of userId, postId, or parentCommentId must be provided.");
@@ -71,7 +72,7 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
 
         if (parentCommentId.HasValue)
             comments = comments.Where(c => c.ParentCommentId == parentCommentId.Value);
-        else if (!userId.HasValue)
+        else if (onlyRoot)
             comments = comments.Where(c => c.ParentCommentId == null);
 
         return await comments.ApplyPaginationFilter(pagination)

@@ -56,8 +56,7 @@ public class AuthorizationService(HiveMimeContext context)
 
     public async Task VerifyDeletePostAsync(int userId, int postId)
     {
-        if (!await context.Posts.AnyAsync(p => p.Id == postId &&
-            (p.CreatorId == userId || p.Hive.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator))))
+        if (!await context.Posts.AnyAsync(p => p.Id == postId && p.CreatorId == userId))
             throw new UnauthorizedAccessException("You do not have permission to delete this post.");
     }
 

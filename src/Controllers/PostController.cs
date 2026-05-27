@@ -10,13 +10,9 @@ public class PostController(PostService postService, HiveMimeContext context) : 
     public async Task<PostDto> GetPostById(int postId)
         => await postService.GetPostAsync(postId);
 
-    [HttpPost("browseOutstanding")]
-    public async Task<PaginationResultDto<PostDto>> BrowseOutstandingPosts(int hiveId, PostPaginationDto pagination)
-        => await postService.BrowsePostsAsync(await User.GetUserIdAsync(context), null, hiveId, pagination, true);
-
     [HttpPost("browse")]
-    public async Task<PaginationResultDto<PostDto>> BrowsePosts(int? creatorId, int? hiveId, PostPaginationDto pagination)
-        => await postService.BrowsePostsAsync(await User.GetUserIdAsync(context), creatorId, hiveId, pagination, false);
+    public async Task<PaginationResultDto<PostDto>> BrowsePosts(int? creatorId, int? hiveId, PostPaginationDto pagination, ApprovalStatus approvalStatus)
+        => await postService.BrowsePostsAsync(await User.GetUserIdAsync(context), creatorId, hiveId, pagination, approvalStatus);
 
     [HttpPatch("publish")]
     public async Task<HoneyDeltaDto<PostDto>> PublishPost(int postId)
@@ -29,6 +25,10 @@ public class PostController(PostService postService, HiveMimeContext context) : 
     [HttpDelete("delete")]
     public async Task DeletePost(int postId)
         => await postService.DeletePostAsync(await User.GetUserIdAsync(context), postId);
+
+    [HttpPatch("modifyPost")]
+    public async Task ModifyPost(int postId, ApprovalStatus approvalStatus)
+        => await postService.ModifyPostAsync(await User.GetUserIdAsync(context), postId, approvalStatus);
 
     [HttpGet("results")]
     public async Task<PostResultDto> GetPostResults(int postId, string? filter)

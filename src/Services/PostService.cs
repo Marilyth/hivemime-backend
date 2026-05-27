@@ -18,7 +18,7 @@ public class PostService(HiveMimeContext context,
             .AsNoTracking()
             .QueryableFind(postId)
             .ProjectToType<PostDto>()
-            .FirstAsync();
+            .FirstOrExceptionAsync();
     }
 
     /// <summary>
@@ -27,11 +27,11 @@ public class PostService(HiveMimeContext context,
     /// <param name="creatorId">The ID of the user to fetch posts from.</param>
     /// <param name="hiveId">The ID of the hive to fetch posts from.</param>
     /// <param name="pagination">The pagination parameters.</param>
-    /// <param name="onlyOutstanding">Whether to fetch only outstanding posts.</param>
-    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int userId, int? creatorId, int? hiveId, PostPaginationDto pagination, bool onlyOutstanding = false)
+    /// <param name="status">The approval status to filter posts by.</param>
+    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int userId, int? creatorId, int? hiveId, PostPaginationDto pagination, ApprovalStatus status)
     {
         IQueryable<Post> posts = context.Posts
-            .Where(p => !p.IsDraft)
+            .Where(p => !p.IsDraft && p.ApprovalStatus == status)
             .AsNoTracking();
 
         if (creatorId.HasValue)
@@ -40,18 +40,17 @@ public class PostService(HiveMimeContext context,
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
 
-        if (onlyOutstanding)
+        if (status != ApprovalStatus.Approved)
         {
             if (!hiveId.HasValue)
                 throw new ValidationException("Hive ID must be provided for outstanding posts.");
 
             await authorizationService.VerifyApprovePostsAsync(userId, hiveId.Value);
-            posts = posts.Where(p => !p.IsApproved);
         }
         else
         {
-            posts = posts.Where(p => p.IsApproved &&
-                p.HiveId != null && (!p.Hive!.Settings.IsPrivate || p.Hive.Users.Any(f => f.UserId == userId && f.ApprovalStatus == ApprovalStatus.Approved)));
+            posts = posts.Where(p => p.HiveId != null &&
+            (!p.Hive!.Settings.IsPrivate || p.Hive.Users.Any(f => f.UserId == userId && f.ApprovalStatus == ApprovalStatus.Approved)));
         }
 
         var result = await posts.ApplyPaginationFilter(pagination)
@@ -65,19 +64,22 @@ public class PostService(HiveMimeContext context,
     }
 
     /// <summary>
-    /// Approves a post, making it visible to other users if it was not already. Only users with the appropriate permissions can approve a post.
+    /// Modifies the approval status of a post. Only users with the appropriate permissions can modify the status.
     /// </summary>
     /// <param name="userId">The ID of the user attempting to approve the post.</param>
-    /// <param name="postId">The ID of the post to approve.</param>
-    /// <returns>The approved post.</returns>
-    public async Task<PostDto> ApprovePostAsync(int userId, int postId)
+    /// <param name="postId">The ID of the post to modify.</param>
+    /// <param name="newStatus">The new approval status for the post.</param>
+    /// <returns>The modified post.</returns>
+    public async Task<PostDto> ModifyPostStatusAsync(int userId, int postId, ApprovalStatus newStatus)
     {
         await authorizationService.VerifyApprovePostAsync(userId, postId);
-        IQueryable<Post> postQuery = context.Posts.Where(p => p.Id == postId);
+        Post post = await context.Posts.FirstOrExceptionAsync(p => p.Id == postId);
 
-        await postQuery.ExecuteUpdateAsync(p => p.SetProperty(p => p.IsApproved, true));
+        post.ApprovalStatus = newStatus;
+        await context.SaveChangesAsync();
 
-        return await postQuery.AsNoTracking()
+        return await context.Posts.Where(p => p.Id == postId)
+            .AsNoTracking()
             .ProjectToType<PostDto>()
             .FirstAsync();
     }
@@ -134,7 +136,7 @@ public class PostService(HiveMimeContext context,
         }
 
         if (post.HiveId is null || !post.Hive!.Settings.MustBeApprovedToPost)
-            post.IsApproved = true;
+            post.ApprovalStatus = ApprovalStatus.Approved;
 
         await context.SaveChangesAsync();
         
@@ -363,6 +365,22 @@ public class PostService(HiveMimeContext context,
         await context.SaveChangesAsync();
 
         return honeyDelta;
+    }
+
+    /// <summary>
+    /// Modifies the approval status of a post.
+    /// </summary>
+    /// <param name="userId">The ID of the user attempting to modify the post.</param>
+    /// <param name="postId">The ID of the post to modify.</param>
+    /// <param name="approvalStatus">The new approval status for the post.</param>
+    public async Task ModifyPostAsync(int userId, int postId, ApprovalStatus approvalStatus)
+    {
+        await authorizationService.VerifyApprovePostAsync(userId, postId);
+
+        Post post = await context.Posts.FirstOrExceptionAsync(p => p.Id == postId);
+        post.ApprovalStatus = approvalStatus;
+
+        await context.SaveChangesAsync();
     }
 
     /// <summary>
