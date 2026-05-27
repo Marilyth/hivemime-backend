@@ -30,15 +30,15 @@ public static class HiveUserPaginationHelper
 
     public static IOrderedQueryable<HiveUser> ApplyPaginationOrdering(this IQueryable<HiveUser> hiveUsers, HiveUserPaginationDto pagination)
     {
-        IOrderedQueryable<HiveUser> orderedHiveUsers;
+        IOrderedQueryable<HiveUser> orderedHiveUsers = hiveUsers.OrderByDescending(f => f.Role);
 
         switch (pagination.OrderBy)
         {
             case HiveUserOrderBy.New:
-                orderedHiveUsers = hiveUsers.OrderByDescending(f => f.CreatedAt);
+                orderedHiveUsers = orderedHiveUsers.ThenByDescending(f => f.CreatedAt);
                 break;
             case HiveUserOrderBy.Old:
-                orderedHiveUsers = hiveUsers.OrderBy(f => f.CreatedAt);
+                orderedHiveUsers = orderedHiveUsers.ThenBy(f => f.CreatedAt);
                 break;
             default:
                 throw new ValidationException("Invalid order by option.");

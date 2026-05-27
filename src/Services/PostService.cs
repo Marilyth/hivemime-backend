@@ -108,7 +108,7 @@ public class PostService(HiveMimeContext context,
 
         post.IsDraft = false;
 
-        var uploadedFiles = await mediaService.ListObjectsAsync($"{post.Id}/");
+        var uploadedFiles = await mediaService.ListObjectsAsync($"posts/{post.Id}/");
 
         foreach (var uploadedFile in uploadedFiles)
         {
@@ -198,7 +198,7 @@ public class PostService(HiveMimeContext context,
 
         context.Posts.Remove(post);
 
-        await mediaService.DeleteObjectsAsync($"{post.Id}/");
+        await mediaService.DeleteObjectsAsync($"posts/{post.Id}/");
         await context.SaveChangesAsync();
     }
 
@@ -386,7 +386,7 @@ public class PostService(HiveMimeContext context,
             
             if (poll.Media is not null)
             {
-                string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
+                string objectKey = $"posts/{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
                 string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
                 string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, poll.Media.ContentType);
 
@@ -402,7 +402,7 @@ public class PostService(HiveMimeContext context,
 
                 if (candidate.Media is not null)
                 {
-                    string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
+                    string objectKey = $"posts/{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
                     string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
                     string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, candidate.Media.ContentType);
 

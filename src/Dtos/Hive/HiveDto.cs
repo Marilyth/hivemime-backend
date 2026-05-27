@@ -4,6 +4,7 @@ public class HiveUserDto : IHasIdentifier
     public HiveDto Hive { get; set; }
     public UserDto User { get; set; }
     public ApprovalStatus ApprovalStatus { get; set; }
+    public MemberRole Role { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
 

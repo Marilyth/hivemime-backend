@@ -19,7 +19,7 @@ public class HiveController(HiveService hiveService, HiveMimeContext context) : 
         => await hiveService.JoinHiveAsync(await User.GetUserIdAsync(context), hiveId);
     
     [HttpPost("users")]
-    public async Task GetUsers(int hiveId, ApprovalStatus status, [FromBody] HiveUserPaginationDto pagination)
+    public async Task<PaginationResultDto<HiveUserDto>> GetUsers(int hiveId, ApprovalStatus status, [FromBody] HiveUserPaginationDto pagination)
         => await hiveService.GetUsersAsync(await User.GetUserIdAsync(context), hiveId, status, pagination);
 
     [HttpPatch("modifyUser")]
