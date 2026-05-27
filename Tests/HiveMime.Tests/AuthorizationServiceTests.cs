@@ -57,13 +57,13 @@ public class AuthorizationServiceTests : IntegrationTest
     [Fact]
     public async Task VerifyLeaveHiveAsync_Outsider_Throws()
     {
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.VerifyLeaveHiveAsync(_outsider!.Id, _moderatorMembership!.Id));
+        await Assert.ThrowsAsync<ValidationException>(() => _service.VerifyLeaveHiveAsync(_outsider!.Id, _moderatorMembership!.Id));
     }
 
     [Fact]
     public async Task VerifyLeaveHiveAsync_CreatorMembership_Throws()
     {
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.VerifyLeaveHiveAsync(_creator!.Id, _creatorMembership!.Id));
+        await Assert.ThrowsAsync<ValidationException>(() => _service.VerifyLeaveHiveAsync(_creator!.Id, _creatorMembership!.Id));
     }
 
     [Fact]
@@ -87,22 +87,26 @@ public class AuthorizationServiceTests : IntegrationTest
     [Fact]
     public async Task VerifyCreatePostAsync_AnyonePolicyWithEnoughHoney_DoesNotThrow()
     {
-        _hive!.Settings.PostPolicy = PostPolicy.Anyone;
+        _hive!.Settings.MinRoleToPost = MemberRole.Guest;
         _hive.Settings.MinHoneyToPost = 5;
         _outsider!.Honey = 10;
+        _rejectedMembership!.Role = MemberRole.Follower;
+        _rejectedMembership.ApprovalStatus = ApprovalStatus.Approved;
         await Context.SaveChangesAsync();
 
         await _service.VerifyCreatePostAsync(_outsider.Id, _hive.Id);
     }
 
     [Fact]
-    public async Task VerifyCreatePostAsync_FollowersOnlyAllowsOutsiderWithCurrentPolicyCheck_DoesNotThrow()
+    public async Task VerifyCreatePostAsync_MinRoleRestriction_ThrowsUnauthorized()
     {
-        _hive!.Settings.PostPolicy = PostPolicy.FollowersOnly;
+        _hive!.Settings.MinRoleToPost = MemberRole.Moderator;
         _hive.Settings.MinHoneyToPost = 0;
+        _rejectedMembership!.Role = MemberRole.Follower;
+        _rejectedMembership.ApprovalStatus = ApprovalStatus.Approved;
         await Context.SaveChangesAsync();
 
-        await _service.VerifyCreatePostAsync(_outsider!.Id, _hive.Id);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.VerifyCreatePostAsync(_outsider!.Id, _hive.Id));
     }
 
     [Fact]
@@ -172,7 +176,7 @@ public class AuthorizationServiceTests : IntegrationTest
                 MustBeApprovedToJoin = false,
                 MustBeApprovedToPost = true,
                 MinHoneyToPost = 0,
-                PostPolicy = PostPolicy.FollowersOnly
+                MinRoleToPost = MemberRole.Follower
             }
         };
 
@@ -180,7 +184,7 @@ public class AuthorizationServiceTests : IntegrationTest
         {
             Creator = _follower,
             Hive = _hive,
-            IsApproved = false,
+            ApprovalStatus = ApprovalStatus.Pending,
             Polls =
             [
                 new Poll
@@ -196,7 +200,7 @@ public class AuthorizationServiceTests : IntegrationTest
         _publicPost = new Post
         {
             Creator = _creator,
-            IsApproved = true,
+            ApprovalStatus = ApprovalStatus.Approved,
             Polls =
             [
                 new Poll

@@ -64,7 +64,7 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task LeaveHive_WithOtherUsersMembership_ThrowsUnauthorized()
+    public async Task LeaveHive_WithOtherUsersMembership_ThrowsValidation()
     {
         // Arrange
         var otherUser = new User { Username = "other-user", Settings = new() };
@@ -72,17 +72,17 @@ public class HiveServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.LeaveHiveAsync(otherUser.Id, _defaultMembership!.Id));
+        await Assert.ThrowsAsync<ValidationException>(() => _service.LeaveHiveAsync(otherUser.Id, _defaultMembership!.Id));
     }
 
     [Fact]
-    public async Task LeaveHive_WithCreatorMembership_ThrowsUnauthorized()
+    public async Task LeaveHive_WithCreatorMembership_ThrowsValidation()
     {
         // Arrange
         Context.ChangeTracker.Clear();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.LeaveHiveAsync(_defaultUser!.Id, _defaultMembership!.Id));
+        await Assert.ThrowsAsync<ValidationException>(() => _service.LeaveHiveAsync(_defaultUser!.Id, _defaultMembership!.Id));
     }
 
     [Fact]
@@ -307,28 +307,39 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task GetModeratorsAsync_ReturnsUsersWithModeratorOrHigherRole()
+    public async Task BanHiveUserAsync_ModeratorBansFollower_SetsBannedStatus()
     {
         // Arrange
         var moderator = new User { Username = "listed-mod", Settings = new() };
-        Context.Users.Add(moderator);
+        var follower = new User { Username = "listed-follower", Settings = new() };
+        Context.Users.AddRange(moderator, follower);
         await Context.SaveChangesAsync();
 
-        Context.HiveUsers.Add(new HiveUser
-        {
-            HiveId = _defaultHive!.Id,
-            UserId = moderator.Id,
-            Role = MemberRole.Moderator,
-            ApprovalStatus = ApprovalStatus.Approved
-        });
+        Context.HiveUsers.AddRange(
+            new HiveUser
+            {
+                HiveId = _defaultHive!.Id,
+                UserId = moderator.Id,
+                Role = MemberRole.Moderator,
+                ApprovalStatus = ApprovalStatus.Approved
+            },
+            new HiveUser
+            {
+                HiveId = _defaultHive.Id,
+                UserId = follower.Id,
+                Role = MemberRole.Follower,
+                ApprovalStatus = ApprovalStatus.Approved
+            }
+        );
         await Context.SaveChangesAsync();
 
         // Act
-        var moderators = await _service.GetModeratorsAsync(_defaultHive.Id);
+        await _service.BanHiveUserAsync(moderator.Id, follower.Id, _defaultHive.Id);
+        var banned = await Context.HiveUsers.FirstAsync(h => h.HiveId == _defaultHive.Id && h.UserId == follower.Id);
 
         // Assert
-        Assert.Contains(moderators, m => m.User.Id == moderator.Id);
-        Assert.Contains(moderators, m => m.User.Id == _defaultUser!.Id);
+        Assert.Equal(ApprovalStatus.Banned, banned.ApprovalStatus);
+        Assert.Equal(MemberRole.Follower, banned.Role);
     }
 
     protected override void SeedDatabase()
@@ -345,7 +356,7 @@ public class HiveServiceTests : IntegrationTest
             {
                 MustBeApprovedToJoin = false,
                 MustBeApprovedToPost = false,
-                PostPolicy = PostPolicy.Anyone
+                MinRoleToPost = MemberRole.Guest
             },
             Users = [new() { User = _defaultUser, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }]
         };

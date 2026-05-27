@@ -23,6 +23,9 @@ public class AuthorizationService(HiveMimeContext context)
         if (target.Role == MemberRole.Guest && role != MemberRole.Guest)
             throw new ValidationException("Hive guests cannot be assigned a different role.");
 
+        if (assigner.Role <= role)
+            throw new UnauthorizedAccessException("You cannot assign a role equal to or higher than your own.");
+
         if (assigner == null ||
             assigner.ApprovalStatus != ApprovalStatus.Approved ||
             assigner.Role < MemberRole.Moderator ||
@@ -64,6 +67,9 @@ public class AuthorizationService(HiveMimeContext context)
 
         if (target.ApprovalStatus > ApprovalStatus.Approved)
             throw new UnauthorizedAccessException("You can not leave the hive while you are rejected or banned.");
+
+        if (target.Role == MemberRole.Creator)
+            throw new ValidationException("The creator of the hive cannot leave it.");
     }
 
     public async Task VerifyApprovePostsAsync(int userId, int hiveId)
