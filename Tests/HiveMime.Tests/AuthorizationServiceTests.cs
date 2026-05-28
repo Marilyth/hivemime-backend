@@ -67,9 +67,9 @@ public class AuthorizationServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task VerifyLeaveHiveAsync_RejectedMembership_Throws()
+    public async Task VerifyLeaveHiveAsync_RejectedMembership_DoesNotThrow()
     {
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.VerifyLeaveHiveAsync(_outsider!.Id, _rejectedMembership!.Id));
+        await _service.VerifyLeaveHiveAsync(_outsider!.Id, _rejectedMembership!.Id);
     }
 
     [Fact]

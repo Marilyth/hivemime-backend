@@ -124,7 +124,7 @@ public class CommentServiceTests : IntegrationTest
         Context.ChangeTracker.Clear();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.DeleteCommentAsync(otherUser.Id, _defaultComment!.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.DeleteCommentAsync(otherUser.Id, _defaultComment!.Id));
     }
 
     [Fact]

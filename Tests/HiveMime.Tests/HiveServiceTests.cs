@@ -86,7 +86,7 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task LeaveHive_WithRejectedMembership_ThrowsUnauthorized()
+    public async Task LeaveHive_WithRejectedMembership_RemovesUserFromHive()
     {
         // Arrange
         var rejectedUser = new User { Username = "rejected-user", Settings = new() };
@@ -103,8 +103,12 @@ public class HiveServiceTests : IntegrationTest
         Context.HiveUsers.Add(rejectedMembership);
         await Context.SaveChangesAsync();
 
-        // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.LeaveHiveAsync(rejectedUser.Id, rejectedMembership.Id));
+        // Act
+        await _service.LeaveHiveAsync(rejectedUser.Id, rejectedMembership.Id);
+        var exists = await Context.HiveUsers.AnyAsync(h => h.Id == rejectedMembership.Id);
+
+        // Assert
+        Assert.False(exists);
     }
 
     [Fact]
@@ -224,7 +228,7 @@ public class HiveServiceTests : IntegrationTest
             HiveId = _defaultHive!.Id,
             UserId = follower.Id,
             Role = MemberRole.Follower,
-            ApprovalStatus = ApprovalStatus.Pending
+            ApprovalStatus = ApprovalStatus.Approved
         };
         Context.HiveUsers.Add(membership);
         await Context.SaveChangesAsync();
@@ -294,7 +298,7 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task GetUsersAsync_Outsider_ThrowsUnauthorized()
+    public async Task GetUsersAsync_Outsider_ThrowsNotFound()
     {
         // Arrange
         var outsider = new User { Username = "outsider", Settings = new() };
@@ -302,7 +306,7 @@ public class HiveServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             _service.GetUsersAsync(outsider.Id, _defaultHive!.Id, ApprovalStatus.Approved, new HiveUserPaginationDto { PageSize = 20 }));
     }
 

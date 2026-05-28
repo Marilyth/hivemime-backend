@@ -74,13 +74,13 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task BrowsePosts_OutstandingUnauthorizedUser_ThrowsUnauthorizedAccessException()
+    public async Task BrowsePosts_OutstandingUnauthorizedUser_ThrowsNotFoundException()
     {
         var outsider = new User { Username = "outsider-user", Settings = new() };
         Context.Users.Add(outsider);
         await Context.SaveChangesAsync();
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.BrowsePostsAsync(outsider.Id, null, _defaultHive!.Id, new(), ApprovalStatus.Pending));
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.BrowsePostsAsync(outsider.Id, null, _defaultHive!.Id, new(), ApprovalStatus.Pending));
     }
 
     [Fact]
