@@ -16,14 +16,20 @@ public class HiveDto : IHasIdentifier
     public DateTimeOffset CreatedAt { get; set; }
     public int PostCount { get; set; }
     public int UserCount { get; set; }
-    public HiveOptionsDto Settings { get; set; }
+    public HiveSettingsDto Settings { get; set; }
 }
 
-public class HiveOptionsDto
+public class HiveSettingsDto
 {
-    public bool MustBeApprovedToPost { get; set; }
-    public bool MustBeApprovedToJoin { get; set; }
+    public bool IsPrivate { get; set; }
 
+    public bool JoinRequiresApproval { get; set; }
+    public double MinHoneyToJoin { get; set; }
+
+    public bool PostRequiresApproval { get; set; }
     public double MinHoneyToPost { get; set; }
     public MemberRole MinRoleToPost { get; set; }
+
+    public double MinHoneyToComment { get; set; }
+    public MemberRole MinRoleToComment { get; set; }
 }

@@ -1,6 +1,7 @@
 public class CommentDto : IHasIdentifier
 {
     public UserDto User { get; set; }
+    public MemberRole? Role { get; set; }
     public int Id { get; set; }
     public int PostId { get; set; }
     public int? ParentCommentId { get; set; }

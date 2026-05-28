@@ -50,7 +50,8 @@ public class PostService(HiveMimeContext context,
         else
         {
             posts = posts.Where(p => p.HiveId != null &&
-            (!p.Hive!.Settings.IsPrivate || p.Hive.Users.Any(f => f.UserId == userId && f.Role > MemberRole.Guest && f.ApprovalStatus == ApprovalStatus.Approved)));
+                (!p.Hive!.Settings.IsPrivate ||
+                 p.Hive.Users.Any(f => f.UserId == userId && f.Role > MemberRole.Guest && f.ApprovalStatus == ApprovalStatus.Approved)));
         }
 
         var result = await posts.ApplyPaginationFilter(pagination)
@@ -135,7 +136,7 @@ public class PostService(HiveMimeContext context,
             }
         }
 
-        if (post.HiveId is null || !post.Hive!.Settings.MustBeApprovedToPost)
+        if (post.HiveId is null || !post.Hive!.Settings.PostRequiresApproval)
             post.ApprovalStatus = ApprovalStatus.Approved;
 
         await context.SaveChangesAsync();
@@ -299,6 +300,8 @@ public class PostService(HiveMimeContext context,
     /// <param name="vote">The vote to insert or update.</param>
     public async Task<HoneyDeltaDto<bool>> VoteOnPostAsync(int userId, PostVoteDto vote)
     {
+        await authorizationService.VerifyVoteOnPostAsync(userId, vote.PostId);
+        
         Post post = await context.Posts
             .Include(p => p.Polls.OrderBy(p => p.Id))
                 .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))

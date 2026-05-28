@@ -13,6 +13,9 @@ public class Post : EntityWithIdentifier
     public double Hotness { get; set; }
     public bool IsDraft { get; set; }
 
+    public DateTimeOffset? VotingLockedAt { get; set; }
+    public DateTimeOffset? CommentingLockedAt { get; set; }
+
     [ForeignKey(nameof(Creator))]
     public int CreatorId { get; set; }
     public User Creator { get; set; }

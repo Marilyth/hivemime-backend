@@ -4,9 +4,11 @@ public class AuthorizationService(HiveMimeContext context)
 {
     public async Task VerifyViewHiveUsersAsync(int userId, int hiveId)
     {
-        if (!await context.HiveUsers.AnyAsync(h => h.HiveId == hiveId && h.UserId == userId &&
-            h.Role >= MemberRole.Moderator && h.ApprovalStatus == ApprovalStatus.Approved))
-            throw new UnauthorizedAccessException("You do not have permission to view hive users.");
+        HiveUser hiveUser = await context.HiveUsers.FirstOrExceptionAsync(h => h.HiveId == hiveId && h.UserId == userId);
+        MemberRole effectiveRole = GetEffectiveRole(hiveUser.ApprovalStatus, hiveUser.Role);
+
+        if (effectiveRole < MemberRole.Moderator)
+            throw new UnauthorizedAccessException("You do not have permission to view the users of this hive.");
     }
 
     public async Task VerifyModifyHiveUserAsync(int assignerId, int hiveUserId, MemberRole role)
@@ -20,17 +22,20 @@ public class AuthorizationService(HiveMimeContext context)
         if (target == null)
             throw new ValidationException("The specified hive user does not exist.");
 
-        if (target.Role == MemberRole.Guest && role != MemberRole.Guest)
-            throw new ValidationException("Hive guests cannot be assigned a different role.");
+        MemberRole targetEffectiveRole = GetEffectiveRole(target?.ApprovalStatus, target?.Role);
+        MemberRole assignerEffectiveRole = GetEffectiveRole(assigner?.ApprovalStatus, assigner?.Role);
 
-        if (assigner.Role <= role)
+        if (assignerEffectiveRole < MemberRole.Moderator)
+            throw new UnauthorizedAccessException("You do not have permission to modify hive users.");
+
+        if (assignerEffectiveRole <= targetEffectiveRole)
+            throw new UnauthorizedAccessException("You cannot modify a user with an equal or higher role than your own.");
+
+        if (role >= assignerEffectiveRole)
             throw new UnauthorizedAccessException("You cannot assign a role equal to or higher than your own.");
 
-        if (assigner == null ||
-            assigner.ApprovalStatus != ApprovalStatus.Approved ||
-            assigner.Role < MemberRole.Moderator ||
-            assigner.Role <= target.Role)
-            throw new UnauthorizedAccessException("You do not have permission to modify this user's role.");
+        if (role != targetEffectiveRole && (targetEffectiveRole == MemberRole.Guest || role == MemberRole.Guest))
+            throw new ValidationException("Roles can not be changed to or from Guests.");
     }
 
     public async Task VerifyBanHiveUserAsync(int assignerId, int userId, int hiveId)
@@ -41,49 +46,80 @@ public class AuthorizationService(HiveMimeContext context)
         HiveUser assigner = users.FirstOrDefault(u => u.UserId == assignerId);
         HiveUser target = users.FirstOrDefault(u => u.UserId == userId);
 
-        if (assigner == null ||
-            assigner.ApprovalStatus != ApprovalStatus.Approved ||
-            assigner.Role < MemberRole.Moderator ||
-            (target != null && assigner.Role <= target?.Role))
-            throw new UnauthorizedAccessException("You do not have permission to ban this user from the hive.");
+        MemberRole targetEffectiveRole = GetEffectiveRole(target?.ApprovalStatus, target?.Role);
+        MemberRole assignerEffectiveRole = GetEffectiveRole(assigner?.ApprovalStatus, assigner?.Role);
+
+        if (assignerEffectiveRole < MemberRole.Moderator)
+            throw new UnauthorizedAccessException("You do not have permission to ban users from this hive.");
+
+        if (assignerEffectiveRole <= targetEffectiveRole)
+            throw new UnauthorizedAccessException("You cannot ban a user with an equal or higher role than your own.");
     }
 
     public async Task VerifyLeaveHiveAsync(int assignerId, int hiveUserId)
     {
-        List<HiveUser> users = await context.HiveUsers.Where(h => h.Id == hiveUserId || h.UserId == assignerId)
-            .ToListAsync();
+        HiveUser user = await context.HiveUsers.FirstOrExceptionAsync(u => u.UserId == hiveUserId);
+        MemberRole effectiveRole = GetEffectiveRole(user.ApprovalStatus, user.Role);
 
-        HiveUser assigner = users.FirstOrDefault(u => u.UserId == assignerId);
-        HiveUser target = users.FirstOrDefault(u => u.Id == hiveUserId);
-
-        if (assigner == null)
-            throw new ValidationException("The specified assigner does not exist.");
-
-        if (target == null)
-            throw new ValidationException("The specified hive user does not exist.");
-
-        if (assigner.UserId != target.UserId)
+        if (assignerId != user.UserId)
             throw new ValidationException("You can only leave a hive on your own behalf.");
 
-        if (target.ApprovalStatus > ApprovalStatus.Approved)
-            throw new UnauthorizedAccessException("You can not leave the hive while you are rejected or banned.");
-
-        if (target.Role == MemberRole.Creator)
+        if (effectiveRole == MemberRole.Creator)
             throw new ValidationException("The creator of the hive cannot leave it.");
+    }
+
+    public async Task VerifyJoinHiveAsync(int userId, int hiveId)
+    {
+        double minHoneyToJoin = await context.Hives.Where(h => h.Id == hiveId)
+            .Select(h => h.Settings.MinHoneyToJoin)
+            .FirstOrExceptionAsync();
+
+        var user = await context.Users.Where(u => u.Id == userId)
+            .Select(u => new {
+                u.Honey,
+                hiveUser = u.JoinedHives.Where(j => j.HiveId == hiveId).Select(j => new {
+                    j.ApprovalStatus,
+                    j.Role
+                }).FirstOrDefault()
+            })
+            .FirstOrExceptionAsync();
+
+        if (user.Honey < minHoneyToJoin)
+            throw new UnauthorizedAccessException($"Joining this hive requires at least {minHoneyToJoin} honey.");
+
+        if (user.hiveUser?.Role > MemberRole.Guest)
+            throw new ValidationException("You have already joined this hive.");
     }
 
     public async Task VerifyApprovePostsAsync(int userId, int hiveId)
     {
-        if (!await context.Posts.AnyAsync(p => p.HiveId == hiveId &&
-            p.Hive.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator && u.ApprovalStatus == ApprovalStatus.Approved)))
+        var user = await context.HiveUsers.Where(h => h.HiveId == hiveId && h.UserId == userId)
+            .Select(h => new { h.ApprovalStatus, h.Role })
+            .FirstOrExceptionAsync();
+
+        MemberRole effectiveRole = GetEffectiveRole(user.ApprovalStatus, user.Role);
+
+        if (effectiveRole < MemberRole.Moderator)
             throw new UnauthorizedAccessException("You do not have permission to approve posts in this hive.");
     }
 
     public async Task VerifyApprovePostAsync(int userId, int postId)
     {
-        if (!await context.Posts.AnyAsync(p => p.Id == postId &&
-            p.Hive.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator && u.ApprovalStatus == ApprovalStatus.Approved)))
+        var user = await context.Posts.Where(p => p.Id == postId)
+            .SelectMany(p => p.Hive.Users.Where(h => h.UserId == userId))
+            .Select(h => new { h.ApprovalStatus, h.Role })
+            .FirstOrExceptionAsync();
+
+        MemberRole effectiveRole = GetEffectiveRole(user.ApprovalStatus, user.Role);
+
+        if (effectiveRole < MemberRole.Moderator)
             throw new UnauthorizedAccessException("You do not have permission to approve this post.");
+    }
+
+    public async Task VerifyVoteOnPostAsync(int userId, int postId)
+    {
+        if (!await context.Posts.AnyAsync(p => p.Id == postId && p.VotingLockedAt < DateTimeOffset.UtcNow))
+            throw new ValidationException("You can not vote on this post.");
     }
 
     public async Task VerifyCreatePostAsync(int userId, int? hiveId)
@@ -91,56 +127,116 @@ public class AuthorizationService(HiveMimeContext context)
         if (hiveId == null)
             return;
 
-        var data = await context.HiveUsers
-            .Where(h => h.HiveId == hiveId && h.UserId == userId)
-            .Select(h => new
+        var user = await context.Users.Where(u => u.Id == userId)
+            .Select(u => new
             {
-                h.Role,
-                h.ApprovalStatus,
-                h.User.Honey,
-                h.Hive.Settings.MinRoleToPost,
-                h.Hive.Settings.MinHoneyToPost
+                u.Honey,
+                HiveUser = u.JoinedHives.Where(j => j.HiveId == hiveId)
+                    .Select(j => new { j.ApprovalStatus, j.Role })
+                    .FirstOrDefault()
             })
             .FirstOrExceptionAsync();
 
-        if (data.ApprovalStatus == ApprovalStatus.Banned)
-            throw new UnauthorizedAccessException("You have been banned from this hive.");
+        var hive = await context.Hives
+            .Where(h => h.Id == hiveId)
+            .Select(h => new
+            {
+                h.Settings.MinRoleToPost,
+                h.Settings.MinHoneyToPost
+            })
+            .FirstOrExceptionAsync();
 
-        if (data.MinRoleToPost != null && (data.Role < data.MinRoleToPost || data.ApprovalStatus == ApprovalStatus.Banned))
-            throw new UnauthorizedAccessException(
-                $"Posting on this hive requires a minimum role of {data.MinRoleToPost}.");
+        MemberRole effectiveRole = GetEffectiveRole(user.HiveUser?.ApprovalStatus, user.HiveUser?.Role);
 
-        if (data.Honey < data.MinHoneyToPost)
+        if (hive.MinRoleToPost != null && effectiveRole < hive.MinRoleToPost)
             throw new UnauthorizedAccessException(
-                $"Posting on this hive requires at least {data.MinHoneyToPost} honey.");
+                $"Posting on this hive requires a minimum role of {hive.MinRoleToPost}.");
+
+        if (user.Honey < hive.MinHoneyToPost && effectiveRole < MemberRole.Moderator)
+            throw new UnauthorizedAccessException(
+                $"Posting on this hive requires at least {hive.MinHoneyToPost} honey.");
     }
 
     public async Task VerifyDeletePostAsync(int userId, int postId)
     {
         if (!await context.Posts.AnyAsync(p => p.Id == postId && p.CreatorId == userId))
-            throw new UnauthorizedAccessException("You do not have permission to delete this post.");
+            throw new UnauthorizedAccessException("Posts can only be deleted by their creator.");
     }
 
     public async Task VerifyCreateCommentAsync(int userId, int postId)
     {
-        if (await context.Posts.Where(p => p.Id == postId).Select(p => p.HiveId == null).FirstAsync())
-            return;
+        var user = await context.Users.Where(u => u.Id == userId)
+            .Select(u => new
+            {
+                u.Honey,
+                HiveUser = u.JoinedHives.Where(j => j.HiveId == context.Posts.Where(p => p.Id == postId).Select(p => p.HiveId).FirstOrDefault())
+                    .Select(j => new { j.ApprovalStatus, j.Role })
+                    .FirstOrDefault()
+            })
+            .FirstOrExceptionAsync();
 
-        if (!await context.Posts.AnyAsync(p => p.Id == postId))
-            throw new UnauthorizedAccessException("You do not have permission to create a comment in this hive.");
+        var post = await context.Posts
+            .Where(p => p.Id == postId)
+            .Select(p => new
+            {
+                MinRoleToComment = (MemberRole?)p.Hive.Settings.MinRoleToComment,
+                MinHoneyToComment = (double?)p.Hive.Settings.MinHoneyToComment,
+                p.CommentingLockedAt
+            })
+            .FirstOrExceptionAsync();
+
+        if (user.HiveUser?.ApprovalStatus == ApprovalStatus.Banned)
+            throw new UnauthorizedAccessException("You have been banned from this hive.");
+
+        MemberRole effectiveRole = GetEffectiveRole(user.HiveUser?.ApprovalStatus, user.HiveUser?.Role);
+
+        if (post.CommentingLockedAt != null && post.CommentingLockedAt <= DateTimeOffset.UtcNow)
+            throw new UnauthorizedAccessException("Commenting on this post is locked.");
+
+        if (post.MinRoleToComment != null && effectiveRole < post.MinRoleToComment)
+            throw new UnauthorizedAccessException(
+                $"Commenting on this hive requires a minimum role of {post.MinRoleToComment}.");
+
+        if (user.Honey < post.MinHoneyToComment && effectiveRole < MemberRole.Moderator)
+            throw new UnauthorizedAccessException(
+                $"Commenting on this hive requires at least {post.MinHoneyToComment} honey.");
     }
 
     public async Task VerifyDeleteCommentAsync(int userId, int commentId)
     {
-        if (!await context.Comments.AnyAsync(c => c.Id == commentId &&
-            (c.UserId == userId || c.Post.Hive.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Moderator && u.ApprovalStatus == ApprovalStatus.Approved))))
+        Comment comment = await context.Comments.FirstOrExceptionAsync(c => c.Id == commentId);
+
+        if (comment.UserId == userId)
+            return;
+
+        var hiveUser = await context.Comments.Where(c => c.Id == commentId)
+            .SelectMany(c => c.Post.Hive.Users.Where(h => h.UserId == userId))
+            .Select(h => new { h.ApprovalStatus, h.Role })
+            .FirstOrExceptionAsync();
+
+        MemberRole effectiveRole = GetEffectiveRole(hiveUser.ApprovalStatus, hiveUser.Role);
+
+        if (effectiveRole < MemberRole.Moderator)
             throw new UnauthorizedAccessException("You do not have permission to delete this comment.");
     }
 
     public async Task VerifyEditHiveAsync(int userId, int hiveId)
     {
-        if (!await context.Hives.AnyAsync(h => h.Id == hiveId &&
-            h.Users.Any(u => u.UserId == userId && u.Role >= MemberRole.Admin && u.ApprovalStatus == ApprovalStatus.Approved)))
-            throw new UnauthorizedAccessException("You do not have permission to edit this hive.");
+        HiveUser hiveUser = await context.HiveUsers.FirstOrExceptionAsync(h => h.HiveId == hiveId && h.UserId == userId);
+        MemberRole effectiveRole = GetEffectiveRole(hiveUser.ApprovalStatus, hiveUser.Role);
+
+        if (effectiveRole < MemberRole.Admin)
+            throw new UnauthorizedAccessException("You need to be at least an admin to edit this hive.");
+    }
+
+    private MemberRole GetEffectiveRole(ApprovalStatus? approvalStatus, MemberRole? role)
+    {
+        if (approvalStatus == ApprovalStatus.Banned)
+            throw new UnauthorizedAccessException("You have been banned from this hive.");
+
+        if (role is null || approvalStatus != ApprovalStatus.Approved)
+            return MemberRole.Guest;
+
+        return role.Value;
     }
 }

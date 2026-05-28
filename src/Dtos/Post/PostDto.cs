@@ -2,6 +2,7 @@ public class PostDto : IHasIdentifier
 {
     public HiveDto? Hive { get; set; }
     public UserDto Creator { get; set; }
+    public MemberRole? Role { get; set; }
     public int Id { get; set; }
     public List<PollDto> Polls { get; set; }
     public int CommentCount { get; set; }

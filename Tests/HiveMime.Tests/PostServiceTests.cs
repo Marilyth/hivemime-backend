@@ -105,7 +105,7 @@ public class PostServiceTests : IntegrationTest
         {
             Name = "Private Hive",
             Description = "Private",
-            Settings = new HiveSettings { IsPrivate = true, MustBeApprovedToJoin = false, MustBeApprovedToPost = false, MinRoleToPost = MemberRole.Guest },
+            Settings = new HiveSettings { IsPrivate = true, JoinRequiresApproval = false, PostRequiresApproval = false, MinRoleToPost = MemberRole.Guest },
             Users = [new() { User = _defaultUser!, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }]
         };
 

@@ -173,8 +173,8 @@ public class AuthorizationServiceTests : IntegrationTest
             Settings = new HiveSettings
             {
                 IsPrivate = false,
-                MustBeApprovedToJoin = false,
-                MustBeApprovedToPost = true,
+                JoinRequiresApproval = false,
+                PostRequiresApproval = true,
                 MinHoneyToPost = 0,
                 MinRoleToPost = MemberRole.Follower
             }

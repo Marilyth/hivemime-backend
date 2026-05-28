@@ -354,8 +354,8 @@ public class HiveServiceTests : IntegrationTest
             Posts = [],
             Settings = new HiveSettings
             {
-                MustBeApprovedToJoin = false,
-                MustBeApprovedToPost = false,
+                JoinRequiresApproval = false,
+                PostRequiresApproval = false,
                 MinRoleToPost = MemberRole.Guest
             },
             Users = [new() { User = _defaultUser, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }]

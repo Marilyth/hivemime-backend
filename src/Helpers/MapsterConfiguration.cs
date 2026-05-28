@@ -10,12 +10,15 @@ public static class MapsterConfiguration
         ConfigureUser();
         ConfigureCandidate();
         ConfigurePoll();
+        ConfigurePost();
     }
 
     private static void ConfigureComment()
     {
         _config.NewConfig<Comment, CommentDto>()
-            .Map(dest => dest.ReplyCount, src => src.Replies.Count);
+            .Map(dest => dest.ReplyCount, src => src.Replies.Count)
+            .Map(dest => dest.Role, src => src.User.JoinedHives.FirstOrDefault(m => m.HiveId == src.Post.HiveId &&
+                m.ApprovalStatus == ApprovalStatus.Approved).Role);
     }
 
     private static void ConfigureUser()
@@ -41,5 +44,12 @@ public static class MapsterConfiguration
 
         _config.NewConfig<Poll, PollResultDto>()
             .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m));
+    }
+
+    private static void ConfigurePost()
+    {
+        _config.NewConfig<Post, PostDto>()
+            .Map(dest => dest.Role, src => src.Creator.JoinedHives.FirstOrDefault(m => m.HiveId == src.Hive.Id &&
+                m.ApprovalStatus == ApprovalStatus.Approved).Role);
     }
 }

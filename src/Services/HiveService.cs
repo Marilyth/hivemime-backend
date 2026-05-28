@@ -74,15 +74,14 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// <returns>The DTO representing the follow relationship.</returns>
     public async Task<HiveUserDto> JoinHiveAsync(int userId, int hiveId)
     {
+        await authorizationService.VerifyJoinHiveAsync(userId, hiveId);
+
         bool requiresApproval = await context.Hives
             .Where(h => h.Id == hiveId)
-            .Select(h => h.Settings.MustBeApprovedToJoin)
+            .Select(h => h.Settings.JoinRequiresApproval)
             .FirstOrExceptionAsync();
 
         HiveUser hiveUser = await context.HiveUsers.FirstOrDefaultAsync(r => r.HiveId == hiveId && r.UserId == userId);
-
-        if (hiveUser != null && hiveUser.Role != MemberRole.Guest)
-            throw new ValidationException("You have already requested to join this hive.");
         
         if (hiveUser is null)
         {
@@ -204,12 +203,17 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
 
         hive.Name = hiveDto.Name?.Trim();
         hive.Description = hiveDto.Description?.Trim();
+
+        hive.Settings.IsPrivate = hiveDto.Settings.IsPrivate;
+        hive.Settings.JoinRequiresApproval = hiveDto.Settings.JoinRequiresApproval;
+
+        hive.Settings.PostRequiresApproval = hiveDto.Settings.PostRequiresApproval;
         hive.Settings.MinHoneyToPost = hiveDto.Settings.MinHoneyToPost;
-        hive.Settings.MustBeApprovedToJoin = hiveDto.Settings.MustBeApprovedToJoin;
-        hive.Settings.MustBeApprovedToPost = hiveDto.Settings.MustBeApprovedToPost;
         hive.Settings.MinRoleToPost = hiveDto.Settings.MinRoleToPost;
 
-        context.Hives.Update(hive);
+        hive.Settings.MinHoneyToComment = hiveDto.Settings.MinHoneyToComment;
+        hive.Settings.MinRoleToComment = hiveDto.Settings.MinRoleToComment;
+
         await context.SaveChangesAsync();
 
         return hive.ToQueryable(context).ProjectToType<HiveDto>().First();
