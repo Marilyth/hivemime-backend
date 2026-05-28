@@ -17,6 +17,7 @@ public static class MapsterConfiguration
     {
         _config.NewConfig<Comment, CommentDto>()
             .Map(dest => dest.ReplyCount, src => src.Replies.Count)
+            .Map(dest => dest.IsOriginalPoster, src => src.UserId == src.Post.CreatorId)
             .Map(dest => dest.Role, src => src.User.JoinedHives.FirstOrDefault(m => m.HiveId == src.Post.HiveId &&
                 m.ApprovalStatus == ApprovalStatus.Approved).Role);
     }

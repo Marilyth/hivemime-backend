@@ -150,7 +150,9 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
     public async Task<PaginationResultDto<HiveDto>> BrowseHivesAsync(HivePaginationDto pagination)
     {
-        IQueryable<Hive> query = context.Hives.AsNoTracking();
+        IQueryable<Hive> query = context.Hives
+            .Where(h => !h.Settings.IsPrivate)
+            .AsNoTracking();
 
         return await query.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)

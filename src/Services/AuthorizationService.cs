@@ -22,7 +22,7 @@ public class AuthorizationService(HiveMimeContext context)
         if (target == null)
             throw new ValidationException("The specified hive user does not exist.");
 
-        MemberRole targetEffectiveRole = GetEffectiveRole(target?.ApprovalStatus, target?.Role);
+        MemberRole targetEffectiveRole = GetEffectiveRole(target?.ApprovalStatus, target?.Role, false);
         MemberRole assignerEffectiveRole = GetEffectiveRole(assigner?.ApprovalStatus, assigner?.Role);
 
         if (assignerEffectiveRole < MemberRole.Moderator)
@@ -34,7 +34,7 @@ public class AuthorizationService(HiveMimeContext context)
         if (role >= assignerEffectiveRole)
             throw new UnauthorizedAccessException("You cannot assign a role equal to or higher than your own.");
 
-        if (role != targetEffectiveRole && (targetEffectiveRole == MemberRole.Guest || role == MemberRole.Guest))
+        if (role != target?.Role && (targetEffectiveRole == MemberRole.Guest || role == MemberRole.Guest))
             throw new ValidationException("Roles can not be changed to or from Guests.");
     }
 
@@ -46,7 +46,7 @@ public class AuthorizationService(HiveMimeContext context)
         HiveUser assigner = users.FirstOrDefault(u => u.UserId == assignerId);
         HiveUser target = users.FirstOrDefault(u => u.UserId == userId);
 
-        MemberRole targetEffectiveRole = GetEffectiveRole(target?.ApprovalStatus, target?.Role);
+        MemberRole targetEffectiveRole = GetEffectiveRole(target?.ApprovalStatus, target?.Role, false);
         MemberRole assignerEffectiveRole = GetEffectiveRole(assigner?.ApprovalStatus, assigner?.Role);
 
         if (assignerEffectiveRole < MemberRole.Moderator)
@@ -58,7 +58,7 @@ public class AuthorizationService(HiveMimeContext context)
 
     public async Task VerifyLeaveHiveAsync(int assignerId, int hiveUserId)
     {
-        HiveUser user = await context.HiveUsers.FirstOrExceptionAsync(u => u.UserId == hiveUserId);
+        HiveUser user = await context.HiveUsers.FirstOrExceptionAsync(u => u.Id == hiveUserId);
         MemberRole effectiveRole = GetEffectiveRole(user.ApprovalStatus, user.Role);
 
         if (assignerId != user.UserId)
@@ -229,9 +229,9 @@ public class AuthorizationService(HiveMimeContext context)
             throw new UnauthorizedAccessException("You need to be at least an admin to edit this hive.");
     }
 
-    private MemberRole GetEffectiveRole(ApprovalStatus? approvalStatus, MemberRole? role)
+    private MemberRole GetEffectiveRole(ApprovalStatus? approvalStatus, MemberRole? role, bool throwOnBan = true)
     {
-        if (approvalStatus == ApprovalStatus.Banned)
+        if (approvalStatus == ApprovalStatus.Banned && throwOnBan)
             throw new UnauthorizedAccessException("You have been banned from this hive.");
 
         if (role is null || approvalStatus != ApprovalStatus.Approved)
