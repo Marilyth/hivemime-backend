@@ -165,8 +165,8 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// </summary>
     /// <param name="userId">The ID of the user creating the hive.</param>
     /// <param name="hiveDto">The data for the new hive.</param>
-    /// <returns>The created hive.</returns>
-    public async Task<HiveDto> CreateHiveAsync(int userId, CreateHiveDto hiveDto)
+    /// <returns>The created hive user relationship.</returns>
+    public async Task<HiveUserDto> CreateHiveAsync(int userId, CreateHiveDto hiveDto)
     {
         string name = hiveDto.Name?.Trim();
         string description = hiveDto.Description?.Trim();
@@ -189,7 +189,10 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
         context.Hives.Add(hive);
         await context.SaveChangesAsync();
 
-        return hive.ToQueryable(context).ProjectToType<HiveDto>().First();
+        return await context.HiveUsers.AsNoTracking()
+            .Where(r => r.UserId == userId && r.HiveId == hive.Id)
+            .ProjectToType<HiveUserDto>()
+            .FirstOrExceptionAsync();
     }
 
     public async Task<HiveDto> UpdateHiveAsync(int userId, HiveDto hiveDto)

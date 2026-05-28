@@ -195,8 +195,8 @@ public class PostServiceTests : IntegrationTest
         var mediaServiceMock = new Mock<IMediaService>();
         mediaServiceMock.Setup(m => m.ListObjectsAsync(It.IsAny<string>()))
             .ReturnsAsync([
-                $"{post.Id}/{post.Polls[0].Id}/asdf.png",
-                $"{post.Id}/{post.Polls[0].Id}/{post.Polls[0].Candidates[0].Id}/asdf.png"
+                $"posts/{post.Id}/{post.Polls[0].Id}/asdf.png",
+                $"posts/{post.Id}/{post.Polls[0].Id}/{post.Polls[0].Candidates[0].Id}/asdf.png"
             ]);
 
         var service = new PostService(Context, Context.GetService<HotnessUpdateQueue>(), Context.GetService<HoneyDeltaCalculator>(), mediaServiceMock.Object, Context.GetService<AuthorizationService>());

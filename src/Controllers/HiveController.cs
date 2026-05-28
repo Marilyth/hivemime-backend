@@ -39,7 +39,7 @@ public class HiveController(HiveService hiveService, HiveMimeContext context) : 
         => await hiveService.BrowseHivesAsync(pagination);
 
     [HttpPost("create")]
-    public async Task<HiveDto> CreateHive([FromBody] CreateHiveDto hiveDto)
+    public async Task<HiveUserDto> CreateHive([FromBody] CreateHiveDto hiveDto)
         => await hiveService.CreateHiveAsync(await User.GetUserIdAsync(context), hiveDto);
 
     [HttpPatch("update")]

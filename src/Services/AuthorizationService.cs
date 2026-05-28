@@ -118,7 +118,7 @@ public class AuthorizationService(HiveMimeContext context)
 
     public async Task VerifyVoteOnPostAsync(int userId, int postId)
     {
-        if (!await context.Posts.AnyAsync(p => p.Id == postId && p.VotingLockedAt < DateTimeOffset.UtcNow))
+        if (!await context.Posts.AnyAsync(p => p.Id == postId && (p.VotingLockedAt == null || p.VotingLockedAt > DateTimeOffset.UtcNow)))
             throw new ValidationException("You can not vote on this post.");
     }
 
