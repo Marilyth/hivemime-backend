@@ -117,18 +117,18 @@ public class PostService(HiveMimeContext context,
         {
             string[] keyParts = uploadedFile.Split('/');
 
-            if (keyParts.Length == 3)
+            if (keyParts.Length == 4)
             {
-                int pollId = int.Parse(keyParts[1]);
+                int pollId = int.Parse(keyParts[2]);
                 Poll poll = post.Polls.First(p => p.Id == pollId);
 
                 poll.MediaKeys.Add(uploadedFile);
             }
 
-            else if (keyParts.Length == 4)
+            else if (keyParts.Length == 5)
             {
-                int pollId = int.Parse(keyParts[1]);
-                int candidateId = int.Parse(keyParts[2]);
+                int pollId = int.Parse(keyParts[2]);
+                int candidateId = int.Parse(keyParts[3]);
                 Poll poll = post.Polls.First(p => p.Id == pollId);
                 Candidate candidate = poll.Candidates.First(c => c.Id == candidateId);
 
