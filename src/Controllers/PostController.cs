@@ -11,8 +11,8 @@ public class PostController(PostService postService, HiveMimeContext context) : 
         => await postService.GetPostAsync(postId);
 
     [HttpPost("browse")]
-    public async Task<PaginationResultDto<PostDto>> BrowsePosts(int? creatorId, int? hiveId, PostPaginationDto pagination)
-        => await postService.BrowsePostsAsync(creatorId, hiveId, pagination);
+    public async Task<PaginationResultDto<PostDto>> BrowsePosts(int? creatorId, int? hiveId, PostPaginationDto pagination, ApprovalStatus approvalStatus)
+        => await postService.BrowsePostsAsync(await User.GetUserIdAsync(context), creatorId, hiveId, pagination, approvalStatus);
 
     [HttpPatch("publish")]
     public async Task<HoneyDeltaDto<PostDto>> PublishPost(int postId)
@@ -22,6 +22,14 @@ public class PostController(PostService postService, HiveMimeContext context) : 
     public async Task<UploadPostDto> CreatePost([FromBody] CreatePostDto postDto)
         => await postService.CreatePostAsync(await User.GetUserIdAsync(context), postDto);
 
+    [HttpDelete("delete")]
+    public async Task DeletePost(int postId)
+        => await postService.DeletePostAsync(await User.GetUserIdAsync(context), postId);
+
+    [HttpPatch("modifyPost")]
+    public async Task ModifyPost(int postId, ApprovalStatus approvalStatus)
+        => await postService.ModifyPostAsync(await User.GetUserIdAsync(context), postId, approvalStatus);
+
     [HttpGet("results")]
     public async Task<PostResultDto> GetPostResults(int postId, string? filter)
         => await postService.GetPostResultAsync(postId, filter);
@@ -30,7 +38,7 @@ public class PostController(PostService postService, HiveMimeContext context) : 
     public async Task<List<CandidateDistributionDto>> GetCandidateResult(int candidateId, string? filter)
         => await postService.GetCandidateDistributionResultsAsync(candidateId, filter);
 
-    [HttpPut("vote")]
+    [HttpPost("vote")]
     public async Task<HoneyDeltaDto<bool>> UpsertVoteToPost([FromBody] PostVoteDto vote)
         => await postService.VoteOnPostAsync(await User.GetUserIdAsync(context), vote);
 }

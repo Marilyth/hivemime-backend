@@ -28,7 +28,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByUser_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(_defaultPost!.CreatorId, null, new());
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, _defaultPost!.CreatorId, null, new(), ApprovalStatus.Approved);
 
         // Assert
         Assert.Single(result.Items);
@@ -39,7 +39,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_ByHive_ReturnsPost()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, _defaultHive!.Id, new());
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, _defaultHive!.Id, new(), ApprovalStatus.Approved);
 
         // Assert
         Assert.Equal(4, result.Items.Count);
@@ -50,7 +50,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithoutFilter_ReturnsAll()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, new());
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new(), ApprovalStatus.Approved);
 
         // Assert
         Assert.Equal(4, result.Items.Count);
@@ -60,11 +60,79 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithTextFilter_ReturnsExpected()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, new() { Filter = "not a default poll" });
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new() { Filter = "not a default poll" }, ApprovalStatus.Approved);
 
         // Assert
         Assert.Single(result.Items);
         Assert.Equal(_defaultPost2!.Id, result.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_OutstandingWithoutHive_ThrowsValidationException()
+    {
+        await Assert.ThrowsAsync<ValidationException>(() => _service.BrowsePostsAsync(_defaultUser!.Id, null, null, new(), ApprovalStatus.Pending));
+    }
+
+    [Fact]
+    public async Task BrowsePosts_OutstandingUnauthorizedUser_ThrowsNotFoundException()
+    {
+        var outsider = new User { Username = "outsider-user", Settings = new() };
+        Context.Users.Add(outsider);
+        await Context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.BrowsePostsAsync(outsider.Id, null, _defaultHive!.Id, new(), ApprovalStatus.Pending));
+    }
+
+    [Fact]
+    public async Task BrowsePosts_OutstandingAuthorizedUser_ReturnsOnlyUnapproved()
+    {
+        var unapprovedPost = AddPost();
+        unapprovedPost.ApprovalStatus = ApprovalStatus.Pending;
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        var result = await _service.BrowsePostsAsync(_defaultUser!.Id, null, _defaultHive!.Id, new(), ApprovalStatus.Pending);
+
+        Assert.NotEmpty(result.Items);
+        Assert.All(result.Items, p => Assert.Equal(ApprovalStatus.Pending, p.ApprovalStatus));
+        Assert.Contains(result.Items, p => p.Id == unapprovedPost.Id);
+    }
+
+    [Fact]
+    public async Task BrowsePosts_DefaultView_HidesUnapprovedAndPrivateHiveForNonFollower()
+    {
+        var privateHive = new Hive
+        {
+            Name = "Private Hive",
+            Description = "Private",
+            Settings = new HiveSettings { IsPrivate = true, JoinRequiresApproval = false, PostRequiresApproval = false, MinRoleToPost = MemberRole.Guest },
+            Users = [new() { User = _defaultUser!, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }]
+        };
+
+        var hiddenByApproval = new Post
+        {
+            Creator = _defaultUser!,
+            Hive = _defaultHive!,
+            ApprovalStatus = ApprovalStatus.Pending,
+            Polls = [new Poll { Title = "Hidden approval", Description = "hidden", PollType = PollType.Choice, Candidates = [new Candidate { Name = "A" }] }]
+        };
+
+        var hiddenByPrivacy = new Post
+        {
+            Creator = _defaultUser!,
+            Hive = privateHive,
+            ApprovalStatus = ApprovalStatus.Approved,
+            Polls = [new Poll { Title = "Hidden privacy", Description = "hidden", PollType = PollType.Choice, Candidates = [new Candidate { Name = "A" }] }]
+        };
+
+        Context.Posts.AddRange(hiddenByApproval, hiddenByPrivacy);
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        var result = await _service.BrowsePostsAsync(_defaultUser2!.Id, null, null, new(), ApprovalStatus.Approved);
+
+        Assert.DoesNotContain(result.Items, p => p.Id == hiddenByApproval.Id);
+        Assert.DoesNotContain(result.Items, p => p.Id == hiddenByPrivacy.Id);
     }
 
     [Fact]
@@ -101,7 +169,7 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task CreatePostAsync_SetsIsPublishedFalse()
+    public async Task CreatePostAsync_SetsIsDraftTrue()
     {
         // Arrange
         var postDto = new CreatePostDto
@@ -115,11 +183,11 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.NotNull(dbPost);
-        Assert.False(dbPost.IsPublished);
+        Assert.True(dbPost.IsDraft);
     }
 
     [Fact]
-    public async Task PublishPostAsync_SetsIsPublishedTrue_AndLinksMedia()
+    public async Task PublishPostAsync_SetsIsDraftFalse_AndLinksMedia()
     {
         // Arrange
         var post = AddPost(false);
@@ -131,14 +199,14 @@ public class PostServiceTests : IntegrationTest
                 $"{post.Id}/{post.Polls[0].Id}/{post.Polls[0].Candidates[0].Id}/asdf.png"
             ]);
 
-        var service = new PostService(Context, Context.GetService<HotnessUpdateQueue>(), Context.GetService<HoneyDeltaCalculator>(), mediaServiceMock.Object);
+        var service = new PostService(Context, Context.GetService<HotnessUpdateQueue>(), Context.GetService<HoneyDeltaCalculator>(), mediaServiceMock.Object, Context.GetService<AuthorizationService>());
 
         // Act
         await service.PublishPostAsync(_defaultUser!.Id, post.Id);
         var dbPost = await Context.Posts.FindAsync(post.Id);
 
         // Assert
-        Assert.True(dbPost!.IsPublished);
+        Assert.False(dbPost!.IsDraft);
         Assert.Contains(dbPost.Polls[0].Candidates[0].MediaKeys, k => k.EndsWith("asdf.png"));
         Assert.Contains(dbPost.Polls[0].MediaKeys, k => k.EndsWith("asdf.png"));
     }
@@ -318,7 +386,7 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot }, ApprovalStatus.Approved);
 
         // Assert
         Assert.True(Algorithms.HotnessFunction(result.Items[0].Adapt<Post>()) > Algorithms.HotnessFunction(result.Items[1].Adapt<Post>()));
@@ -328,7 +396,7 @@ public class PostServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // Act 2
-        var result2 = await _service.BrowsePostsAsync(null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot });
+        var result2 = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot }, ApprovalStatus.Approved);
 
         // Assert 2
         Assert.True(Algorithms.HotnessFunction(result2.Items[0].Adapt<Post>()) > Algorithms.HotnessFunction(result2.Items[1].Adapt<Post>()));
@@ -342,7 +410,7 @@ public class PostServiceTests : IntegrationTest
         PostPaginationDto paginationDto = new() { OrderBy = PostOrderBy.New };
 
         // Act
-        var result = await _service.BrowsePostsAsync(null, null, paginationDto);
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, paginationDto, ApprovalStatus.Approved);
 
         // Assert
         Assert.NotEmpty(result.Items);
@@ -353,10 +421,10 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_InBetween_ReturnsNext()
     {
         // Arrange
-        var result = await _service.BrowsePostsAsync(null, null, new() { OrderBy = PostOrderBy.New, PageSize = 1 });
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new() { OrderBy = PostOrderBy.New, PageSize = 1 }, ApprovalStatus.Approved);
 
         // Act
-        var result2 = await _service.BrowsePostsAsync(null, null, new() { OrderBy = PostOrderBy.New, Cursor = result.NextCursor });
+        var result2 = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new() { OrderBy = PostOrderBy.New, Cursor = result.NextCursor }, ApprovalStatus.Approved);
 
         // Assert
         Assert.NotEmpty(result.Items);
@@ -426,13 +494,22 @@ public class PostServiceTests : IntegrationTest
         _defaultUser = new User { Username = "defaultuser", Settings = new() };
         _defaultUser2 = new User { Username = "defaultuser2", Settings = new() };
 
-        _defaultHive = new Hive { Name = "Default Hive", Description = "This is a default hive.", Creator = _defaultUser };
+        _defaultHive = new Hive
+        {
+            Name = "Default Hive",
+            Description = "This is a default hive.",
+            Users =
+            [
+                new() { User = _defaultUser, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator },
+                new() { User = _defaultUser2, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Follower }
+            ]
+        };
 
         _defaultPost = new()
         {
             Creator = _defaultUser,
             Hive = _defaultHive,
-            IsPublished = true,
+            ApprovalStatus = ApprovalStatus.Approved,
             Polls = [
                 new Poll
                 {
@@ -452,7 +529,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser2,
             Hive = _defaultHive,
-            IsPublished = true,
+            ApprovalStatus = ApprovalStatus.Approved,
             Polls = [
                 new Poll
                 {
@@ -472,7 +549,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser2,
             Hive = _defaultHive,
-            IsPublished = true,
+            ApprovalStatus = ApprovalStatus.Approved,
             Polls = [
                 new Poll
                 {
@@ -505,7 +582,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser2,
             Hive = _defaultHive,
-            IsPublished = true,
+            ApprovalStatus = ApprovalStatus.Approved,
             Polls = [
                 new Poll
                 {
@@ -530,6 +607,7 @@ public class PostServiceTests : IntegrationTest
         _privatePost = new()
         {
             Creator = _defaultUser,
+            ApprovalStatus = ApprovalStatus.Approved,
             Polls = [
                 new Poll
                 {
@@ -549,6 +627,7 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser,
             Hive = _defaultHive,
+            IsDraft = true,
             Polls = [
                 new Poll
                 {
@@ -576,7 +655,8 @@ public class PostServiceTests : IntegrationTest
         {
             Creator = _defaultUser!,
             Hive = _defaultHive!,
-            IsPublished = isPublished,
+            IsDraft = !isPublished,
+            ApprovalStatus = ApprovalStatus.Approved,
             Polls = [
                 new Poll
                 {

@@ -28,8 +28,8 @@ public class CommentServiceTests : IntegrationTest
 
         // Act
         var result = await _service.AddCommentAsync(_defaultUser!.Id, dto);
-        var postFeed = await _service.BrowseCommentsAsync(null, _defaultPost.Id, null, new CommentPaginationDto { PageSize = 20 });
-        var commentFeed = await _service.BrowseCommentsAsync(null, _defaultPost.Id, _defaultComment.Id, new CommentPaginationDto { PageSize = 20 });
+        var postFeed = await _service.BrowseCommentsAsync(null, _defaultPost.Id, null, true, new CommentPaginationDto { PageSize = 20 });
+        var commentFeed = await _service.BrowseCommentsAsync(null, _defaultPost.Id, _defaultComment.Id, false, new CommentPaginationDto { PageSize = 20 });
 
         // Assert
         Assert.NotNull(result);
@@ -124,7 +124,93 @@ public class CommentServiceTests : IntegrationTest
         Context.ChangeTracker.Clear();
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.DeleteCommentAsync(otherUser.Id, _defaultComment!.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.DeleteCommentAsync(otherUser.Id, _defaultComment!.Id));
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_HivePostByOutsider_AddsComment()
+    {
+        // Arrange
+        var outsider = new User { Username = "outsider", Settings = new() };
+        var hive = new Hive
+        {
+            Name = "comment-hive",
+            Description = "desc",
+            Settings = new(),
+            Users = [new() { User = _defaultUser!, Role = MemberRole.Creator, ApprovalStatus = ApprovalStatus.Approved }]
+        };
+        var hivePost = new Post { Creator = _defaultUser!, Hive = hive, ApprovalStatus = ApprovalStatus.Approved, Polls = [] };
+        Context.Users.Add(outsider);
+        Context.Posts.Add(hivePost);
+        await Context.SaveChangesAsync();
+
+        var dto = new CreateCommentDto
+        {
+            PostId = hivePost.Id,
+            Content = "blocked"
+        };
+
+        // Act
+        var result = await _service.AddCommentAsync(outsider.Id, dto);
+
+        // Assert
+        Assert.Equal(outsider.Id, result.Dto.User.Id);
+        Assert.Equal("blocked", result.Dto.Content);
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_PublicPostByOutsider_AddsComment()
+    {
+        // Arrange
+        var outsider = new User { Username = "public-outsider", Settings = new() };
+        var publicPost = new Post { Creator = _defaultUser!, ApprovalStatus = ApprovalStatus.Approved, Polls = [] };
+        Context.Users.Add(outsider);
+        Context.Posts.Add(publicPost);
+        await Context.SaveChangesAsync();
+
+        var dto = new CreateCommentDto
+        {
+            PostId = publicPost.Id,
+            Content = "allowed"
+        };
+
+        // Act
+        var result = await _service.AddCommentAsync(outsider.Id, dto);
+
+        // Assert
+        Assert.Equal(outsider.Id, result.Dto.User.Id);
+        Assert.Equal("allowed", result.Dto.Content);
+    }
+
+    [Fact]
+    public async Task DeleteCommentAsync_HiveModerator_DeletesComment()
+    {
+        // Arrange
+        var moderator = new User { Username = "mod", Settings = new() };
+        var author = new User { Username = "comment-author", Settings = new() };
+        var hive = new Hive
+        {
+            Name = "delete-comment-hive",
+            Description = "desc",
+            Settings = new(),
+            Users =
+            [
+                new() { User = _defaultUser!, Role = MemberRole.Creator, ApprovalStatus = ApprovalStatus.Approved },
+                new() { User = moderator, Role = MemberRole.Moderator, ApprovalStatus = ApprovalStatus.Approved },
+                new() { User = author, Role = MemberRole.Follower, ApprovalStatus = ApprovalStatus.Approved }
+            ]
+        };
+        var post = new Post { Creator = _defaultUser!, Hive = hive, ApprovalStatus = ApprovalStatus.Approved, Polls = [] };
+        var comment = new Comment { Post = post, User = author, Content = "to delete" };
+
+        Context.Comments.Add(comment);
+        await Context.SaveChangesAsync();
+
+        // Act
+        await _service.DeleteCommentAsync(moderator.Id, comment.Id);
+
+        // Assert
+        Assert.Null(await Context.Comments.FindAsync(comment.Id));
     }
 
     [Fact]
@@ -134,7 +220,7 @@ public class CommentServiceTests : IntegrationTest
         Context.ChangeTracker.Clear();
 
         // Act
-        var comments = await _service.BrowseCommentsAsync(null, _defaultPost!.Id, null, new CommentPaginationDto { PageSize = 20 });
+        var comments = await _service.BrowseCommentsAsync(null, _defaultPost!.Id, null, true, new CommentPaginationDto { PageSize = 20 });
 
         // Assert
         Assert.Single(comments.Items);
@@ -153,7 +239,7 @@ public class CommentServiceTests : IntegrationTest
         var pagination = new CommentPaginationDto { Filter = "Alpha", OrderBy = CommentOrderBy.New, PageSize = 20 };
 
         // Act
-        var comments = await _service.BrowseCommentsAsync(null, _defaultPost!.Id, null, pagination);
+        var comments = await _service.BrowseCommentsAsync(null, _defaultPost!.Id, null, true, pagination);
 
         // Assert
         Assert.Single(comments.Items);

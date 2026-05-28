@@ -2,7 +2,11 @@ using System.Linq.Expressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueue, HoneyDeltaCalculator honeyDeltaCalculator, IMediaService mediaService)
+public class PostService(HiveMimeContext context,
+    HotnessUpdateQueue hotnessQueue,
+    HoneyDeltaCalculator honeyDeltaCalculator,
+    IMediaService mediaService,
+    AuthorizationService authorizationService)
 {
     /// <summary>
     /// Fetches and returns a post by its ID, including all its polls and candidates.
@@ -14,7 +18,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             .AsNoTracking()
             .QueryableFind(postId)
             .ProjectToType<PostDto>()
-            .FirstAsync();
+            .FirstOrExceptionAsync();
     }
 
     /// <summary>
@@ -23,10 +27,11 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// <param name="creatorId">The ID of the user to fetch posts from.</param>
     /// <param name="hiveId">The ID of the hive to fetch posts from.</param>
     /// <param name="pagination">The pagination parameters.</param>
-    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int? creatorId, int? hiveId, PostPaginationDto pagination)
+    /// <param name="status">The approval status to filter posts by.</param>
+    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int userId, int? creatorId, int? hiveId, PostPaginationDto pagination, ApprovalStatus status)
     {
         IQueryable<Post> posts = context.Posts
-            .Where(p => p.IsPublished && p.HiveId != null)
+            .Where(p => !p.IsDraft && p.ApprovalStatus == status)
             .AsNoTracking();
 
         if (creatorId.HasValue)
@@ -34,6 +39,20 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             
         if (hiveId.HasValue)
             posts = posts.Where(p => p.HiveId == hiveId.Value);
+
+        if (status != ApprovalStatus.Approved)
+        {
+            if (!hiveId.HasValue)
+                throw new ValidationException("Hive ID must be provided for outstanding posts.");
+
+            await authorizationService.VerifyApprovePostsAsync(userId, hiveId.Value);
+        }
+        else
+        {
+            posts = posts.Where(p => p.HiveId != null &&
+                (!p.Hive!.Settings.IsPrivate ||
+                 p.Hive.Users.Any(f => f.UserId == userId && f.Role > MemberRole.Guest && f.ApprovalStatus == ApprovalStatus.Approved)));
+        }
 
         var result = await posts.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
@@ -46,7 +65,29 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     }
 
     /// <summary>
-    /// Publishes a post, making it visible to other users and linking any uploaded media to it.
+    /// Modifies the approval status of a post. Only users with the appropriate permissions can modify the status.
+    /// </summary>
+    /// <param name="userId">The ID of the user attempting to approve the post.</param>
+    /// <param name="postId">The ID of the post to modify.</param>
+    /// <param name="newStatus">The new approval status for the post.</param>
+    /// <returns>The modified post.</returns>
+    public async Task<PostDto> ModifyPostStatusAsync(int userId, int postId, ApprovalStatus newStatus)
+    {
+        await authorizationService.VerifyApprovePostAsync(userId, postId);
+        Post post = await context.Posts.FirstOrExceptionAsync(p => p.Id == postId);
+
+        post.ApprovalStatus = newStatus;
+        await context.SaveChangesAsync();
+
+        return await context.Posts.Where(p => p.Id == postId)
+            .AsNoTracking()
+            .ProjectToType<PostDto>()
+            .FirstAsync();
+    }
+
+    /// <summary>
+    /// Publishes a post, marking it as no longer a draft and linking any uploaded media to it.
+    /// If the hive the post belongs to does not require approval to post, the post will be approved as well.
     /// </summary>
     /// <param name="userId">The ID of the user attempting to publish the post.</param>
     /// <param name="postId">The ID of the post to be published.</param>
@@ -57,18 +98,20 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     {
         Post post = await context.Posts
             .Include(p => p.Polls)
-            .ThenInclude(p => p.Candidates)
+                .ThenInclude(p => p.Candidates)
+            .Include(p => p.Hive)
+                .ThenInclude(h => h.Settings)
             .FirstOrExceptionAsync(p => p.Id == postId);
 
         if (post.CreatorId != userId)
             throw new UnauthorizedAccessException("You are not the creator of this post.");
 
-        if (post.IsPublished)
+        if (!post.IsDraft)
             throw new ValidationException("Post is already published.");
 
-        post.IsPublished = true;
+        post.IsDraft = false;
 
-        var uploadedFiles = await mediaService.ListObjectsAsync($"{post.Id}/");
+        var uploadedFiles = await mediaService.ListObjectsAsync($"posts/{post.Id}/");
 
         foreach (var uploadedFile in uploadedFiles)
         {
@@ -92,6 +135,9 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
                 candidate.MediaKeys.Add(uploadedFile);
             }
         }
+
+        if (post.HiveId is null || !post.Hive!.Settings.PostRequiresApproval)
+            post.ApprovalStatus = ApprovalStatus.Approved;
 
         await context.SaveChangesAsync();
         
@@ -118,8 +164,10 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         if (validationErrors.Any())
             throw new ValidationException("Post validation failed: " + string.Join("; ", validationErrors));
 
+        await authorizationService.VerifyCreatePostAsync(userId, postDto.HiveId);
+
         Post newPost = postDto.Adapt<Post>();
-        newPost.IsPublished = false;
+        newPost.IsDraft = true;
 
         // Each category requires a value for easier evaluation and filtering.
         foreach (Poll poll in newPost.Polls.Where(p => p.PollType == PollType.Category))
@@ -137,6 +185,24 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
         UploadPostDto uploadPostDto = await CreateUploadPostDto(postDto, newPost);
 
         return uploadPostDto;
+    }
+
+    /// <summary>
+    /// Deletes a post. Also deletes any media associated with the post from Cloudflare R2.
+    /// </summary>
+    /// <param name="userId">The ID of the user attempting to delete the post.</param>
+    /// <param name="postId">The ID of the post to delete.</param>
+    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authorized to delete the post.</exception>
+    public async Task DeletePostAsync(int userId, int postId)
+    {
+        await authorizationService.VerifyDeletePostAsync(userId, postId);
+
+        Post post = await context.Posts.FirstOrExceptionAsync(p => p.Id == postId);
+
+        context.Posts.Remove(post);
+
+        await mediaService.DeleteObjectsAsync($"posts/{post.Id}/");
+        await context.SaveChangesAsync();
     }
 
     /// <summary>
@@ -234,6 +300,8 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     /// <param name="vote">The vote to insert or update.</param>
     public async Task<HoneyDeltaDto<bool>> VoteOnPostAsync(int userId, PostVoteDto vote)
     {
+        await authorizationService.VerifyVoteOnPostAsync(userId, vote.PostId);
+        
         Post post = await context.Posts
             .Include(p => p.Polls.OrderBy(p => p.Id))
                 .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
@@ -303,6 +371,22 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
     }
 
     /// <summary>
+    /// Modifies the approval status of a post.
+    /// </summary>
+    /// <param name="userId">The ID of the user attempting to modify the post.</param>
+    /// <param name="postId">The ID of the post to modify.</param>
+    /// <param name="approvalStatus">The new approval status for the post.</param>
+    public async Task ModifyPostAsync(int userId, int postId, ApprovalStatus approvalStatus)
+    {
+        await authorizationService.VerifyApprovePostAsync(userId, postId);
+
+        Post post = await context.Posts.FirstOrExceptionAsync(p => p.Id == postId);
+        post.ApprovalStatus = approvalStatus;
+
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>
     /// Generates pre-signed upload URLs for the media files associated with a post's polls and candidates,
     /// allowing the client to upload files directly to Cloudflare R2. Validates the total content length
     /// of the files to ensure it does not exceed the allowed limit.
@@ -323,7 +407,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
             
             if (poll.Media is not null)
             {
-                string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
+                string objectKey = $"posts/{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
                 string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
                 string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, poll.Media.ContentType);
 
@@ -339,7 +423,7 @@ public class PostService(HiveMimeContext context, HotnessUpdateQueue hotnessQueu
 
                 if (candidate.Media is not null)
                 {
-                    string objectKey = $"{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
+                    string objectKey = $"posts/{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
                     string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
                     string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, candidate.Media.ContentType);
 

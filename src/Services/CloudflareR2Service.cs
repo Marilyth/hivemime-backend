@@ -25,6 +25,22 @@ public class CloudflareR2Service : IMediaService
         _amazonS3 = new AmazonS3Client(accessKey, secretKey, config);
     }
 
+    public async Task DeleteObjectsAsync(string prefix)
+    {
+        var objectKeys = await ListObjectsAsync(prefix);
+
+        if (objectKeys.Count == 0)
+            return;
+
+        var deleteObjectsRequest = new DeleteObjectsRequest
+        {
+            BucketName = BucketName,
+            Objects = [.. objectKeys.Select(k => new KeyVersion { Key = k })]
+        };
+
+        await _amazonS3.DeleteObjectsAsync(deleteObjectsRequest);
+    }
+
     public async Task<List<string>> ListObjectsAsync(string prefix)
     {
         var request = new ListObjectsV2Request

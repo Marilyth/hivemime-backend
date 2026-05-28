@@ -160,8 +160,8 @@ public class UserServiceTests : IntegrationTest
     public async Task MergeAccountsAsync_ValidUserIds_MergesAccounts()
     {
         // Arrange
-        var currentUser = new User { Username = "current", Settings = new(), FollowedHives = new List<Hive>() };
-        var previousUser = new User { Username = "previous", Settings = new(), FollowedHives = new List<Hive>() };
+        var currentUser = new User { Username = "current", Settings = new(), JoinedHives = [] };
+        var previousUser = new User { Username = "previous", Settings = new(), JoinedHives = [] };
         Context.Users.AddRange(currentUser, previousUser);
         await Context.SaveChangesAsync();
 
@@ -170,16 +170,17 @@ public class UserServiceTests : IntegrationTest
         previousUser = Context.Users.First(u => u.Username == "previous");
 
         // Create a hive and have previousUser follow it
-        var hive = new Hive { Name = "TestHive", Description = "desc", CreatorId = previousUser.Id, Followers = new List<User>() };
+        var hive = new Hive
+        {
+            Name = "TestHive",
+            Description = "desc",
+            Users = [new() { UserId = previousUser.Id, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }]
+        };
         Context.Hives.Add(hive);
         await Context.SaveChangesAsync();
 
         // Reload hive to get tracked entity with ID
         hive = Context.Hives.First(h => h.Name == "TestHive");
-
-        // Only set navigation from one side
-        previousUser.FollowedHives.Add(hive);
-        await Context.SaveChangesAsync();
 
         // Create a post by previousUser
         var post = new Post { CreatorId = previousUser.Id, HiveId = hive.Id, Hotness = 1.0, CommentCount = 0, VoteCount = 0 };
@@ -213,8 +214,8 @@ public class UserServiceTests : IntegrationTest
         Assert.All(Context.Set<PostVote>(), v => Assert.Equal(currentUser.Id, v.UserId));
 
         // Followed hives should be merged
-        var refreshedCurrentUser = Context.Users.Include(u => u.FollowedHives).First(u => u.Id == currentUser.Id);
-        Assert.Contains(refreshedCurrentUser.FollowedHives, h => h.Id == hive.Id);
+        var refreshedCurrentUser = Context.Users.Include(u => u.JoinedHives).First(u => u.Id == currentUser.Id);
+        Assert.Contains(refreshedCurrentUser.JoinedHives, h => h.HiveId == hive.Id);
     }
 
     [Fact]

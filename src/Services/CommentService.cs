@@ -1,13 +1,15 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyDeltaCalculator)
+public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyDeltaCalculator, AuthorizationService authorizationService)
 {
     public async Task<CommentDto> GetCommentByIdAsync(int commentId)
         => await context.Comments.QueryableFind(commentId).ProjectToType<CommentDto>().FirstOrExceptionAsync();
 
     public async Task<HoneyDeltaDto<CommentDto>> AddCommentAsync(int userId, CreateCommentDto dto)
     {
+        await authorizationService.VerifyCreateCommentAsync(userId, dto.PostId);
+
         var comment = dto.Adapt<Comment>();
         comment.UserId = userId;
         context.Comments.Add(comment);
@@ -37,10 +39,9 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
 
     public async Task DeleteCommentAsync(int userId, int commentId)
     {
-        var comment = await context.Comments.FindAsync(commentId);
+        await authorizationService.VerifyDeleteCommentAsync(userId, commentId);
 
-        if (comment == null || comment.UserId != userId)
-            throw new UnauthorizedAccessException("You do not have permission to delete this comment.");
+        var comment = await context.Comments.FindAsync(commentId);
 
         context.Comments.Remove(comment);
         await context.SaveChangesAsync();
@@ -52,10 +53,11 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
     /// <param name="userId">The ID of the user whose comments to fetch.</param>
     /// <param name="postId">The ID of the post whose comments to fetch.</param>
     /// <param name="parentCommentId">The ID of the parent comment whose replies to fetch.</param>
+    /// <param name="onlyRoot">Whether to fetch only root comments (i.e., comments without a parent).</param>
     /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
     /// <returns>A list of comments matching the provided filters and pagination parameters.</returns>
     /// <exception cref="ValidationException">Thrown if none of the filters are provided.</exception>
-    public async Task<PaginationResultDto<CommentDto>> BrowseCommentsAsync(int? userId, int? postId, int? parentCommentId, CommentPaginationDto pagination)
+    public async Task<PaginationResultDto<CommentDto>> BrowseCommentsAsync(int? userId, int? postId, int? parentCommentId, bool onlyRoot, CommentPaginationDto pagination)
     {
         if (userId == null && postId == null && parentCommentId == null)
             throw new ValidationException("At least one of userId, postId, or parentCommentId must be provided.");
@@ -70,7 +72,7 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
 
         if (parentCommentId.HasValue)
             comments = comments.Where(c => c.ParentCommentId == parentCommentId.Value);
-        else if (!userId.HasValue)
+        else if (onlyRoot)
             comments = comments.Where(c => c.ParentCommentId == null);
 
         return await comments.ApplyPaginationFilter(pagination)

@@ -11,8 +11,10 @@ public class Post : EntityWithIdentifier
     public int CommentCount { get; set; }
     public int VoteCount { get; set; }
     public double Hotness { get; set; }
+    public bool IsDraft { get; set; }
 
-    public bool IsPublished { get; set; }
+    public DateTimeOffset? VotingLockedAt { get; set; }
+    public DateTimeOffset? CommentingLockedAt { get; set; }
 
     [ForeignKey(nameof(Creator))]
     public int CreatorId { get; set; }
@@ -22,5 +24,6 @@ public class Post : EntityWithIdentifier
     public int? HiveId { get; set; }
     public Hive? Hive { get; set; }
 
+    public ApprovalStatus ApprovalStatus { get; set; }
     public DateTimeOffset HotnessLastRecalculatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

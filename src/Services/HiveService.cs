@@ -1,7 +1,7 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public class HiveService(HiveMimeContext context)
+public class HiveService(HiveMimeContext context, AuthorizationService authorizationService)
 {
     /// <summary>
     /// Fetches and returns a hive by its ID.
@@ -12,60 +12,134 @@ public class HiveService(HiveMimeContext context)
         => await context.Hives.AsNoTracking()
             .QueryableFind(hiveId)
             .ProjectToType<HiveDto>()
-            .FirstAsync();
+            .FirstOrExceptionAsync();
 
     /// <summary>
     /// Fetches and returns all hives followed by the user.
     /// </summary>
     /// <param name="userId">The ID of the user whose followed hives to fetch.</param>
-    public async Task<List<HiveDto>> GetFollowedHivesAsync(int userId)
+    public async Task<List<HiveUserDto>> GetJoinedHivesAsync(int userId)
         => await context.Users.AsNoTracking()
             .Where(u => u.Id == userId)
-            .SelectMany(u => u.FollowedHives)
+            .SelectMany(u => u.JoinedHives)
             .OrderByDescending(h => h.Id)
-            .ProjectToType<HiveDto>()
+            .ProjectToType<HiveUserDto>()
             .ToListAsync();
 
     /// <summary>
-    /// Adds the user as a follower to the hive, effectively "joining" it.
-    /// <param name="userId">The ID of the user joining the hive.</param>
-    /// <param name="hiveId">The ID of the hive to join.</param>
-    /// <returns></returns>
-    public async Task JoinHiveAsync(int userId, int hiveId)
+    /// Adds a moderator to the hive, allowing them to manage the hive and its content.
+    /// </summary>
+    /// <param name="userId">The ID of the user performing the action.</param>
+    /// <param name="hiveUserId">The ID of the user to be added as a moderator.</param>
+    public async Task ModifyHiveUserAsync(int userId, int hiveUserId, MemberRole role, ApprovalStatus approvalStatus)
     {
-        User user = new() { Id = userId };
-        Hive hive = new()
+        await authorizationService.VerifyModifyHiveUserAsync(userId, hiveUserId, role);
+
+        HiveUser user = await context.HiveUsers.FirstOrExceptionAsync(h => h.Id == hiveUserId);
+
+        user.Role = role;
+        user.ApprovalStatus = approvalStatus;
+
+        await context.SaveChangesAsync();
+    }
+
+    public async Task BanHiveUserAsync(int currentUserId, int userId, int hiveId)
+    {
+        await authorizationService.VerifyBanHiveUserAsync(currentUserId, userId, hiveId);
+
+        HiveUser user = await context.HiveUsers.FirstOrDefaultAsync(h => h.UserId == userId && h.HiveId == hiveId);
+
+        if (user is null)
         {
-            Id = hiveId,
-            Followers = []
-        };
+            user = new HiveUser
+            {
+                UserId = userId,
+                HiveId = hiveId,
+                Role = MemberRole.Guest
+            };
 
-        context.Hives.Attach(hive);
-        context.Users.Attach(user);
+            context.HiveUsers.Add(user);
+        }
 
-        hive.Followers.Add(user);
+        user.ApprovalStatus = ApprovalStatus.Banned;
 
         await context.SaveChangesAsync();
     }
 
     /// <summary>
-    /// Removes the user as a follower from the hive, effectively "leaving" it.
+    /// Adds the user as a follower to the hive, effectively "joining" it.
+    /// </summary>
+    /// <param name="userId">The ID of the user joining the hive.</param>
+    /// <param name="hiveId">The ID of the hive to join.</param>
+    /// <returns>The DTO representing the follow relationship.</returns>
+    public async Task<HiveUserDto> JoinHiveAsync(int userId, int hiveId)
+    {
+        await authorizationService.VerifyJoinHiveAsync(userId, hiveId);
+
+        bool requiresApproval = await context.Hives
+            .Where(h => h.Id == hiveId)
+            .Select(h => h.Settings.JoinRequiresApproval)
+            .FirstOrExceptionAsync();
+
+        HiveUser hiveUser = await context.HiveUsers.FirstOrDefaultAsync(r => r.HiveId == hiveId && r.UserId == userId);
+        
+        if (hiveUser is null)
+        {
+            hiveUser = new HiveUser
+            {
+                HiveId = hiveId,
+                UserId = userId
+            };
+
+            if (!requiresApproval)
+                hiveUser.ApprovalStatus = ApprovalStatus.Approved;
+
+            context.HiveUsers.Add(hiveUser);
+        }
+
+        hiveUser.Role = MemberRole.Follower;
+
+        await context.SaveChangesAsync();
+
+        return context.HiveUsers.AsNoTracking()
+            .Where(r => r.Id == hiveUser.Id)
+            .ProjectToType<HiveUserDto>()
+            .First();
+    }
+
+    /// <summary>
+    /// Fetches and returns the users of a hive, optionally filtering by pending approval status, and applying pagination.
+    /// </summary>
+    /// <param name="userId">The ID of the user requesting the users. Must be a moderator or the creator of the hive.</param>
+    /// <param name="hiveId">The ID of the hive whose users to fetch.</param>
+    /// <param name="status">Whether to fetch users with pending approval status or approved users.</param>
+    /// <param name="pagination">The pagination parameters, including cursor and order by options.</param>
+    /// <returns>A paginated list of users for the specified hive.</returns>
+    public async Task<PaginationResultDto<HiveUserDto>> GetUsersAsync(int userId, int hiveId, ApprovalStatus status, HiveUserPaginationDto pagination)
+    {
+        await authorizationService.VerifyViewHiveUsersAsync(userId, hiveId);
+
+        IQueryable<HiveUser> query = context.HiveUsers.AsNoTracking()
+            .Where(r => r.HiveId == hiveId && r.ApprovalStatus == status)
+            .OrderByDescending(r => r.Role);
+
+        return await query.ApplyPaginationFilter(pagination)
+            .ApplyPaginationOrdering(pagination)
+            .ApplyPaginationPageSize(pagination)
+            .FetchPaginationResultAsync(pagination);
+    }
+
+    /// <summary>
+    /// Removes the user as a user from the hive, effectively "leaving" it.
     /// </summary>
     /// <param name="userId">The ID of the user leaving the hive.</param>
-    /// <param name="hiveId">The ID of the hive to leave.</param>
-    public async Task LeaveHiveAsync(int userId, int hiveId)
+    /// <param name="hiveUserId">The ID of the user relationship to remove.</param>
+    public async Task LeaveHiveAsync(int userId, int hiveUserId)
     {
-        User user = new() { Id = userId };
-        Hive hive = new()
-        {
-            Id = hiveId,
-            Followers = [user]
-        };
+        await authorizationService.VerifyLeaveHiveAsync(userId, hiveUserId);
+        HiveUser hiveUser = await context.HiveUsers.FirstOrExceptionAsync(f => f.Id == hiveUserId);
 
-        context.Hives.Attach(hive);
-        context.Users.Attach(user);
-
-        hive.Followers.Remove(user);
+        context.HiveUsers.Remove(hiveUser);
 
         await context.SaveChangesAsync();
     }
@@ -73,11 +147,12 @@ public class HiveService(HiveMimeContext context)
     /// <summary>
     /// Fetches and returns hives depending on the provided filter and pagination parameters.
     /// </summary>
-    /// <param name="afterId">The ID of the last hive seen, for pagination.</param>
     /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
     public async Task<PaginationResultDto<HiveDto>> BrowseHivesAsync(HivePaginationDto pagination)
     {
-        IQueryable<Hive> query = context.Hives.AsNoTracking();
+        IQueryable<Hive> query = context.Hives
+            .Where(h => !h.Settings.IsPrivate)
+            .AsNoTracking();
 
         return await query.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
@@ -106,12 +181,41 @@ public class HiveService(HiveMimeContext context)
         {
             Name = name,
             Description = description,
-            CreatorId = userId,
             Posts = [],
-            Followers = [await context.Users.FindAsync(userId)]
+            Users = [new() { UserId = userId, ApprovalStatus = ApprovalStatus.Approved, Role = MemberRole.Creator }],
+            Settings = new()
         };
 
         context.Hives.Add(hive);
+        await context.SaveChangesAsync();
+
+        return hive.ToQueryable(context).ProjectToType<HiveDto>().First();
+    }
+
+    public async Task<HiveDto> UpdateHiveAsync(int userId, HiveDto hiveDto)
+    {
+        Hive hive = await context.Hives
+            .Include(h => h.Settings)
+            .FirstOrExceptionAsync(h => h.Id == hiveDto.Id);
+
+        if (hive == null)
+            throw new ValidationException("Hive not found.");
+
+        await authorizationService.VerifyEditHiveAsync(userId, hive.Id);
+
+        hive.Name = hiveDto.Name?.Trim();
+        hive.Description = hiveDto.Description?.Trim();
+
+        hive.Settings.IsPrivate = hiveDto.Settings.IsPrivate;
+        hive.Settings.JoinRequiresApproval = hiveDto.Settings.JoinRequiresApproval;
+
+        hive.Settings.PostRequiresApproval = hiveDto.Settings.PostRequiresApproval;
+        hive.Settings.MinHoneyToPost = hiveDto.Settings.MinHoneyToPost;
+        hive.Settings.MinRoleToPost = hiveDto.Settings.MinRoleToPost;
+
+        hive.Settings.MinHoneyToComment = hiveDto.Settings.MinHoneyToComment;
+        hive.Settings.MinRoleToComment = hiveDto.Settings.MinRoleToComment;
+
         await context.SaveChangesAsync();
 
         return hive.ToQueryable(context).ProjectToType<HiveDto>().First();

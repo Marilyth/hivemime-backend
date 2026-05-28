@@ -32,6 +32,10 @@ public class UserController(UserService userService, HiveMimeContext context, IO
     public async Task<UserDetailsDto> GetUserDetails()
         => await userService.GetUserDetailsAsync(await User.GetUserIdAsync(context));
 
+    [HttpPost("browse")]
+    public async Task<PaginationResultDto<UserDto>> BrowseUsers([FromBody] UserPaginationDto pagination)
+        => await userService.BrowseUsersAsync(pagination);
+
     [HttpGet("profile")]
     public async Task<UserProfileDto> GetUserProfile(int userId)
         => await userService.GetUserProfileAsync(userId);
