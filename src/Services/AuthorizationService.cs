@@ -131,11 +131,15 @@ public class AuthorizationService(HiveMimeContext context)
             .Select(u => new
             {
                 u.Honey,
+                u.IsVerified,
                 HiveUser = u.JoinedHives.Where(j => j.HiveId == hiveId)
                     .Select(j => new { j.ApprovalStatus, j.Role })
                     .FirstOrDefault()
             })
             .FirstOrExceptionAsync();
+
+        if (!user.IsVerified && hiveId != null)
+            throw new UnauthorizedAccessException("You need to have a verified account to post in a hive.");
 
         var hive = await context.Hives
             .Where(h => h.Id == hiveId)
@@ -218,6 +222,12 @@ public class AuthorizationService(HiveMimeContext context)
 
         if (effectiveRole < MemberRole.Moderator)
             throw new UnauthorizedAccessException("You do not have permission to delete this comment.");
+    }
+
+    public async Task VerifyCreateHiveAsync(int userId)
+    {
+        if (!await context.Users.AnyAsync(u => u.Id == userId && u.IsVerified))
+            throw new UnauthorizedAccessException("You need to have a verified account to create a hive.");
     }
 
     public async Task VerifyEditHiveAsync(int userId, int hiveId)

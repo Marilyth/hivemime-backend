@@ -90,11 +90,25 @@ public class AuthorizationServiceTests : IntegrationTest
         _hive!.Settings.MinRoleToPost = MemberRole.Guest;
         _hive.Settings.MinHoneyToPost = 5;
         _outsider!.Honey = 10;
+        _outsider.IsVerified = true;
         _rejectedMembership!.Role = MemberRole.Follower;
         _rejectedMembership.ApprovalStatus = ApprovalStatus.Approved;
         await Context.SaveChangesAsync();
 
         await _service.VerifyCreatePostAsync(_outsider.Id, _hive.Id);
+    }
+
+    [Fact]
+    public async Task VerifyCreatePostAsync_UnverifiedUser_ThrowsUnauthorized()
+    {
+        _hive!.Settings.MinRoleToPost = MemberRole.Guest;
+        _hive.Settings.MinHoneyToPost = 0;
+        _outsider!.IsVerified = false;
+        _rejectedMembership!.Role = MemberRole.Follower;
+        _rejectedMembership.ApprovalStatus = ApprovalStatus.Approved;
+        await Context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.VerifyCreatePostAsync(_outsider.Id, _hive.Id));
     }
 
     [Fact]
@@ -149,6 +163,24 @@ public class AuthorizationServiceTests : IntegrationTest
     public async Task VerifyEditHiveAsync_Moderator_Throws()
     {
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.VerifyEditHiveAsync(_moderator!.Id, _hive!.Id));
+    }
+
+    [Fact]
+    public async Task VerifyCreateHiveAsync_VerifiedUser_DoesNotThrow()
+    {
+        _creator!.IsVerified = true;
+        await Context.SaveChangesAsync();
+
+        await _service.VerifyCreateHiveAsync(_creator.Id);
+    }
+
+    [Fact]
+    public async Task VerifyCreateHiveAsync_UnverifiedUser_ThrowsUnauthorized()
+    {
+        _outsider!.IsVerified = false;
+        await Context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.VerifyCreateHiveAsync(_outsider.Id));
     }
 
     protected override void SeedDatabase()

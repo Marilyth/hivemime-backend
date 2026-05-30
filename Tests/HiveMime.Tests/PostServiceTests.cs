@@ -255,6 +255,46 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
+    public async Task CreatePost_WithHive_UnverifiedUser_ThrowsUnauthorized()
+    {
+        // Arrange
+        var unverifiedUser = new User { Username = "unverified-post-user", IsVerified = false, Honey = 100, Settings = new() };
+        Context.Users.Add(unverifiedUser);
+        await Context.SaveChangesAsync();
+
+        Context.HiveUsers.Add(new HiveUser
+        {
+            HiveId = _defaultHive!.Id,
+            UserId = unverifiedUser.Id,
+            Role = MemberRole.Follower,
+            ApprovalStatus = ApprovalStatus.Approved
+        });
+
+        _defaultHive.Settings.MinRoleToPost = MemberRole.Guest;
+        _defaultHive.Settings.MinHoneyToPost = 0;
+        await Context.SaveChangesAsync();
+
+        var postDto = new CreatePostDto
+        {
+            HiveId = _defaultHive.Id,
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Poll 1",
+                    Description = "Description 1",
+                    PollType = PollType.Choice,
+                    Candidates = [ new CreateCandidateDto { Name = "Option 1" } ],
+                    Categories = []
+                }
+            ]
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.CreatePostAsync(unverifiedUser.Id, postDto));
+    }
+
+    [Fact]
     public async Task GetPostResultAsync_WithScoreVotes_AggregatesCorrectly()
     {
         // Arrange
@@ -491,8 +531,8 @@ public class PostServiceTests : IntegrationTest
 
     protected override void SeedDatabase()
     {
-        _defaultUser = new User { Username = "defaultuser", Settings = new() };
-        _defaultUser2 = new User { Username = "defaultuser2", Settings = new() };
+        _defaultUser = new User { Username = "defaultuser", IsVerified = true, Settings = new() };
+        _defaultUser2 = new User { Username = "defaultuser2", IsVerified = true, Settings = new() };
 
         _defaultHive = new Hive
         {

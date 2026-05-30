@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 [Index(nameof(Name), IsUnique = true)]
 public class Hive : EntityWithIdentifier
 {
-    [MaxLength(128)]
+    [MaxLength(64)]
     public string Name { get; set; }
 
     [MaxLength(1024)]
