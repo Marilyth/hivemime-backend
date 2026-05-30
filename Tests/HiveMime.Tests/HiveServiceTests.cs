@@ -198,6 +198,24 @@ public class HiveServiceTests : IntegrationTest
     }
 
     [Fact]
+    public async Task CreateHive_UnverifiedUser_ThrowsUnauthorized()
+    {
+        // Arrange
+        var unverifiedUser = new User { Username = "unverified-user", IsVerified = false, Settings = new() };
+        Context.Users.Add(unverifiedUser);
+        await Context.SaveChangesAsync();
+
+        var hiveDto = new CreateHiveDto
+        {
+            Name = "Unverified Hive",
+            Description = "Should not be created"
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.CreateHiveAsync(unverifiedUser.Id, hiveDto));
+    }
+
+    [Fact]
     public async Task BrowseHivesAsync_Pagination_WorksWithFilterAndOrder()
     {
         // Arrange
@@ -348,7 +366,7 @@ public class HiveServiceTests : IntegrationTest
 
     protected override void SeedDatabase()
     {
-        _defaultUser = new User { Username = "defaultuser", Settings = new() };
+        _defaultUser = new User { Username = "defaultuser", IsVerified = true, Settings = new() };
         Context.Users.Add(_defaultUser);
 
         _defaultHive = new Hive

@@ -168,6 +168,8 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// <returns>The created hive user relationship.</returns>
     public async Task<HiveUserDto> CreateHiveAsync(int userId, CreateHiveDto hiveDto)
     {
+        await authorizationService.VerifyCreateHiveAsync(userId);
+
         string name = hiveDto.Name?.Trim();
         string description = hiveDto.Description?.Trim();
 
