@@ -14,4 +14,5 @@ public class Category : EntityWithIdentifier
     public Poll? Poll { get; set; }
 
     public int Value { get; set; }
+    public int Order { get; set; }
 }

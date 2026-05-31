@@ -169,6 +169,18 @@ public class PostService(HiveMimeContext context,
         Post newPost = postDto.Adapt<Post>();
         newPost.IsDraft = true;
 
+        // Set order properties of children.
+        for (int i = 0; i < newPost.Polls.Count; i++)
+        {
+            newPost.Polls[i].Order = i;
+
+            for (int j = 0; j < newPost.Polls[i].Candidates.Count; j++)
+                newPost.Polls[i].Candidates[j].Order = j;
+            
+            for (int j = 0; j < newPost.Polls[i].Categories.Count; j++)
+                newPost.Polls[i].Categories[j].Order = j;
+        }
+
         // Each category requires a value for easier evaluation and filtering.
         foreach (Poll poll in newPost.Polls.Where(p => p.PollType == PollType.Category))
         {
@@ -303,14 +315,14 @@ public class PostService(HiveMimeContext context,
     /// <param name="vote">The vote to insert or update.</param>
     public async Task<HoneyDeltaDto<bool>> VoteOnPostAsync(Guid userId, PostVoteDto vote)
     {
-        await authorizationService.VerifyVoteOnPostAsync(userId, vote.PostId);
+        await authorizationService.VerifyVoteOnPostAsync(userId, vote.Id);
         
         Post post = await context.Posts
-            .Include(p => p.Polls.OrderBy(p => p.Id))
-                .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
-            .Include(p => p.Polls.OrderBy(p => p.Id))
-                .ThenInclude(o => o.Categories.OrderBy(c => c.Id))
-            .FirstAsync(p => p.Id == vote.PostId);
+            .Include(p => p.Polls)
+                .ThenInclude(o => o.Candidates)
+            .Include(p => p.Polls)
+                .ThenInclude(o => o.Categories)
+            .FirstOrExceptionAsync(p => p.Id == vote.Id);
 
         IEnumerable<string> validationErrors = ValidatePostVotes(post, vote);
 
@@ -321,7 +333,7 @@ public class PostService(HiveMimeContext context,
 
         PostVote postVote = await context.PostVotes
             .Include(pv => pv.Votes)
-            .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.PostId);
+            .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.Id);
             
         if (postVote is null)
         {
@@ -336,12 +348,12 @@ public class PostService(HiveMimeContext context,
             honeyDelta = await honeyDeltaCalculator.FromPostVoteAsync(userId, vote);
         }
 
-        foreach ((Poll poll, PollVoteDto pollVote) in post.Polls.Zip(vote.Polls))
+        foreach (PollVoteDto pollVote in vote.Polls)
         {
-            foreach ((Candidate candidate, CandidateVoteDto candidateVote) in poll.Candidates.Zip(pollVote.Candidates))
+            foreach (CandidateVoteDto candidateVote in pollVote.Candidates)
             {
                 // Either update the vote if one already exists, or create a new one.
-                CandidateVote dbVote = postVote.Votes.FirstOrDefault(v => v.CandidateId == candidate.Id);
+                CandidateVote dbVote = postVote.Votes.FirstOrDefault(v => v.CandidateId == candidateVote.Id);
 
                 // The user did not vote for the candidate.
                 if (candidateVote.Value is null)
@@ -357,7 +369,7 @@ public class PostService(HiveMimeContext context,
                 {
                     dbVote = new CandidateVote
                     {
-                        CandidateId = candidate.Id,
+                        CandidateId = candidateVote.Id,
                         PostVote = postVote
                     };
 
@@ -588,7 +600,7 @@ public class PostService(HiveMimeContext context,
         if (uniqueRanks.Count != expectedRankCount)
             yield return "Duplicate values are not allowed in ranking polls.";
 
-        for (int rank = poll.MaxValue - expectedRankCount + 1; rank <= poll.MaxValue; rank++)
+        for (int rank = 1; rank <= expectedRankCount; rank++)
         {
             if (!uniqueRanks.Contains(rank))
                 yield return $"Ranking poll is missing rank {rank}.";

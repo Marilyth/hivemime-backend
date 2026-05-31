@@ -14,4 +14,5 @@ public class Candidate : EntityWithIdentifier
     public Poll? Poll { get; set; }
 
     public List<CandidateVote> Votes { get; set; }
+    public int Order { get; set; }
 }

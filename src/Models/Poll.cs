@@ -31,6 +31,8 @@ public class Poll : EntityWithIdentifier
     [ForeignKey(nameof(Post))]
     public Guid PostId { get; set; }
     public Post? Post { get; set; }
+    
+    public int Order { get; set; }
 }
 
 public enum PollType
