@@ -29,7 +29,7 @@ public class Poll : EntityWithIdentifier
     public List<Category> Categories { get; set; } = [];
 
     [ForeignKey(nameof(Post))]
-    public int PostId { get; set; }
+    public Guid PostId { get; set; }
     public Post? Post { get; set; }
 }
 

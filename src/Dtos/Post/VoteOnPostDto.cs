@@ -1,6 +1,6 @@
 public class PostVoteDto
 {
-    public int PostId { get; set; }
+    public Guid PostId { get; set; }
     public List<PollVoteDto> Polls { get; set; }
 }
 

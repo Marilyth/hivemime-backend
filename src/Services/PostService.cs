@@ -12,7 +12,7 @@ public class PostService(HiveMimeContext context,
     /// Fetches and returns a post by its ID, including all its polls and candidates.
     /// </summary>
     /// <param name="postId">The ID of the post to fetch.</param>
-    public async Task<PostDto> GetPostAsync(int postId)
+    public async Task<PostDto> GetPostAsync(Guid postId)
     {
         return await context.Posts
             .AsNoTracking()
@@ -28,7 +28,7 @@ public class PostService(HiveMimeContext context,
     /// <param name="hiveId">The ID of the hive to fetch posts from.</param>
     /// <param name="pagination">The pagination parameters.</param>
     /// <param name="status">The approval status to filter posts by.</param>
-    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int userId, int? creatorId, int? hiveId, PostPaginationDto pagination, ApprovalStatus status)
+    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(Guid userId, Guid? creatorId, Guid? hiveId, PostPaginationDto pagination, ApprovalStatus status)
     {
         IQueryable<Post> posts = context.Posts
             .Where(p => !p.IsDraft && p.ApprovalStatus == status)
@@ -71,7 +71,7 @@ public class PostService(HiveMimeContext context,
     /// <param name="postId">The ID of the post to modify.</param>
     /// <param name="newStatus">The new approval status for the post.</param>
     /// <returns>The modified post.</returns>
-    public async Task<PostDto> ModifyPostStatusAsync(int userId, int postId, ApprovalStatus newStatus)
+    public async Task<PostDto> ModifyPostStatusAsync(Guid userId, Guid postId, ApprovalStatus newStatus)
     {
         await authorizationService.VerifyApprovePostAsync(userId, postId);
         Post post = await context.Posts.FirstOrExceptionAsync(p => p.Id == postId);
@@ -94,7 +94,7 @@ public class PostService(HiveMimeContext context,
     /// <returns>True if the post was successfully published; otherwise, false.</returns>
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not the creator of the post.</exception>
     /// <exception cref="ValidationException">Thrown if the post is already published.</exception>
-    public async Task<HoneyDeltaDto<PostDto>> PublishPostAsync(int userId, int postId)
+    public async Task<HoneyDeltaDto<PostDto>> PublishPostAsync(Guid userId, Guid postId)
     {
         Post post = await context.Posts
             .Include(p => p.Polls)
@@ -119,7 +119,7 @@ public class PostService(HiveMimeContext context,
 
             if (keyParts.Length == 4)
             {
-                int pollId = int.Parse(keyParts[2]);
+                Guid pollId = Guid.Parse(keyParts[2]);
                 Poll poll = post.Polls.First(p => p.Id == pollId);
 
                 poll.MediaKeys.Add(uploadedFile);
@@ -127,10 +127,10 @@ public class PostService(HiveMimeContext context,
 
             else if (keyParts.Length == 5)
             {
-                int pollId = int.Parse(keyParts[2]);
-                int candidateId = int.Parse(keyParts[3]);
+                Guid pollId = Guid.Parse(keyParts[2]);
+                Guid candidateId = Guid.Parse(keyParts[3]);
                 Poll poll = post.Polls.First(p => p.Id == pollId);
-                Candidate candidate = poll.Candidates.First(c => c.Id == candidateId);
+                Candidate candidate = poll.Candidates.FirstOrDefault(c => c.Id == candidateId);
 
                 candidate.MediaKeys.Add(uploadedFile);
             }
@@ -153,7 +153,7 @@ public class PostService(HiveMimeContext context,
     /// </summary>
     /// <param name="userId">The ID of the user creating the post.</param>
     /// <param name="postDto">The post to create.</param>
-    public async Task<UploadPostDto> CreatePostAsync(int userId, CreatePostDto postDto)
+    public async Task<UploadPostDto> CreatePostAsync(Guid userId, CreatePostDto postDto)
     {
         IEnumerable<string> validationErrors = ValidateCreatePost(postDto);
         Hive hive = null;
@@ -193,7 +193,7 @@ public class PostService(HiveMimeContext context,
     /// <param name="userId">The ID of the user attempting to delete the post.</param>
     /// <param name="postId">The ID of the post to delete.</param>
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authorized to delete the post.</exception>
-    public async Task DeletePostAsync(int userId, int postId)
+    public async Task DeletePostAsync(Guid userId, Guid postId)
     {
         await authorizationService.VerifyDeletePostAsync(userId, postId);
 
@@ -210,7 +210,7 @@ public class PostService(HiveMimeContext context,
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch results for.</param>
     /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(int pollId, string filter)
+    public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(Guid pollId, string filter)
     {
         IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
 
@@ -234,7 +234,7 @@ public class PostService(HiveMimeContext context,
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch results for.</param>
     /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(int pollId, string filter)
+    public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(Guid pollId, string filter)
     {
         IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
         string sql = candidateVotes.ToQueryString();
@@ -263,7 +263,7 @@ public class PostService(HiveMimeContext context,
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch results for.</param>
     /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(int pollId, string filter)
+    public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(Guid pollId, string filter)
     {
         IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
 
@@ -301,7 +301,7 @@ public class PostService(HiveMimeContext context,
     /// </summary>
     /// <param name="userId">The ID of the user voting.</param>
     /// <param name="vote">The vote to insert or update.</param>
-    public async Task<HoneyDeltaDto<bool>> VoteOnPostAsync(int userId, PostVoteDto vote)
+    public async Task<HoneyDeltaDto<bool>> VoteOnPostAsync(Guid userId, PostVoteDto vote)
     {
         await authorizationService.VerifyVoteOnPostAsync(userId, vote.PostId);
         
@@ -379,7 +379,7 @@ public class PostService(HiveMimeContext context,
     /// <param name="userId">The ID of the user attempting to modify the post.</param>
     /// <param name="postId">The ID of the post to modify.</param>
     /// <param name="approvalStatus">The new approval status for the post.</param>
-    public async Task ModifyPostAsync(int userId, int postId, ApprovalStatus approvalStatus)
+    public async Task ModifyPostAsync(Guid userId, Guid postId, ApprovalStatus approvalStatus)
     {
         await authorizationService.VerifyApprovePostAsync(userId, postId);
 
@@ -389,7 +389,7 @@ public class PostService(HiveMimeContext context,
         await context.SaveChangesAsync();
     }
 
-    private IQueryable<CandidateVote> GetApplicableVotes(int pollId, string filter)
+    private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, string filter)
     {
         IQueryable<PostVote> votes = context.PostVotes
             .Where(v => v.Post.Polls.Any(p => p.Id == pollId));

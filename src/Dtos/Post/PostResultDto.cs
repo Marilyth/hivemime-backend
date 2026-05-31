@@ -5,13 +5,13 @@ public class PollResultDto<T> : PollDto
 
 public class CandidateSumResultDto
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public double TotalScore { get; set; }
 }
 
 public class CandidateStatisticsResultDto
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public double Min { get; set; }
     public double Q1 { get; set; }
     public double Median { get; set; }
@@ -21,7 +21,7 @@ public class CandidateStatisticsResultDto
 
 public class CandidateDistributionResultDto
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public List<CandidationDistributionResultValueDto> Distribution { get; set; }
 }
 

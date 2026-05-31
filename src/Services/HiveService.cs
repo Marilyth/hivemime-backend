@@ -8,7 +8,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// </summary>
     /// <param name="hiveId">The ID of the hive to fetch.</param>
     /// <returns>The hive with the specified ID.</returns>
-    public async Task<HiveDto> GetHiveAsync(int hiveId)
+    public async Task<HiveDto> GetHiveAsync(Guid hiveId)
         => await context.Hives.AsNoTracking()
             .QueryableFind(hiveId)
             .ProjectToType<HiveDto>()
@@ -18,7 +18,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// Fetches and returns all hives followed by the user.
     /// </summary>
     /// <param name="userId">The ID of the user whose followed hives to fetch.</param>
-    public async Task<List<HiveUserDto>> GetJoinedHivesAsync(int userId)
+    public async Task<List<HiveUserDto>> GetJoinedHivesAsync(Guid userId)
         => await context.Users.AsNoTracking()
             .Where(u => u.Id == userId)
             .SelectMany(u => u.JoinedHives)
@@ -31,7 +31,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// </summary>
     /// <param name="userId">The ID of the user performing the action.</param>
     /// <param name="hiveUserId">The ID of the user to be added as a moderator.</param>
-    public async Task ModifyHiveUserAsync(int userId, int hiveUserId, MemberRole role, ApprovalStatus approvalStatus)
+    public async Task ModifyHiveUserAsync(Guid userId, Guid hiveUserId, MemberRole role, ApprovalStatus approvalStatus)
     {
         await authorizationService.VerifyModifyHiveUserAsync(userId, hiveUserId, role);
 
@@ -43,7 +43,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
         await context.SaveChangesAsync();
     }
 
-    public async Task BanHiveUserAsync(int currentUserId, int userId, int hiveId)
+    public async Task BanHiveUserAsync(Guid currentUserId, Guid userId, Guid hiveId)
     {
         await authorizationService.VerifyBanHiveUserAsync(currentUserId, userId, hiveId);
 
@@ -72,7 +72,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// <param name="userId">The ID of the user joining the hive.</param>
     /// <param name="hiveId">The ID of the hive to join.</param>
     /// <returns>The DTO representing the follow relationship.</returns>
-    public async Task<HiveUserDto> JoinHiveAsync(int userId, int hiveId)
+    public async Task<HiveUserDto> JoinHiveAsync(Guid userId, Guid hiveId)
     {
         await authorizationService.VerifyJoinHiveAsync(userId, hiveId);
 
@@ -115,7 +115,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// <param name="status">Whether to fetch users with pending approval status or approved users.</param>
     /// <param name="pagination">The pagination parameters, including cursor and order by options.</param>
     /// <returns>A paginated list of users for the specified hive.</returns>
-    public async Task<PaginationResultDto<HiveUserDto>> GetUsersAsync(int userId, int hiveId, ApprovalStatus status, HiveUserPaginationDto pagination)
+    public async Task<PaginationResultDto<HiveUserDto>> GetUsersAsync(Guid userId, Guid hiveId, ApprovalStatus status, HiveUserPaginationDto pagination)
     {
         await authorizationService.VerifyViewHiveUsersAsync(userId, hiveId);
 
@@ -134,7 +134,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// </summary>
     /// <param name="userId">The ID of the user leaving the hive.</param>
     /// <param name="hiveUserId">The ID of the user relationship to remove.</param>
-    public async Task LeaveHiveAsync(int userId, int hiveUserId)
+    public async Task LeaveHiveAsync(Guid userId, Guid hiveUserId)
     {
         await authorizationService.VerifyLeaveHiveAsync(userId, hiveUserId);
         HiveUser hiveUser = await context.HiveUsers.FirstOrExceptionAsync(f => f.Id == hiveUserId);
@@ -166,7 +166,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// <param name="userId">The ID of the user creating the hive.</param>
     /// <param name="hiveDto">The data for the new hive.</param>
     /// <returns>The created hive user relationship.</returns>
-    public async Task<HiveUserDto> CreateHiveAsync(int userId, CreateHiveDto hiveDto)
+    public async Task<HiveUserDto> CreateHiveAsync(Guid userId, CreateHiveDto hiveDto)
     {
         await authorizationService.VerifyCreateHiveAsync(userId);
 
@@ -197,7 +197,7 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
             .FirstOrExceptionAsync();
     }
 
-    public async Task<HiveDto> UpdateHiveAsync(int userId, HiveDto hiveDto)
+    public async Task<HiveDto> UpdateHiveAsync(Guid userId, HiveDto hiveDto)
     {
         Hive hive = await context.Hives
             .Include(h => h.Settings)

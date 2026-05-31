@@ -3,10 +3,10 @@ using Microsoft.EntityFrameworkCore;
 
 public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyDeltaCalculator, AuthorizationService authorizationService)
 {
-    public async Task<CommentDto> GetCommentByIdAsync(int commentId)
+    public async Task<CommentDto> GetCommentByIdAsync(Guid commentId)
         => await context.Comments.QueryableFind(commentId).ProjectToType<CommentDto>().FirstOrExceptionAsync();
 
-    public async Task<HoneyDeltaDto<CommentDto>> AddCommentAsync(int userId, CreateCommentDto dto)
+    public async Task<HoneyDeltaDto<CommentDto>> AddCommentAsync(Guid userId, CreateCommentDto dto)
     {
         await authorizationService.VerifyCreateCommentAsync(userId, dto.PostId);
 
@@ -19,7 +19,7 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
         return await honeyDeltaCalculator.FromCommentDtoAsync(userId, comment.ToQueryable(context).ProjectToType<CommentDto>().FirstOrDefault());
     }
 
-    public async Task<CommentDto> EditCommentAsync(int userId, EditCommentDto dto)
+    public async Task<CommentDto> EditCommentAsync(Guid userId, EditCommentDto dto)
     {
         var comment = await context.Comments.Where(c => c.Id == dto.CommentId)
             .Include(c => c.User)
@@ -37,7 +37,7 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
         return comment.ToQueryable(context).ProjectToType<CommentDto>().FirstOrDefault();
     }
 
-    public async Task DeleteCommentAsync(int userId, int commentId)
+    public async Task DeleteCommentAsync(Guid userId, Guid commentId)
     {
         await authorizationService.VerifyDeleteCommentAsync(userId, commentId);
 
@@ -57,7 +57,7 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
     /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
     /// <returns>A list of comments matching the provided filters and pagination parameters.</returns>
     /// <exception cref="ValidationException">Thrown if none of the filters are provided.</exception>
-    public async Task<PaginationResultDto<CommentDto>> BrowseCommentsAsync(int? userId, int? postId, int? parentCommentId, bool onlyRoot, CommentPaginationDto pagination)
+    public async Task<PaginationResultDto<CommentDto>> BrowseCommentsAsync(Guid? userId, Guid? postId, Guid? parentCommentId, bool onlyRoot, CommentPaginationDto pagination)
     {
         if (userId == null && postId == null && parentCommentId == null)
             throw new ValidationException("At least one of userId, postId, or parentCommentId must be provided.");

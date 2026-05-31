@@ -496,7 +496,7 @@ public class PostServiceTests : IntegrationTest
         Assert.Equal(1, updated.CommentCount);
     }
 
-    private async Task AddVotesToCandidate(int candidateId, int postId, int[] values)
+    private async Task AddVotesToCandidate(Guid candidateId, Guid postId, int[] values)
     {
         // Create separate users for each vote to simulate different users voting
         for (int i = 0; i < values.Length; i++)

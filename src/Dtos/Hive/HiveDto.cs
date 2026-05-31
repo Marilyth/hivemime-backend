@@ -1,6 +1,6 @@
 public class HiveUserDto : IHasIdentifier
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public HiveDto Hive { get; set; }
     public UserDto User { get; set; }
     public ApprovalStatus ApprovalStatus { get; set; }
@@ -10,7 +10,7 @@ public class HiveUserDto : IHasIdentifier
 
 public class HiveDto : IHasIdentifier
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public string Name { get; set; }
     public string Description { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

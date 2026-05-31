@@ -32,7 +32,7 @@ public class HiveUserTrigger(HiveMimeContext context) : BaseTrigger<HiveUser>
             return;
 
         bool isApproved = entity.ApprovalStatus.Equals(ApprovalStatus.Approved);
-        int hiveId = entity.HiveId;
+        Guid hiveId = entity.HiveId;
         int change = isApproved ? 1 : -1;
         
         await context.Hives.Where(h => h.Id == hiveId)

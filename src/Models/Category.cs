@@ -10,7 +10,7 @@ public class Category : EntityWithIdentifier
     public int Color { get; set; }
 
     [ForeignKey(nameof(Poll))]
-    public int PollId { get; set; }
+    public Guid PollId { get; set; }
     public Poll? Poll { get; set; }
 
     public int Value { get; set; }

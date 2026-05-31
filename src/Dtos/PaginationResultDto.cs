@@ -7,5 +7,5 @@ public class PaginationResultDto<T>
 public class PaginationCursorDto
 {
     public string Cursor { get; set; }
-    public int Id { get; set; }
+    public Guid Id { get; set; }
 }

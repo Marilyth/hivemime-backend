@@ -2,9 +2,9 @@ public class CommentDto : IHasIdentifier
 {
     public UserDto User { get; set; }
     public MemberRole? Role { get; set; }
-    public int Id { get; set; }
-    public int PostId { get; set; }
-    public int? ParentCommentId { get; set; }
+    public Guid Id { get; set; }
+    public Guid PostId { get; set; }
+    public Guid? ParentCommentId { get; set; }
     public string Content { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
