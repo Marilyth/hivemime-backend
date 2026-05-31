@@ -206,91 +206,94 @@ public class PostService(HiveMimeContext context,
     }
 
     /// <summary>
-    /// Fetches and returns the results of a post, including all its polls.
+    /// Fetches and returns the sum result of a poll, which is the sum of the values of all votes for each candidate.
     /// </summary>
-    /// <param name="postId">The ID of the post to fetch details for.</param>
-    /// <param name="filter">The filter to apply to the post details.</param>
-    public async Task<PostResultDto> GetPostResultAsync(int postId, string filter)
+    /// <param name="pollId">The ID of the poll to fetch results for.</param>
+    /// <param name="filter">The filter to apply to the poll results.</param>
+    public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(int pollId, string filter)
     {
-        // Fetch the results and DTO structure seperately for better performance.
-        PostResultDto resultDto = await context.Posts.Where(p => p.Id == postId)
-            .ProjectToType<PostResultDto>()
-            .FirstAsync();
+        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
 
-        IQueryable<PostVote> filteredVotes = context.PostVotes
-            .Where(v => v.PostId == postId);
-
-        if (!string.IsNullOrWhiteSpace(filter))
-        {
-            VoteQueryBase voteQuery = filter.ToVoteQuery();
-            Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
-            filteredVotes = filteredVotes.Where(v => !v.User.Settings.ProtectVoteOnFilter)
-                .Where(voteExpression);
-        }
-
-        IQueryable<CandidateVote> candidateVotes = filteredVotes.SelectMany(v => v.Votes);
-        Dictionary<int, PollCandidateResultDto> candidateResults = await GetCandidateResultsAsync(candidateVotes);
-
-        // Merge the results into the structure.
-        foreach (PollCandidateResultDto candidateResult in resultDto.Polls.SelectMany(p => p.Candidates))
-        {
-            // Candidates unvoted for will remain default, that is okay.
-            if (candidateResults.TryGetValue(candidateResult.Id, out var dbResult))
+        var sumResults = await candidateVotes
+            .GroupBy(v => v.CandidateId)
+            .Select(g => new CandidateSumResultDto
             {
-                candidateResult.VoterAmount = dbResult.VoterAmount;
-                candidateResult.AverageScore = dbResult.AverageScore;
-                candidateResult.MajorityVote = dbResult.MajorityVote;
-                candidateResult.MajorityRatio = dbResult.MajorityRatio;
-            }
-        }
+                Id = g.Key,
+                TotalScore = g.Sum(v => v.Value)
+            })
+            .ToListAsync();
 
-        // TODO: Add auto polls at this point later.
-
-        return resultDto;
+        return new PollResultDto<CandidateSumResultDto>
+        {
+            Candidates = sumResults
+        };
     }
 
     /// <summary>
-    /// Returns the distribution of votes for a specific candidate. I.e. the number of votes of each of its possible values.
+    /// Fetches and returns a box-plot result of a poll, which includes minimum, first quartile, median, third quartile and maximum of the values of all votes for each candidate.
     /// </summary>
-    /// <param name="candidateId">The ID of the candidate to fetch distribution for.</param>
-    /// <param name="filter">The filter to apply to the candidate votes.</param>
-    public async Task<List<CandidateDistributionDto>> GetCandidateDistributionResultsAsync(int candidateId, string filter)
+    /// <param name="pollId">The ID of the poll to fetch results for.</param>
+    /// <param name="filter">The filter to apply to the poll results.</param>
+    public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(int pollId, string filter)
     {
-        var candidateInfo = await context.Candidates.Where(c => c.Id == candidateId)
-            .Select(c => new { c.Poll.PostId, c.Poll.MaxValue, c.Poll.MinValue, c.Poll.PollType})
-            .FirstAsync();
+        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+        string sql = candidateVotes.ToQueryString();
 
-        VoteQueryBase voteQuery = filter.ToVoteQuery();
-        Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
-
-        // Fetch post and filtered votes seperately for better performance.
-        IQueryable<CandidateVote> filteredVotes = context.PostVotes
+        var statisticsResults = await context.Set<CandidateStatisticsResultDto>().FromSqlInterpolated($@"
+            SELECT 
+                CandidateId AS Id,
+                MIN(Value) AS Min,
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY Value) AS Q1,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY Value) AS Median,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY Value) AS Q3,
+                MAX(Value) AS Max
+            FROM ({sql}) AS CandidateVotes
+            GROUP BY CandidateId")
             .AsNoTracking()
-            .Where(v => v.PostId == candidateInfo.PostId)
-            .Where(voteExpression)
-            .SelectMany(v => v.Votes.Where(cv => cv.CandidateId == candidateId));
+            .ToListAsync();
 
-        IQueryable<IGrouping<int, CandidateVote>> distributionQuery = null;
-
-        if (candidateInfo.PollType == PollType.Score && candidateInfo.MaxValue - candidateInfo.MinValue > 10)
+        return new PollResultDto<CandidateStatisticsResultDto>
         {
-            // Bucket up the votes for score polls because of the large amount of possible values.
-            int stepValue = (int)Math.Ceiling((candidateInfo.MaxValue - candidateInfo.MinValue + 1) / 10.0);
-            distributionQuery = filteredVotes.GroupBy(v => ((v.Value - candidateInfo.MinValue) / stepValue) * stepValue + candidateInfo.MinValue);
-        }
-        else
-        {
-            distributionQuery = filteredVotes.GroupBy(v => v.Value);        
-        }
+            Candidates = statisticsResults
+        };
+    }
 
-        return await distributionQuery
-            .OrderBy(g => g.Key)
-            .Select(g => new CandidateDistributionDto
+    /// <summary>
+    /// Fetches and returns a distribution result of a poll, which includes the frequency of each value for each candidate.
+    /// </summary>
+    /// <param name="pollId">The ID of the poll to fetch results for.</param>
+    /// <param name="filter">The filter to apply to the poll results.</param>
+    public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(int pollId, string filter)
+    {
+        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+
+        var distributionResults = await candidateVotes
+            .GroupBy(v => new { v.CandidateId, v.Value })
+            .Select(g => new
             {
-                Value = g.Key,
-                Score = g.Count(),
+                g.Key.CandidateId,
+                g.Key.Value,
+                Count = g.Count()
             })
             .ToListAsync();
+
+        var groupedResults = distributionResults
+            .GroupBy(r => r.CandidateId)
+            .Select(g => new CandidateDistributionResultDto
+            {
+                Id = g.Key,
+                Distribution = g.Select(r => new CandidationDistributionResultValueDto
+                {
+                    Value = r.Value,
+                    Count = r.Count
+                }).ToList()
+            })
+            .ToList();
+
+        return new PollResultDto<CandidateDistributionResultDto>
+        {
+            Candidates = groupedResults
+        };
     }
 
     /// <summary>
@@ -384,6 +387,23 @@ public class PostService(HiveMimeContext context,
         post.ApprovalStatus = approvalStatus;
 
         await context.SaveChangesAsync();
+    }
+
+    private IQueryable<CandidateVote> GetApplicableVotes(int pollId, string filter)
+    {
+        IQueryable<PostVote> votes = context.PostVotes
+            .Where(v => v.Post.Polls.Any(p => p.Id == pollId));
+
+        if (!string.IsNullOrWhiteSpace(filter))
+        {
+            VoteQueryBase voteQuery = filter.ToVoteQuery();
+            Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
+            votes = votes.Where(v => !v.User.Settings.ProtectVoteOnFilter)
+                .Where(voteExpression);
+        }
+
+        return votes.SelectMany(v => v.Votes)
+            .Where(cv => cv.Candidate.PollId == pollId);
     }
 
     /// <summary>
@@ -573,67 +593,5 @@ public class PostService(HiveMimeContext context,
             if (!uniqueRanks.Contains(rank))
                 yield return $"Ranking poll is missing rank {rank}.";
         }
-    }
-
-    private async Task<Dictionary<int, PollCandidateResultDto>> GetCandidateResultsAsync(IQueryable<CandidateVote> candidateVotes)
-    {
-        // TODO: Split this over multiple DbContexts for parallelization.
-        
-        // Split up the aggregation per aggregation function type.
-        var countCandidates = await candidateVotes
-            .Where(v => v.Candidate.Poll.PollType == PollType.Choice)
-            .GroupBy(v => v.CandidateId)
-            .Select(g => new PollCandidateResultDto
-            {
-                Id = g.Key,
-                VoterAmount = g.Count()
-             })
-             .ToDictionaryAsync(g => g.Id);
-             
-        var averageCandidates = await candidateVotes
-            .Where(v => v.Candidate.Poll.PollType == PollType.Rank || v.Candidate.Poll.PollType == PollType.Score)
-            .GroupBy(v => v.CandidateId)
-            .Select(g => new PollCandidateResultDto
-            {
-                Id = g.Key,
-                VoterAmount = g.Count(),
-                AverageScore = g.Average(v => v.Value)
-             })
-             .ToDictionaryAsync(g => g.Id);
-
-        var majorityCandidates = await candidateVotes
-            .Where(v => v.Candidate.Poll.PollType == PollType.Category)
-            .GroupBy(v => v.CandidateId)
-            .Select(g => new
-            {
-                Id = g.Key,
-                Total = g.Count(),
-                // SQL is unable to drill down a grouping to get the majority. We need to fetch the distribution.
-                Distribution = g
-                    .GroupBy(x => x.Value)
-                    .Select(x => new { Value = x.Key, Count = x.Count() })
-            })
-            .ToListAsync()
-            .ContinueWith(t => t.Result.ToDictionary(x => x.Id, x =>
-            {
-                var majorityVote = x.Distribution.OrderByDescending(d => d.Count).First();
-                return new PollCandidateResultDto
-                {
-                    Id = x.Id,
-                    VoterAmount = x.Total,
-                    MajorityVote = majorityVote.Value,
-                    MajorityRatio = (double)majorityVote.Count / x.Total
-                };
-            }));
-        
-        var results = new Dictionary<int, PollCandidateResultDto>();
-
-        foreach (var task in new[] { countCandidates, averageCandidates, majorityCandidates })
-        {
-            foreach (var kvp in task)
-                results[kvp.Key] = kvp.Value;
-        }
-
-        return results;
     }
 }

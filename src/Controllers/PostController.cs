@@ -30,13 +30,17 @@ public class PostController(PostService postService, HiveMimeContext context) : 
     public async Task ModifyPost(int postId, ApprovalStatus approvalStatus)
         => await postService.ModifyPostAsync(await User.GetUserIdAsync(context), postId, approvalStatus);
 
-    [HttpGet("results")]
-    public async Task<PostResultDto> GetPostResults(int postId, string? filter)
-        => await postService.GetPostResultAsync(postId, filter);
+    [HttpGet("sumResult")]
+    public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(int pollId, string? filter)
+        => await postService.GetPollSumResult(pollId, filter);
 
-    [HttpGet("distribution")]
-    public async Task<List<CandidateDistributionDto>> GetCandidateResult(int candidateId, string? filter)
-        => await postService.GetCandidateDistributionResultsAsync(candidateId, filter);
+    [HttpGet("statisticsResult")]
+    public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(int pollId, string? filter)
+        => await postService.GetPollStatisticsResult(pollId, filter);
+
+    [HttpGet("distributionResult")]
+    public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(int pollId, string? filter)
+        => await postService.GetPollDistributionResult(pollId, filter);
 
     [HttpPost("vote")]
     public async Task<HoneyDeltaDto<bool>> UpsertVoteToPost([FromBody] PostVoteDto vote)

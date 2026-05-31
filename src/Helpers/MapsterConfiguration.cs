@@ -33,17 +33,11 @@ public static class MapsterConfiguration
     {
         _config.NewConfig<Candidate, CandidateDto>()
             .Map(dest => dest.MediaKeys, src => src.MediaKeys.Select(m => "https://media.mayiscoding.com/" + m));
-
-        _config.NewConfig<Candidate, PollCandidateResultDto>()
-            .Map(dest => dest.MediaKeys, src => src.MediaKeys.Select(m => "https://media.mayiscoding.com/" + m));
     }
 
     private static void ConfigurePoll()
     {
         _config.NewConfig<Poll, PollDto>()
-            .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m));
-
-        _config.NewConfig<Poll, PollResultDto>()
             .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m));
     }
 
