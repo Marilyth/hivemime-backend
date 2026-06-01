@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Text.RegularExpressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
@@ -231,7 +232,7 @@ public class PostService(HiveMimeContext context,
             .Select(g => new CandidateSumResultDto
             {
                 Id = g.Key,
-                TotalScore = g.Sum(v => v.Value)
+                VoteCount = g.Sum(v => v.Value)
             })
             .ToListAsync();
 
@@ -251,17 +252,25 @@ public class PostService(HiveMimeContext context,
         IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
         string sql = candidateVotes.ToQueryString();
 
-        var statisticsResults = await context.Set<CandidateStatisticsResultDto>().FromSqlInterpolated($@"
+        Dictionary<string, string> parameters = Regex.Matches(sql, @"-- (@\w+)=(.+)")
+            .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.TrimEnd());
+
+        foreach (var param in parameters)
+            sql = sql.Replace(param.Key, param.Value);
+
+        var statisticsResults = await context.Database.SqlQueryRaw<CandidateStatisticsResultDto>($"""
             SELECT 
-                CandidateId AS Id,
-                MIN(Value) AS Min,
-                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY Value) AS Q1,
-                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY Value) AS Median,
-                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY Value) AS Q3,
-                MAX(Value) AS Max
-            FROM ({sql}) AS CandidateVotes
-            GROUP BY CandidateId")
-            .AsNoTracking()
+                "CandidateId" AS "Id",
+                MIN("Value") AS "Min",
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "Value") AS "Q1",
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "Value") AS "Median",
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY "Value") AS "Q3",
+                MAX("Value") AS "Max",
+                AVG("Value") AS "Average",
+                Count(*) AS "VoteCount"
+            FROM ({sql}) AS "CandidateVotes"
+            GROUP BY "CandidateId"
+            """)
             .ToListAsync();
 
         return new PollResultDto<CandidateStatisticsResultDto>
@@ -294,10 +303,11 @@ public class PostService(HiveMimeContext context,
             .Select(g => new CandidateDistributionResultDto
             {
                 Id = g.Key,
+                VoteCount = g.Sum(r => r.Count),
                 Distribution = g.Select(r => new CandidationDistributionResultValueDto
                 {
                     Value = r.Value,
-                    Count = r.Count
+                    VoteCount = r.Count
                 }).ToList()
             })
             .ToList();
