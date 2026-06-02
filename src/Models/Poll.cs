@@ -11,7 +11,6 @@ public class Poll : EntityWithIdentifier
 
     public bool AllowCustomAnswer { get; set; }
     public bool IsShuffled { get; set; }
-    public bool IsOptional { get; set; }
 
     public int MinValue { get; set; }
     public int MaxValue { get; set; }

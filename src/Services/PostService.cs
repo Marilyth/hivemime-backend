@@ -232,7 +232,8 @@ public class PostService(HiveMimeContext context,
             .Select(g => new CandidateSumResultDto
             {
                 Id = g.Key,
-                VoteCount = g.Sum(v => v.Value)
+                Sum = g.Sum(v => v.Value),
+                VoteCount = g.Count()
             })
             .ToListAsync();
 
@@ -366,7 +367,7 @@ public class PostService(HiveMimeContext context,
                 CandidateVote dbVote = postVote.Votes.FirstOrDefault(v => v.CandidateId == candidateVote.Id);
 
                 // The user did not vote for the candidate.
-                if (candidateVote.Value is null)
+                if (candidateVote.Value is null && post.Polls.First(p => p.Id == pollVote.Id).PollType != PollType.Choice)
                 {
                     if (dbVote is not null)
                         context.CandidateVotes.Remove(dbVote);
@@ -386,7 +387,7 @@ public class PostService(HiveMimeContext context,
                     postVote.Votes.Add(dbVote);
                 }
 
-                dbVote.Value = candidateVote.Value.Value;
+                dbVote.Value = candidateVote.Value ?? 0;
             }
         }
 
@@ -499,7 +500,7 @@ public class PostService(HiveMimeContext context,
 
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
-        dto.MinVotes = Math.Clamp(dto.MinVotes, 1, dto.Candidates.Count);
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, dto.Candidates.Count);
 
         if (dto.MaxVotes == -1)
             dto.MaxVotes = dto.Candidates.Count;
@@ -552,13 +553,9 @@ public class PostService(HiveMimeContext context,
             yield break;
         }
 
-        foreach ((Poll poll, PollVoteDto pollVote) in post.Polls.Zip(postVote.Polls))
+        foreach (Poll poll in post.Polls)
         {
-            if (!poll.IsOptional && pollVote.Candidates.All(v => !v.Value.HasValue))
-            {
-                yield return $"Voting on the poll is required.";
-                continue;
-            }
+            PollVoteDto? pollVote = postVote.Polls.First(pv => pv.Id == poll.Id);
 
             foreach (string error in ValidateVote(poll, pollVote!))
                 yield return error;
@@ -567,7 +564,7 @@ public class PostService(HiveMimeContext context,
 
     private IEnumerable<string> ValidateVote(Poll poll, PollVoteDto pollVote)
     {
-        int votesCount = pollVote.Candidates.Count(v => v.Value.HasValue);
+        int votesCount = pollVote.Candidates.Count(v => v.Value.HasValue && (poll.PollType != PollType.Choice || v.Value.Value != 0));
 
         // General validation.
         if (pollVote.Candidates.Count != poll.Candidates.Count)

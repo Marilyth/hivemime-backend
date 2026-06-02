@@ -11,6 +11,7 @@ public class CandidateResultDto
 
 public class CandidateSumResultDto : CandidateResultDto
 {
+    public int Sum { get; set; }
 }
 
 public class CandidateStatisticsResultDto : CandidateResultDto
