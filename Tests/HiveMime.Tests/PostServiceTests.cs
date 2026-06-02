@@ -295,125 +295,6 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task GetPostResultAsync_WithScoreVotes_AggregatesCorrectly()
-    {
-        // Arrange
-        var candidate = _scorePost!.Polls[0].Candidates[0];
-
-        // Add votes across the range
-        await AddVotesToCandidate(candidate.Id, _scorePost.Id, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]);
-
-        // Act
-        var result = await _service.GetPostResultAsync(_scorePost.Id, "");
-
-        // Assert
-        Assert.Equal(50, result.Polls[0].Candidates[0].AverageScore);
-        Assert.Equal(10, result.Polls[0].Candidates[0].VoterAmount);
-        Assert.Null(result.Polls[1].Candidates[0].AverageScore);
-        Assert.Equal(0, result.Polls[1].Candidates[0].VoterAmount);
-    }
-
-    [Fact]
-    public async Task GetPostResultAsync_WithCategoryVotes_AggregatesCorrectly()
-    {
-        // Arrange
-        await AddVotesToCandidate(_categoryPost!.Polls[0].Candidates[0].Id, _categoryPost.Id, [0, 0, 0, 0, 0, 0, 1, 1, 1, 1]);
-
-        // Act
-        var result = await _service.GetPostResultAsync(_categoryPost.Id, "");
-
-        // Assert
-        Assert.Equal(0, result.Polls[0].Candidates[0].MajorityVote);
-        Assert.NotNull(result.Polls[0].Candidates[0].MajorityRatio);
-        Assert.Equal(0.6, result.Polls[0].Candidates[0].MajorityRatio!.Value, 4);
-    }
-
-    [Fact]
-    public async Task GetPostResultAsync_WithChoiceVotes_AggregatesCorrectly()
-    {
-        // Arrange
-        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, [1, 1, 1, 1]);
-        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[1].Id, _defaultPost.Id, [1, 1]);
-
-        // Act
-        var result = await _service.GetPostResultAsync(_defaultPost.Id, "");
-
-        // Assert
-        Assert.Equal(4, result.Polls[0].Candidates[0].VoterAmount);
-        Assert.Equal(2, result.Polls[0].Candidates[1].VoterAmount);
-    }
-
-    [Fact]
-    public async Task GetCandidateDistributionResultsAsync_ScoreWithLargeRange_BucketsValues()
-    {
-        // Arrange
-        var candidate = _scorePost!.Polls[0].Candidates[0];
-
-        // Add votes across the range
-        await AddVotesToCandidate(candidate.Id, _scorePost.Id, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]);
-
-        // Act
-        var result = await _service.GetCandidateDistributionResultsAsync(candidate.Id, "");
-
-        // Assert
-        Assert.Equal(10, result.Count); // Should create 10 buckets
-        Assert.All(result, r => Assert.Equal(1, r.Score)); // Each bucket should have 1 vote
-    }
-
-    [Fact]
-    public async Task GetCandidateDistributionResultsAsync_ScoreWithSmallRange_NoBucketing()
-    {
-        // Arrange
-        var candidate = _scorePost!.Polls[1].Candidates[0]; // Use small range score poll
-
-        // Add votes
-        await AddVotesToCandidate(candidate.Id, _scorePost.Id, [1, 1, 2, 2, 3]);
-
-        // Act
-        var result = await _service.GetCandidateDistributionResultsAsync(candidate.Id, "");
-
-        // Assert
-        Assert.Equal(3, result.Count); // Should have 3 distinct values
-        Assert.Equal(2, result.First().Score); // Value 1 should have 2 votes
-        Assert.Equal(2, result.Skip(1).First().Score); // Value 2 should have 2 votes  
-        Assert.Equal(1, result.Last().Score); // Value 3 should have 1 vote
-    }
-
-    [Fact]
-    public async Task GetCandidateDistributionResultsAsync_NoVotes_ReturnsEmpty()
-    {
-        // Arrange
-        var candidate = _defaultPost!.Polls[0].Candidates[0];
-
-        // Act
-        var result = await _service.GetCandidateDistributionResultsAsync(candidate.Id, "");
-
-        // Assert
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public async Task GetCandidateDistributionResultsAsync_OrderedByKey_ReturnsInOrder()
-    {
-        // Arrange
-        var candidate = _scorePost!.Polls[1].Candidates[0]; // Use small range score poll
-        
-        // Add votes in random order
-        await AddVotesToCandidate(candidate.Id, _scorePost.Id, [3, 1, 5, 2, 4]);
-
-        // Act
-        var result = await _service.GetCandidateDistributionResultsAsync(candidate.Id, "");
-
-        // Assert
-        Assert.Equal(5, result.Count);
-        // Results should be ordered by value (1, 2, 3, 4, 5)
-        for (int i = 0; i < result.Count - 1; i++)
-        {
-            Assert.True(result[i].Score <= result[i + 1].Score || i == 0); // First might not follow pattern due to grouping
-        }
-    }
-
-    [Fact]
     public async Task BrowsePosts_OrderByHotness_ReturnsOrdered()
     {
         // Arrange
@@ -496,7 +377,85 @@ public class PostServiceTests : IntegrationTest
         Assert.Equal(1, updated.CommentCount);
     }
 
-    private async Task AddVotesToCandidate(int candidateId, int postId, int[] values)
+    [Fact]
+    public async Task GetPollSumResult_ReturnsExpectedSumsPerCandidate()
+    {
+        // Arrange
+        var post = AddPost();
+        var poll = post.Polls[0];
+        var candidate1 = poll.Candidates[0];
+        var candidate2 = poll.Candidates[1];
+
+        await AddVotesToCandidate(candidate1.Id, post.Id, [1, 2, 3]);
+        await AddVotesToCandidate(candidate2.Id, post.Id, [4, 5]);
+
+        // Act
+        var result = await _service.GetPollSumResult(poll.Id, string.Empty);
+
+        // Assert
+        Assert.Equal(2, result.Candidates.Count);
+
+        var candidate1Result = Assert.Single(result.Candidates.Where(c => c.Id == candidate1.Id));
+        var candidate2Result = Assert.Single(result.Candidates.Where(c => c.Id == candidate2.Id));
+
+        Assert.Equal(6, candidate1Result.Sum);
+        Assert.Equal(3, candidate1Result.VoteCount);
+
+        Assert.Equal(9, candidate2Result.Sum);
+        Assert.Equal(2, candidate2Result.VoteCount);
+    }
+
+    [Fact]
+    public async Task GetPollStatisticsResult_ReturnsExpectedPercentilesAndAverage()
+    {
+        // Arrange
+        var post = AddPost();
+        var poll = post.Polls[0];
+        var candidate = poll.Candidates[0];
+
+        await AddVotesToCandidate(candidate.Id, post.Id, [1, 2, 3, 4]);
+
+        // Act
+        var result = await _service.GetPollStatisticsResult(poll.Id, string.Empty);
+
+        // Assert
+        var candidateResult = Assert.Single(result.Candidates);
+        Assert.Equal(candidate.Id, candidateResult.Id);
+        Assert.Equal(4, candidateResult.VoteCount);
+        Assert.Equal(1d, candidateResult.Min, 6);
+        Assert.Equal(1.75d, candidateResult.Q1, 6);
+        Assert.Equal(2.5d, candidateResult.Median, 6);
+        Assert.Equal(3.25d, candidateResult.Q3, 6);
+        Assert.Equal(4d, candidateResult.Max, 6);
+        Assert.Equal(2.5d, candidateResult.Average, 6);
+    }
+
+    [Fact]
+    public async Task GetPollDistributionResult_ReturnsExpectedValueFrequencies()
+    {
+        // Arrange
+        var post = AddPost();
+        var poll = post.Polls[0];
+        var candidate = poll.Candidates[0];
+
+        await AddVotesToCandidate(candidate.Id, post.Id, [1, 1, 2, 3, 3, 3]);
+
+        // Act
+        var result = await _service.GetPollDistributionResult(poll.Id, string.Empty);
+
+        // Assert
+        var candidateResult = Assert.Single(result.Candidates);
+        Assert.Equal(candidate.Id, candidateResult.Id);
+        Assert.Equal(6, candidateResult.VoteCount);
+
+        var distribution = candidateResult.Distribution.ToDictionary(d => d.Value, d => d.VoteCount);
+        Assert.Equal(3, distribution.Count);
+        Assert.Equal(2, distribution[1]);
+        Assert.Equal(1, distribution[2]);
+        Assert.Equal(3, distribution[3]);
+    }
+
+    private async Task AddVotesToCandidate(Guid candidateId, Guid postId, int[] values)
     {
         // Create separate users for each vote to simulate different users voting
         for (int i = 0; i < values.Length; i++)

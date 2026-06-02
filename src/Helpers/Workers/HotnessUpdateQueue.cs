@@ -2,10 +2,10 @@ using System.Collections.Concurrent;
 
 public class HotnessUpdateQueue
 {
-    private ConcurrentQueue<int> PostQueue = new ConcurrentQueue<int>();
-    private ConcurrentDictionary<int, byte> PostsToUpdate = new ConcurrentDictionary<int, byte>();
+    private ConcurrentQueue<Guid> PostQueue = new ConcurrentQueue<Guid>();
+    private ConcurrentDictionary<Guid, byte> PostsToUpdate = new ConcurrentDictionary<Guid, byte>();
 
-    public void EnqueuePosts(IEnumerable<int> postIds)
+    public void EnqueuePosts(IEnumerable<Guid> postIds)
     {
         foreach (var postId in postIds)
         {
@@ -17,11 +17,11 @@ public class HotnessUpdateQueue
         }
     }
 
-    public List<int> DequeuePosts(int amount)
+    public List<Guid> DequeuePosts(int amount)
     {
-        List<int> posts = new List<int>();
+        List<Guid> posts = new List<Guid>();
 
-        while (posts.Count < amount && PostQueue.TryDequeue(out int postId))
+        while (posts.Count < amount && PostQueue.TryDequeue(out Guid postId))
         {
             posts.Add(postId);
             PostsToUpdate.TryRemove(postId, out _);

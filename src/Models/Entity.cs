@@ -3,13 +3,13 @@ using Microsoft.EntityFrameworkCore;
 
 public interface IHasIdentifier
 {
-    int Id { get; set; }
+    Guid Id { get; set; }
 }
 
 public abstract class EntityWithIdentifier : Entity, IHasIdentifier
 {
     [Key]
-    public int Id { get; set; }
+    public Guid Id { get; set; }
 }
 
 [Index(nameof(CreatedAt))]

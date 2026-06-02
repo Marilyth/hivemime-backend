@@ -8,15 +8,15 @@ public class Comment : EntityWithIdentifier
     public List<Comment> Replies { get; set; } = [];
 
     [ForeignKey(nameof(User))]
-    public int UserId { get; set; }
+    public Guid UserId { get; set; }
     public User? User { get; set; }
 
     [ForeignKey(nameof(Post))]
-    public int PostId { get; set; }
+    public Guid PostId { get; set; }
     public Post? Post { get; set; }
 
     [ForeignKey(nameof(ParentComment))]
-    public int? ParentCommentId { get; set; }
+    public Guid? ParentCommentId { get; set; }
     public Comment? ParentComment { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }

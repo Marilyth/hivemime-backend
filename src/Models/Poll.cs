@@ -11,7 +11,6 @@ public class Poll : EntityWithIdentifier
 
     public bool AllowCustomAnswer { get; set; }
     public bool IsShuffled { get; set; }
-    public bool IsOptional { get; set; }
 
     public int MinValue { get; set; }
     public int MaxValue { get; set; }
@@ -29,8 +28,10 @@ public class Poll : EntityWithIdentifier
     public List<Category> Categories { get; set; } = [];
 
     [ForeignKey(nameof(Post))]
-    public int PostId { get; set; }
+    public Guid PostId { get; set; }
     public Post? Post { get; set; }
+    
+    public int Order { get; set; }
 }
 
 public enum PollType

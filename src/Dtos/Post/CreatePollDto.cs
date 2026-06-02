@@ -4,7 +4,6 @@ public class CreatePollDto
     public string? Description { get; set; }
     public UploadMediaRequestDto? Media { get; set; }
     public bool IsShuffled { get; set; }
-    public bool IsOptional { get; set; }
 
     public int MinValue { get; set; }
     public int MaxValue { get; set; }

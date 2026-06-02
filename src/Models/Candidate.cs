@@ -10,8 +10,9 @@ public class Candidate : EntityWithIdentifier
     public List<string> MediaKeys { get; set; } = [];
 
     [ForeignKey(nameof(Poll))]
-    public int PollId { get; set; }
+    public Guid PollId { get; set; }
     public Poll? Poll { get; set; }
 
     public List<CandidateVote> Votes { get; set; }
+    public int Order { get; set; }
 }

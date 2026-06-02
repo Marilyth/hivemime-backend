@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 public class AuthorizationService(HiveMimeContext context)
 {
-    public async Task VerifyViewHiveUsersAsync(int userId, int hiveId)
+    public async Task VerifyViewHiveUsersAsync(Guid userId, Guid hiveId)
     {
         HiveUser hiveUser = await context.HiveUsers.FirstOrExceptionAsync(h => h.HiveId == hiveId && h.UserId == userId);
         MemberRole effectiveRole = GetEffectiveRole(hiveUser.ApprovalStatus, hiveUser.Role);
@@ -11,7 +11,7 @@ public class AuthorizationService(HiveMimeContext context)
             throw new UnauthorizedAccessException("You do not have permission to view the users of this hive.");
     }
 
-    public async Task VerifyModifyHiveUserAsync(int assignerId, int hiveUserId, MemberRole role)
+    public async Task VerifyModifyHiveUserAsync(Guid assignerId, Guid hiveUserId, MemberRole role)
     {
         List<HiveUser> users = await context.HiveUsers.Where(h => h.Id == hiveUserId || h.UserId == assignerId)
             .ToListAsync();
@@ -38,7 +38,7 @@ public class AuthorizationService(HiveMimeContext context)
             throw new ValidationException("Roles can not be changed to or from Guests.");
     }
 
-    public async Task VerifyBanHiveUserAsync(int assignerId, int userId, int hiveId)
+    public async Task VerifyBanHiveUserAsync(Guid assignerId, Guid userId, Guid hiveId)
     {
         List<HiveUser> users = await context.HiveUsers.Where(h => h.HiveId == hiveId && (h.UserId == assignerId || h.UserId == userId))
             .ToListAsync();
@@ -56,7 +56,7 @@ public class AuthorizationService(HiveMimeContext context)
             throw new UnauthorizedAccessException("You cannot ban a user with an equal or higher role than your own.");
     }
 
-    public async Task VerifyLeaveHiveAsync(int assignerId, int hiveUserId)
+    public async Task VerifyLeaveHiveAsync(Guid assignerId, Guid hiveUserId)
     {
         HiveUser user = await context.HiveUsers.FirstOrExceptionAsync(u => u.Id == hiveUserId);
         MemberRole effectiveRole = GetEffectiveRole(user.ApprovalStatus, user.Role);
@@ -68,7 +68,7 @@ public class AuthorizationService(HiveMimeContext context)
             throw new ValidationException("The creator of the hive cannot leave it.");
     }
 
-    public async Task VerifyJoinHiveAsync(int userId, int hiveId)
+    public async Task VerifyJoinHiveAsync(Guid userId, Guid hiveId)
     {
         double minHoneyToJoin = await context.Hives.Where(h => h.Id == hiveId)
             .Select(h => h.Settings.MinHoneyToJoin)
@@ -91,7 +91,7 @@ public class AuthorizationService(HiveMimeContext context)
             throw new ValidationException("You have already joined this hive.");
     }
 
-    public async Task VerifyApprovePostsAsync(int userId, int hiveId)
+    public async Task VerifyApprovePostsAsync(Guid userId, Guid hiveId)
     {
         var user = await context.HiveUsers.Where(h => h.HiveId == hiveId && h.UserId == userId)
             .Select(h => new { h.ApprovalStatus, h.Role })
@@ -103,7 +103,7 @@ public class AuthorizationService(HiveMimeContext context)
             throw new UnauthorizedAccessException("You do not have permission to approve posts in this hive.");
     }
 
-    public async Task VerifyApprovePostAsync(int userId, int postId)
+    public async Task VerifyApprovePostAsync(Guid userId, Guid postId)
     {
         var user = await context.Posts.Where(p => p.Id == postId)
             .SelectMany(p => p.Hive.Users.Where(h => h.UserId == userId))
@@ -116,13 +116,13 @@ public class AuthorizationService(HiveMimeContext context)
             throw new UnauthorizedAccessException("You do not have permission to approve this post.");
     }
 
-    public async Task VerifyVoteOnPostAsync(int userId, int postId)
+    public async Task VerifyVoteOnPostAsync(Guid userId, Guid postId)
     {
         if (!await context.Posts.AnyAsync(p => p.Id == postId && (p.VotingLockedAt == null || p.VotingLockedAt > DateTimeOffset.UtcNow)))
             throw new ValidationException("You can not vote on this post.");
     }
 
-    public async Task VerifyCreatePostAsync(int userId, int? hiveId)
+    public async Task VerifyCreatePostAsync(Guid userId, Guid? hiveId)
     {
         if (hiveId == null)
             return;
@@ -161,13 +161,13 @@ public class AuthorizationService(HiveMimeContext context)
                 $"Posting on this hive requires at least {hive.MinHoneyToPost} honey.");
     }
 
-    public async Task VerifyDeletePostAsync(int userId, int postId)
+    public async Task VerifyDeletePostAsync(Guid userId, Guid postId)
     {
         if (!await context.Posts.AnyAsync(p => p.Id == postId && p.CreatorId == userId))
             throw new UnauthorizedAccessException("Posts can only be deleted by their creator.");
     }
 
-    public async Task VerifyCreateCommentAsync(int userId, int postId)
+    public async Task VerifyCreateCommentAsync(Guid userId, Guid postId)
     {
         var user = await context.Users.Where(u => u.Id == userId)
             .Select(u => new
@@ -206,7 +206,7 @@ public class AuthorizationService(HiveMimeContext context)
                 $"Commenting on this hive requires at least {post.MinHoneyToComment} honey.");
     }
 
-    public async Task VerifyDeleteCommentAsync(int userId, int commentId)
+    public async Task VerifyDeleteCommentAsync(Guid userId, Guid commentId)
     {
         Comment comment = await context.Comments.FirstOrExceptionAsync(c => c.Id == commentId);
 
@@ -224,13 +224,13 @@ public class AuthorizationService(HiveMimeContext context)
             throw new UnauthorizedAccessException("You do not have permission to delete this comment.");
     }
 
-    public async Task VerifyCreateHiveAsync(int userId)
+    public async Task VerifyCreateHiveAsync(Guid userId)
     {
         if (!await context.Users.AnyAsync(u => u.Id == userId && u.IsVerified))
             throw new UnauthorizedAccessException("You need to have a verified account to create a hive.");
     }
 
-    public async Task VerifyEditHiveAsync(int userId, int hiveId)
+    public async Task VerifyEditHiveAsync(Guid userId, Guid hiveId)
     {
         HiveUser hiveUser = await context.HiveUsers.FirstOrExceptionAsync(h => h.HiveId == hiveId && h.UserId == userId);
         MemberRole effectiveRole = GetEffectiveRole(hiveUser.ApprovalStatus, hiveUser.Role);

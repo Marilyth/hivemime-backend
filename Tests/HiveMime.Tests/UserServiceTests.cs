@@ -34,7 +34,7 @@ public class UserServiceTests : IntegrationTest
     public async Task GetUserDetailsAsync_NonExistingUser_ThrowsException()
     {
         // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => _service.GetUserDetailsAsync(999));
+        await Assert.ThrowsAnyAsync<Exception>(() => _service.GetUserDetailsAsync(Guid.NewGuid()));
     }
 
     [Fact]

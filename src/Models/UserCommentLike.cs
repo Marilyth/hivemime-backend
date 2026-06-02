@@ -5,6 +5,6 @@ using Microsoft.EntityFrameworkCore;
 public class UserCommentLike : Like
 {
     [ForeignKey(nameof(Comment))]
-    public int CommentId { get; set; }
+    public Guid CommentId { get; set; }
     public Comment? Comment { get; set; }
 }

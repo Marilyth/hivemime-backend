@@ -33,24 +33,21 @@ public static class MapsterConfiguration
     {
         _config.NewConfig<Candidate, CandidateDto>()
             .Map(dest => dest.MediaKeys, src => src.MediaKeys.Select(m => "https://media.mayiscoding.com/" + m));
-
-        _config.NewConfig<Candidate, PollCandidateResultDto>()
-            .Map(dest => dest.MediaKeys, src => src.MediaKeys.Select(m => "https://media.mayiscoding.com/" + m));
     }
 
     private static void ConfigurePoll()
     {
         _config.NewConfig<Poll, PollDto>()
-            .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m));
-
-        _config.NewConfig<Poll, PollResultDto>()
-            .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m));
+            .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m))
+            .Map(dest => dest.Candidates, src => src.Candidates.OrderBy(c => c.Order))
+            .Map(dest => dest.Categories, src => src.Categories.OrderBy(c => c.Order));
     }
 
     private static void ConfigurePost()
     {
         _config.NewConfig<Post, PostDto>()
             .Map(dest => dest.Role, src => src.Creator.JoinedHives.FirstOrDefault(m => m.HiveId == src.Hive.Id &&
-                m.ApprovalStatus == ApprovalStatus.Approved).Role);
+                m.ApprovalStatus == ApprovalStatus.Approved).Role)
+            .Map(dest => dest.Polls, src => src.Polls.OrderBy(p => p.Order));
     }
 }

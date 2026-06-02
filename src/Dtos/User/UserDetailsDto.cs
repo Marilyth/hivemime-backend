@@ -1,6 +1,6 @@
 public class UserDetailsDto
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public string Username { get; set; }
     public double Honey {get; set;}
     public bool IsVerified { get; set; }

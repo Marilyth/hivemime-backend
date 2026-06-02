@@ -14,7 +14,7 @@ public class HotnessUpdater : BaseWorker
     {
         const int batchSize = 1000;
 
-        List<int> postsToUpdate = updateQueue.DequeuePosts(batchSize);
+        List<Guid> postsToUpdate = updateQueue.DequeuePosts(batchSize);
 
         if (postsToUpdate.Count == 0)
             return;

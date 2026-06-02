@@ -1,5 +1,5 @@
 public class CreatePostDto
 {
-    public int? HiveId { get; set; }
+    public Guid? HiveId { get; set; }
     public List<CreatePollDto> Polls { get; set; }
 }

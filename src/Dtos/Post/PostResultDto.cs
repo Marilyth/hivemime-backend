@@ -1,23 +1,36 @@
-public class PostResultDto
+public class PollResultDto<T> : PollDto
 {
-    public List<PollResultDto> Polls { get; set; }
+    public new List<T> Candidates { get; set; }
 }
 
-public class PollResultDto : PollDto
+public class CandidateResultDto
 {
-    public new List<PollCandidateResultDto> Candidates { get; set; }
+    public Guid Id { get; set; }
+    public int VoteCount { get; set; }
 }
 
-public class PollCandidateResultDto : CandidateDto
+public class CandidateSumResultDto : CandidateResultDto
 {
-    public int VoterAmount { get; set; }
-    public double? AverageScore { get; set; }
-    public int? MajorityVote { get; set; }
-    public double? MajorityRatio { get; set; }
+    public int Sum { get; set; }
 }
 
-public class CandidateDistributionDto
+public class CandidateStatisticsResultDto : CandidateResultDto
 {
-    public int Value { get; set; }
-    public int Score { get; set; }
+    public double Min { get; set; }
+    public double Q1 { get; set; }
+    public double Median { get; set; }
+    public double Q3 { get; set; }
+    public double Max { get; set; }
+    public double Average { get; set; }
+}
+
+public class CandidateDistributionResultDto : CandidateResultDto
+{
+    public List<CandidationDistributionResultValueDto> Distribution { get; set; }
+}
+
+public class CandidationDistributionResultValueDto
+{
+    public double Value { get; set; }
+    public int VoteCount { get; set; }
 }

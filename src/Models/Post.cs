@@ -17,11 +17,11 @@ public class Post : EntityWithIdentifier
     public DateTimeOffset? CommentingLockedAt { get; set; }
 
     [ForeignKey(nameof(Creator))]
-    public int CreatorId { get; set; }
+    public Guid CreatorId { get; set; }
     public User Creator { get; set; }
 
     [ForeignKey(nameof(Hive))]
-    public int? HiveId { get; set; }
+    public Guid? HiveId { get; set; }
     public Hive? Hive { get; set; }
 
     public ApprovalStatus ApprovalStatus { get; set; }

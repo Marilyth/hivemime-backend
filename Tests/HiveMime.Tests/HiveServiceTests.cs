@@ -161,12 +161,11 @@ public class HiveServiceTests : IntegrationTest
 
         // Act
         var result = await _service.CreateHiveAsync(_defaultUser!.Id, hiveDto);
-        var membership = await Context.HiveUsers.FirstOrDefaultAsync(h => h.HiveId == result.Id && h.UserId == _defaultUser.Id);
 
         // Assert
-        Assert.NotNull(membership);
-        Assert.Equal(MemberRole.Creator, membership!.Role);
-        Assert.Equal(ApprovalStatus.Approved, membership.ApprovalStatus);
+        Assert.NotNull(result);
+        Assert.Equal(MemberRole.Creator, result!.Role);
+        Assert.Equal(ApprovalStatus.Approved, result.ApprovalStatus);
     }
 
     [Fact]

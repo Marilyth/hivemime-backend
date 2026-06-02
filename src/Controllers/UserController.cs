@@ -37,7 +37,7 @@ public class UserController(UserService userService, HiveMimeContext context, IO
         => await userService.BrowseUsersAsync(pagination);
 
     [HttpGet("profile")]
-    public async Task<UserProfileDto> GetUserProfile(int userId)
+    public async Task<UserProfileDto> GetUserProfile(Guid userId)
         => await userService.GetUserProfileAsync(userId);
 
     [HttpGet("login")]

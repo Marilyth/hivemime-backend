@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Text.RegularExpressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +13,7 @@ public class PostService(HiveMimeContext context,
     /// Fetches and returns a post by its ID, including all its polls and candidates.
     /// </summary>
     /// <param name="postId">The ID of the post to fetch.</param>
-    public async Task<PostDto> GetPostAsync(int postId)
+    public async Task<PostDto> GetPostAsync(Guid postId)
     {
         return await context.Posts
             .AsNoTracking()
@@ -28,7 +29,7 @@ public class PostService(HiveMimeContext context,
     /// <param name="hiveId">The ID of the hive to fetch posts from.</param>
     /// <param name="pagination">The pagination parameters.</param>
     /// <param name="status">The approval status to filter posts by.</param>
-    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(int userId, int? creatorId, int? hiveId, PostPaginationDto pagination, ApprovalStatus status)
+    public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(Guid userId, Guid? creatorId, Guid? hiveId, PostPaginationDto pagination, ApprovalStatus status)
     {
         IQueryable<Post> posts = context.Posts
             .Where(p => !p.IsDraft && p.ApprovalStatus == status)
@@ -71,7 +72,7 @@ public class PostService(HiveMimeContext context,
     /// <param name="postId">The ID of the post to modify.</param>
     /// <param name="newStatus">The new approval status for the post.</param>
     /// <returns>The modified post.</returns>
-    public async Task<PostDto> ModifyPostStatusAsync(int userId, int postId, ApprovalStatus newStatus)
+    public async Task<PostDto> ModifyPostStatusAsync(Guid userId, Guid postId, ApprovalStatus newStatus)
     {
         await authorizationService.VerifyApprovePostAsync(userId, postId);
         Post post = await context.Posts.FirstOrExceptionAsync(p => p.Id == postId);
@@ -94,7 +95,7 @@ public class PostService(HiveMimeContext context,
     /// <returns>True if the post was successfully published; otherwise, false.</returns>
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not the creator of the post.</exception>
     /// <exception cref="ValidationException">Thrown if the post is already published.</exception>
-    public async Task<HoneyDeltaDto<PostDto>> PublishPostAsync(int userId, int postId)
+    public async Task<HoneyDeltaDto<PostDto>> PublishPostAsync(Guid userId, Guid postId)
     {
         Post post = await context.Posts
             .Include(p => p.Polls)
@@ -119,7 +120,7 @@ public class PostService(HiveMimeContext context,
 
             if (keyParts.Length == 4)
             {
-                int pollId = int.Parse(keyParts[2]);
+                Guid pollId = Guid.Parse(keyParts[2]);
                 Poll poll = post.Polls.First(p => p.Id == pollId);
 
                 poll.MediaKeys.Add(uploadedFile);
@@ -127,10 +128,10 @@ public class PostService(HiveMimeContext context,
 
             else if (keyParts.Length == 5)
             {
-                int pollId = int.Parse(keyParts[2]);
-                int candidateId = int.Parse(keyParts[3]);
+                Guid pollId = Guid.Parse(keyParts[2]);
+                Guid candidateId = Guid.Parse(keyParts[3]);
                 Poll poll = post.Polls.First(p => p.Id == pollId);
-                Candidate candidate = poll.Candidates.First(c => c.Id == candidateId);
+                Candidate candidate = poll.Candidates.FirstOrDefault(c => c.Id == candidateId);
 
                 candidate.MediaKeys.Add(uploadedFile);
             }
@@ -153,7 +154,7 @@ public class PostService(HiveMimeContext context,
     /// </summary>
     /// <param name="userId">The ID of the user creating the post.</param>
     /// <param name="postDto">The post to create.</param>
-    public async Task<UploadPostDto> CreatePostAsync(int userId, CreatePostDto postDto)
+    public async Task<UploadPostDto> CreatePostAsync(Guid userId, CreatePostDto postDto)
     {
         IEnumerable<string> validationErrors = ValidateCreatePost(postDto);
         Hive hive = null;
@@ -168,6 +169,18 @@ public class PostService(HiveMimeContext context,
 
         Post newPost = postDto.Adapt<Post>();
         newPost.IsDraft = true;
+
+        // Set order properties of children.
+        for (int i = 0; i < newPost.Polls.Count; i++)
+        {
+            newPost.Polls[i].Order = i;
+
+            for (int j = 0; j < newPost.Polls[i].Candidates.Count; j++)
+                newPost.Polls[i].Candidates[j].Order = j;
+            
+            for (int j = 0; j < newPost.Polls[i].Categories.Count; j++)
+                newPost.Polls[i].Categories[j].Order = j;
+        }
 
         // Each category requires a value for easier evaluation and filtering.
         foreach (Poll poll in newPost.Polls.Where(p => p.PollType == PollType.Category))
@@ -193,7 +206,7 @@ public class PostService(HiveMimeContext context,
     /// <param name="userId">The ID of the user attempting to delete the post.</param>
     /// <param name="postId">The ID of the post to delete.</param>
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authorized to delete the post.</exception>
-    public async Task DeletePostAsync(int userId, int postId)
+    public async Task DeletePostAsync(Guid userId, Guid postId)
     {
         await authorizationService.VerifyDeletePostAsync(userId, postId);
 
@@ -206,91 +219,104 @@ public class PostService(HiveMimeContext context,
     }
 
     /// <summary>
-    /// Fetches and returns the results of a post, including all its polls.
+    /// Fetches and returns the sum result of a poll, which is the sum of the values of all votes for each candidate.
     /// </summary>
-    /// <param name="postId">The ID of the post to fetch details for.</param>
-    /// <param name="filter">The filter to apply to the post details.</param>
-    public async Task<PostResultDto> GetPostResultAsync(int postId, string filter)
+    /// <param name="pollId">The ID of the poll to fetch results for.</param>
+    /// <param name="filter">The filter to apply to the poll results.</param>
+    public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(Guid pollId, string filter)
     {
-        // Fetch the results and DTO structure seperately for better performance.
-        PostResultDto resultDto = await context.Posts.Where(p => p.Id == postId)
-            .ProjectToType<PostResultDto>()
-            .FirstAsync();
+        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
 
-        IQueryable<PostVote> filteredVotes = context.PostVotes
-            .Where(v => v.PostId == postId);
-
-        if (!string.IsNullOrWhiteSpace(filter))
-        {
-            VoteQueryBase voteQuery = filter.ToVoteQuery();
-            Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
-            filteredVotes = filteredVotes.Where(v => !v.User.Settings.ProtectVoteOnFilter)
-                .Where(voteExpression);
-        }
-
-        IQueryable<CandidateVote> candidateVotes = filteredVotes.SelectMany(v => v.Votes);
-        Dictionary<int, PollCandidateResultDto> candidateResults = await GetCandidateResultsAsync(candidateVotes);
-
-        // Merge the results into the structure.
-        foreach (PollCandidateResultDto candidateResult in resultDto.Polls.SelectMany(p => p.Candidates))
-        {
-            // Candidates unvoted for will remain default, that is okay.
-            if (candidateResults.TryGetValue(candidateResult.Id, out var dbResult))
+        var sumResults = await candidateVotes
+            .GroupBy(v => v.CandidateId)
+            .Select(g => new CandidateSumResultDto
             {
-                candidateResult.VoterAmount = dbResult.VoterAmount;
-                candidateResult.AverageScore = dbResult.AverageScore;
-                candidateResult.MajorityVote = dbResult.MajorityVote;
-                candidateResult.MajorityRatio = dbResult.MajorityRatio;
-            }
-        }
+                Id = g.Key,
+                Sum = g.Sum(v => v.Value),
+                VoteCount = g.Count()
+            })
+            .ToListAsync();
 
-        // TODO: Add auto polls at this point later.
-
-        return resultDto;
+        return new PollResultDto<CandidateSumResultDto>
+        {
+            Candidates = sumResults
+        };
     }
 
     /// <summary>
-    /// Returns the distribution of votes for a specific candidate. I.e. the number of votes of each of its possible values.
+    /// Fetches and returns a box-plot result of a poll, which includes minimum, first quartile, median, third quartile and maximum of the values of all votes for each candidate.
     /// </summary>
-    /// <param name="candidateId">The ID of the candidate to fetch distribution for.</param>
-    /// <param name="filter">The filter to apply to the candidate votes.</param>
-    public async Task<List<CandidateDistributionDto>> GetCandidateDistributionResultsAsync(int candidateId, string filter)
+    /// <param name="pollId">The ID of the poll to fetch results for.</param>
+    /// <param name="filter">The filter to apply to the poll results.</param>
+    public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(Guid pollId, string filter)
     {
-        var candidateInfo = await context.Candidates.Where(c => c.Id == candidateId)
-            .Select(c => new { c.Poll.PostId, c.Poll.MaxValue, c.Poll.MinValue, c.Poll.PollType})
-            .FirstAsync();
+        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+        string sql = candidateVotes.AsSingleQuery().ToQueryString();
 
-        VoteQueryBase voteQuery = filter.ToVoteQuery();
-        Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
+        Dictionary<string, string> parameters = Regex.Matches(sql, @"-- (@\w+)=(.+)")
+            .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.TrimEnd());
 
-        // Fetch post and filtered votes seperately for better performance.
-        IQueryable<CandidateVote> filteredVotes = context.PostVotes
-            .AsNoTracking()
-            .Where(v => v.PostId == candidateInfo.PostId)
-            .Where(voteExpression)
-            .SelectMany(v => v.Votes.Where(cv => cv.CandidateId == candidateId));
+        foreach (var param in parameters)
+            sql = sql.Replace(param.Key, param.Value);
 
-        IQueryable<IGrouping<int, CandidateVote>> distributionQuery = null;
+        var statisticsResults = await context.Database.SqlQueryRaw<CandidateStatisticsResultDto>($"""
+            SELECT 
+                "CandidateId" AS "Id",
+                MIN("Value") AS "Min",
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "Value") AS "Q1",
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "Value") AS "Median",
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY "Value") AS "Q3",
+                MAX("Value") AS "Max",
+                AVG("Value") AS "Average",
+                Count(*) AS "VoteCount"
+            FROM ({sql}) AS "CandidateVotes"
+            GROUP BY "CandidateId"
+            """)
+            .ToListAsync();
 
-        if (candidateInfo.PollType == PollType.Score && candidateInfo.MaxValue - candidateInfo.MinValue > 10)
+        return new PollResultDto<CandidateStatisticsResultDto>
         {
-            // Bucket up the votes for score polls because of the large amount of possible values.
-            int stepValue = (int)Math.Ceiling((candidateInfo.MaxValue - candidateInfo.MinValue + 1) / 10.0);
-            distributionQuery = filteredVotes.GroupBy(v => ((v.Value - candidateInfo.MinValue) / stepValue) * stepValue + candidateInfo.MinValue);
-        }
-        else
-        {
-            distributionQuery = filteredVotes.GroupBy(v => v.Value);        
-        }
+            Candidates = statisticsResults
+        };
+    }
 
-        return await distributionQuery
-            .OrderBy(g => g.Key)
-            .Select(g => new CandidateDistributionDto
+    /// <summary>
+    /// Fetches and returns a distribution result of a poll, which includes the frequency of each value for each candidate.
+    /// </summary>
+    /// <param name="pollId">The ID of the poll to fetch results for.</param>
+    /// <param name="filter">The filter to apply to the poll results.</param>
+    public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(Guid pollId, string filter)
+    {
+        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+
+        var distributionResults = await candidateVotes
+            .GroupBy(v => new { v.CandidateId, v.Value })
+            .Select(g => new
             {
-                Value = g.Key,
-                Score = g.Count(),
+                g.Key.CandidateId,
+                g.Key.Value,
+                Count = g.Count()
             })
             .ToListAsync();
+
+        var groupedResults = distributionResults
+            .GroupBy(r => r.CandidateId)
+            .Select(g => new CandidateDistributionResultDto
+            {
+                Id = g.Key,
+                VoteCount = g.Sum(r => r.Count),
+                Distribution = g.Select(r => new CandidationDistributionResultValueDto
+                {
+                    Value = r.Value,
+                    VoteCount = r.Count
+                }).ToList()
+            })
+            .ToList();
+
+        return new PollResultDto<CandidateDistributionResultDto>
+        {
+            Candidates = groupedResults
+        };
     }
 
     /// <summary>
@@ -298,16 +324,16 @@ public class PostService(HiveMimeContext context,
     /// </summary>
     /// <param name="userId">The ID of the user voting.</param>
     /// <param name="vote">The vote to insert or update.</param>
-    public async Task<HoneyDeltaDto<bool>> VoteOnPostAsync(int userId, PostVoteDto vote)
+    public async Task<HoneyDeltaDto<bool>> VoteOnPostAsync(Guid userId, PostVoteDto vote)
     {
-        await authorizationService.VerifyVoteOnPostAsync(userId, vote.PostId);
+        await authorizationService.VerifyVoteOnPostAsync(userId, vote.Id);
         
         Post post = await context.Posts
-            .Include(p => p.Polls.OrderBy(p => p.Id))
-                .ThenInclude(o => o.Candidates.OrderBy(c => c.Id))
-            .Include(p => p.Polls.OrderBy(p => p.Id))
-                .ThenInclude(o => o.Categories.OrderBy(c => c.Id))
-            .FirstAsync(p => p.Id == vote.PostId);
+            .Include(p => p.Polls)
+                .ThenInclude(o => o.Candidates)
+            .Include(p => p.Polls)
+                .ThenInclude(o => o.Categories)
+            .FirstOrExceptionAsync(p => p.Id == vote.Id);
 
         IEnumerable<string> validationErrors = ValidatePostVotes(post, vote);
 
@@ -318,7 +344,7 @@ public class PostService(HiveMimeContext context,
 
         PostVote postVote = await context.PostVotes
             .Include(pv => pv.Votes)
-            .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.PostId);
+            .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.Id);
             
         if (postVote is null)
         {
@@ -333,15 +359,15 @@ public class PostService(HiveMimeContext context,
             honeyDelta = await honeyDeltaCalculator.FromPostVoteAsync(userId, vote);
         }
 
-        foreach ((Poll poll, PollVoteDto pollVote) in post.Polls.Zip(vote.Polls))
+        foreach (PollVoteDto pollVote in vote.Polls)
         {
-            foreach ((Candidate candidate, CandidateVoteDto candidateVote) in poll.Candidates.Zip(pollVote.Candidates))
+            foreach (CandidateVoteDto candidateVote in pollVote.Candidates)
             {
                 // Either update the vote if one already exists, or create a new one.
-                CandidateVote dbVote = postVote.Votes.FirstOrDefault(v => v.CandidateId == candidate.Id);
+                CandidateVote dbVote = postVote.Votes.FirstOrDefault(v => v.CandidateId == candidateVote.Id);
 
                 // The user did not vote for the candidate.
-                if (candidateVote.Value is null)
+                if (candidateVote.Value is null && post.Polls.First(p => p.Id == pollVote.Id).PollType != PollType.Choice)
                 {
                     if (dbVote is not null)
                         context.CandidateVotes.Remove(dbVote);
@@ -354,14 +380,14 @@ public class PostService(HiveMimeContext context,
                 {
                     dbVote = new CandidateVote
                     {
-                        CandidateId = candidate.Id,
+                        CandidateId = candidateVote.Id,
                         PostVote = postVote
                     };
 
                     postVote.Votes.Add(dbVote);
                 }
 
-                dbVote.Value = candidateVote.Value.Value;
+                dbVote.Value = candidateVote.Value ?? 0;
             }
         }
 
@@ -376,7 +402,7 @@ public class PostService(HiveMimeContext context,
     /// <param name="userId">The ID of the user attempting to modify the post.</param>
     /// <param name="postId">The ID of the post to modify.</param>
     /// <param name="approvalStatus">The new approval status for the post.</param>
-    public async Task ModifyPostAsync(int userId, int postId, ApprovalStatus approvalStatus)
+    public async Task ModifyPostAsync(Guid userId, Guid postId, ApprovalStatus approvalStatus)
     {
         await authorizationService.VerifyApprovePostAsync(userId, postId);
 
@@ -384,6 +410,23 @@ public class PostService(HiveMimeContext context,
         post.ApprovalStatus = approvalStatus;
 
         await context.SaveChangesAsync();
+    }
+
+    private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, string filter)
+    {
+        IQueryable<PostVote> votes = context.PostVotes
+            .Where(v => v.Post.Polls.Any(p => p.Id == pollId));
+
+        if (!string.IsNullOrWhiteSpace(filter))
+        {
+            VoteQueryBase voteQuery = filter.ToVoteQuery();
+            Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
+            votes = votes.Where(v => !v.User.Settings.ProtectVoteOnFilter)
+                .Where(voteExpression);
+        }
+
+        return votes.SelectMany(v => v.Votes)
+            .Where(cv => cv.Candidate.PollId == pollId);
     }
 
     /// <summary>
@@ -457,7 +500,7 @@ public class PostService(HiveMimeContext context,
 
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
-        dto.MinVotes = Math.Clamp(dto.MinVotes, 1, dto.Candidates.Count);
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, dto.Candidates.Count);
 
         if (dto.MaxVotes == -1)
             dto.MaxVotes = dto.Candidates.Count;
@@ -510,13 +553,9 @@ public class PostService(HiveMimeContext context,
             yield break;
         }
 
-        foreach ((Poll poll, PollVoteDto pollVote) in post.Polls.Zip(postVote.Polls))
+        foreach (Poll poll in post.Polls)
         {
-            if (!poll.IsOptional && pollVote.Candidates.All(v => !v.Value.HasValue))
-            {
-                yield return $"Voting on the poll is required.";
-                continue;
-            }
+            PollVoteDto? pollVote = postVote.Polls.First(pv => pv.Id == poll.Id);
 
             foreach (string error in ValidateVote(poll, pollVote!))
                 yield return error;
@@ -525,7 +564,7 @@ public class PostService(HiveMimeContext context,
 
     private IEnumerable<string> ValidateVote(Poll poll, PollVoteDto pollVote)
     {
-        int votesCount = pollVote.Candidates.Count(v => v.Value.HasValue);
+        int votesCount = pollVote.Candidates.Count(v => v.Value.HasValue && (poll.PollType != PollType.Choice || v.Value.Value != 0));
 
         // General validation.
         if (pollVote.Candidates.Count != poll.Candidates.Count)
@@ -568,72 +607,10 @@ public class PostService(HiveMimeContext context,
         if (uniqueRanks.Count != expectedRankCount)
             yield return "Duplicate values are not allowed in ranking polls.";
 
-        for (int rank = poll.MaxValue - expectedRankCount + 1; rank <= poll.MaxValue; rank++)
+        for (int rank = 1; rank <= expectedRankCount; rank++)
         {
             if (!uniqueRanks.Contains(rank))
                 yield return $"Ranking poll is missing rank {rank}.";
         }
-    }
-
-    private async Task<Dictionary<int, PollCandidateResultDto>> GetCandidateResultsAsync(IQueryable<CandidateVote> candidateVotes)
-    {
-        // TODO: Split this over multiple DbContexts for parallelization.
-        
-        // Split up the aggregation per aggregation function type.
-        var countCandidates = await candidateVotes
-            .Where(v => v.Candidate.Poll.PollType == PollType.Choice)
-            .GroupBy(v => v.CandidateId)
-            .Select(g => new PollCandidateResultDto
-            {
-                Id = g.Key,
-                VoterAmount = g.Count()
-             })
-             .ToDictionaryAsync(g => g.Id);
-             
-        var averageCandidates = await candidateVotes
-            .Where(v => v.Candidate.Poll.PollType == PollType.Rank || v.Candidate.Poll.PollType == PollType.Score)
-            .GroupBy(v => v.CandidateId)
-            .Select(g => new PollCandidateResultDto
-            {
-                Id = g.Key,
-                VoterAmount = g.Count(),
-                AverageScore = g.Average(v => v.Value)
-             })
-             .ToDictionaryAsync(g => g.Id);
-
-        var majorityCandidates = await candidateVotes
-            .Where(v => v.Candidate.Poll.PollType == PollType.Category)
-            .GroupBy(v => v.CandidateId)
-            .Select(g => new
-            {
-                Id = g.Key,
-                Total = g.Count(),
-                // SQL is unable to drill down a grouping to get the majority. We need to fetch the distribution.
-                Distribution = g
-                    .GroupBy(x => x.Value)
-                    .Select(x => new { Value = x.Key, Count = x.Count() })
-            })
-            .ToListAsync()
-            .ContinueWith(t => t.Result.ToDictionary(x => x.Id, x =>
-            {
-                var majorityVote = x.Distribution.OrderByDescending(d => d.Count).First();
-                return new PollCandidateResultDto
-                {
-                    Id = x.Id,
-                    VoterAmount = x.Total,
-                    MajorityVote = majorityVote.Value,
-                    MajorityRatio = (double)majorityVote.Count / x.Total
-                };
-            }));
-        
-        var results = new Dictionary<int, PollCandidateResultDto>();
-
-        foreach (var task in new[] { countCandidates, averageCandidates, majorityCandidates })
-        {
-            foreach (var kvp in task)
-                results[kvp.Key] = kvp.Value;
-        }
-
-        return results;
     }
 }

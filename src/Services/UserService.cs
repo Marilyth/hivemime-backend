@@ -15,9 +15,9 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     /// Returns the details of a user, including their settings.
     /// </summary>
     /// <param name="userId">The ID of the user to retrieve details for.</param>
-    public async Task<UserDetailsDto> GetUserDetailsAsync(int userId)
+    public async Task<UserDetailsDto> GetUserDetailsAsync(Guid userId)
     {
-        if (userId == 0)
+        if (userId == Guid.Empty)
             throw new NotFoundException("User does not exist.");
 
         return await context.Users.AsNoTracking()
@@ -45,9 +45,9 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     /// <param name="userId">The ID of the user to retrieve the profile for.</param>
     /// <returns>The user's profile information.</returns>
     /// <exception cref="NotFoundException">Thrown when the user does not exist.</exception>
-    public async Task<UserProfileDto> GetUserProfileAsync(int userId)
+    public async Task<UserProfileDto> GetUserProfileAsync(Guid userId)
     {
-        if (userId == 0)
+        if (userId == Guid.Empty)
             throw new NotFoundException("User does not exist.");
 
         return await context.Users.AsNoTracking()
@@ -95,7 +95,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     /// <param name="userDetails">The new details for the user.</param>
     /// <returns>The updated user details.</returns>
     /// <exception cref="ValidationException">Thrown when the input is invalid.</exception>
-    public async Task<UserDetailsDto> UpdateUserAsync(int userId, UserDetailsDto userDetails)
+    public async Task<UserDetailsDto> UpdateUserAsync(Guid userId, UserDetailsDto userDetails)
     {
         var user = await context.Users.Include(u => u.Settings).FirstOrExceptionAsync(u => u.Id == userId);
         string newUserName = userDetails.Username?.Trim();
@@ -147,7 +147,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     /// </summary>
     /// <param name="currentUserId">The ID of the current user.</param>
     /// <param name="previousUserId">The ID of the previous user to merge.</param>
-    public async Task MergeAccountsAsync(int currentUserId, int previousUserId)
+    public async Task MergeAccountsAsync(Guid currentUserId, Guid previousUserId)
     {
         var currentUser = await context.Users.Include(u => u.JoinedHives)
             .FirstOrExceptionAsync(u => u.Id == currentUserId);

@@ -23,11 +23,11 @@ public class Hive : EntityWithIdentifier
 public class HiveUser : EntityWithIdentifier
 {
     [ForeignKey(nameof(User))]
-    public int UserId { get; set; }
+    public Guid UserId { get; set; }
     public User User { get; set; }
 
     [ForeignKey(nameof(Hive))]
-    public int HiveId { get; set; }
+    public Guid HiveId { get; set; }
     public Hive Hive { get; set; }
 
     public ApprovalStatus ApprovalStatus { get; set; }
