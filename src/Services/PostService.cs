@@ -251,7 +251,7 @@ public class PostService(HiveMimeContext context,
     public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(Guid pollId, string filter)
     {
         IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
-        string sql = candidateVotes.ToQueryString();
+        string sql = candidateVotes.AsSingleQuery().ToQueryString();
 
         Dictionary<string, string> parameters = Regex.Matches(sql, @"-- (@\w+)=(.+)")
             .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.TrimEnd());
