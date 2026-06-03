@@ -60,7 +60,7 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_WithTextFilter_ReturnsExpected()
     {
         // Act
-        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new() { Filter = "not a default poll" }, ApprovalStatus.Approved);
+        var result = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new() { Filter = "nondefault" }, ApprovalStatus.Approved);
 
         // Assert
         Assert.Single(result.Items);
@@ -532,8 +532,8 @@ public class PostServiceTests : IntegrationTest
             Polls = [
                 new Poll
                 {
-                    Title = "Not a default poll",
-                    Description = "This is not a default poll.",
+                    Title = "A nondefault poll",
+                    Description = "This is a nondefault poll.",
                     PollType = PollType.Choice,
                     Candidates = new List<Candidate>
                     {

@@ -6,10 +6,8 @@ public static class PostPaginationHelper
     public static IQueryable<Post> ApplyPaginationFilter(this IQueryable<Post> posts, PostPaginationDto pagination)
     {
         if (!string.IsNullOrWhiteSpace(pagination.Filter))
-        {
-            var fsQuery = EF.Functions.WebSearchToTsQuery("english", pagination.Filter);
-            posts = posts.Where(p => p.Polls.Any(poll => poll.SearchVector.Matches(fsQuery)));
-        }
+            posts = posts.Where(p => p.Polls.Any(poll 
+                => poll.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("english", pagination.Filter))));
 
         if (pagination.Cursor is null)
             return posts;

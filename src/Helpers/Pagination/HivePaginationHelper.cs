@@ -8,9 +8,8 @@ public static class HivePaginationHelper
         if (pagination.Filter is not null)
         {
             string filter = pagination.Filter.Trim();
-
-            var fsQuery = EF.Functions.WebSearchToTsQuery("english", filter);
-            hives = hives.Where(h => h.Name.StartsWith(filter) || h.SearchVector.Matches(fsQuery));
+            hives = hives.Where(h => h.Name.StartsWith(filter) ||
+                                     h.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("english", filter)));
         }
         
         if (pagination.Cursor is null)
