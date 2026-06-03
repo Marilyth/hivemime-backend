@@ -8,7 +8,7 @@ public static class CommentPaginationHelper
         if (pagination.Filter is not null)
         {
             comments = comments.Where(c
-                => c.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("english", pagination.Filter)));
+                => c.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("simple", pagination.Filter)));
         }
 
         if (pagination.Cursor is null)

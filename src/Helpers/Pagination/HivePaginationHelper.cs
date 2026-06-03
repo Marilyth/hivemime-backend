@@ -9,7 +9,7 @@ public static class HivePaginationHelper
         {
             string filter = pagination.Filter.Trim();
             hives = hives.Where(h => h.Name.StartsWith(filter) ||
-                                     h.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("english", filter)));
+                                     h.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("simple", filter)));
         }
         
         if (pagination.Cursor is null)

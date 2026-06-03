@@ -7,7 +7,7 @@ public static class PostPaginationHelper
     {
         if (!string.IsNullOrWhiteSpace(pagination.Filter))
             posts = posts.Where(p => p.Polls.Any(poll 
-                => poll.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("english", pagination.Filter))));
+                => poll.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("simple", pagination.Filter))));
 
         if (pagination.Cursor is null)
             return posts;

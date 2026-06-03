@@ -47,7 +47,7 @@ public class HiveMimeContext : DbContext
         modelBuilder.Entity<Hive>()
             .HasGeneratedTsVectorColumn(
                 h => h.SearchVector,
-                "english",
+                "simple",
                 h => new { h.Name, h.Description }
             )
             .HasIndex(h => h.SearchVector)
@@ -56,7 +56,7 @@ public class HiveMimeContext : DbContext
         modelBuilder.Entity<Comment>()
             .HasGeneratedTsVectorColumn(
                 c => c.SearchVector,
-                "english",
+                "simple",
                 c => new { c.Content }
             )
             .HasIndex(c => c.SearchVector)
@@ -65,7 +65,7 @@ public class HiveMimeContext : DbContext
         modelBuilder.Entity<Poll>()
             .HasGeneratedTsVectorColumn(
                 p => p.SearchVector,
-                "english",
+                "simple",
                 p => new { p.Title, p.Description }
             )
             .HasIndex(p => p.SearchVector)
