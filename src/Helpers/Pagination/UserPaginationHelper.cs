@@ -61,14 +61,15 @@ public static class UserPaginationHelper
         return orderedUsers.ThenBy(u => u.Id);
     }
 
-    public static async Task<PaginationResultDto<UserDto>> FetchPaginationResultAsync(this IQueryable<User> entities, UserPaginationDto pagination)
+    public static IQueryable<EntityWithCursorDto<User>> ToEntityWithCursorDto(this IQueryable<User> entities, UserPaginationDto pagination)
     {
-        return await PostPaginationHelper.BuildPaginationResultAsync(entities.ProjectToType<UserDto>(), pagination, u => pagination.OrderBy switch
+        return pagination.OrderBy switch
         {
-            UserOrderBy.New or UserOrderBy.Old => u.CreatedAt,
-            UserOrderBy.Honey => u.Honey,
-            UserOrderBy.Name => u.Username,
+            UserOrderBy.New => entities.Select(c => new EntityWithCursorDto<User> { Entity = c, Rank = c.CreatedAt }),
+            UserOrderBy.Old => entities.Select(c => new EntityWithCursorDto<User> { Entity = c, Rank = c.CreatedAt }),
+            UserOrderBy.Honey => entities.Select(c => new EntityWithCursorDto<User> { Entity = c, Rank = c.Honey }),
+            UserOrderBy.Name => entities.Select(c => new EntityWithCursorDto<User> { Entity = c, Rank = c.Username }),
             _ => throw new ValidationException("Invalid order by option.")
-        });
+        };
     }
 }

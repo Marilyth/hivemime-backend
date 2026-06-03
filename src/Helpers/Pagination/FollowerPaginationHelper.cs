@@ -47,12 +47,13 @@ public static class HiveUserPaginationHelper
         return orderedHiveUsers.ThenBy(f => f.Id);
     }
 
-    public static async Task<PaginationResultDto<HiveUserDto>> FetchPaginationResultAsync(this IQueryable<HiveUser> entities, HiveUserPaginationDto pagination)
+    public static IQueryable<EntityWithCursorDto<HiveUser>> ToEntityWithCursorDto(this IQueryable<HiveUser> entities, HiveUserPaginationDto pagination)
     {
-        return await PostPaginationHelper.BuildPaginationResultAsync(entities.ProjectToType<HiveUserDto>(), pagination, f => pagination.OrderBy switch
+        return pagination.OrderBy switch
         {
-            HiveUserOrderBy.New or HiveUserOrderBy.Old => f.CreatedAt,
+            HiveUserOrderBy.New => entities.Select(c => new EntityWithCursorDto<HiveUser> { Entity = c, Rank = c.CreatedAt }),
+            HiveUserOrderBy.Old => entities.Select(c => new EntityWithCursorDto<HiveUser> { Entity = c, Rank = c.CreatedAt }),
             _ => throw new ValidationException("Invalid order by option.")
-        });
+        };
     }
 }

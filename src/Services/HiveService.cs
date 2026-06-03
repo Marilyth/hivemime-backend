@@ -126,7 +126,8 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
         return await query.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
             .ApplyPaginationPageSize(pagination)
-            .FetchPaginationResultAsync(pagination);
+            .ToEntityWithCursorDto(pagination)
+            .BuildPaginationResultAsync<HiveUserDto>(pagination);
     }
 
     /// <summary>
@@ -157,7 +158,8 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
         return await query.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
             .ApplyPaginationPageSize(pagination)
-            .FetchPaginationResultAsync(pagination);
+            .ToEntityWithCursorDto(pagination)
+            .BuildPaginationResultAsync<HiveDto>(pagination);
     }
 
     /// <summary>

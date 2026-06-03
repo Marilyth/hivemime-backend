@@ -36,7 +36,9 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
         return await context.Users.AsNoTracking()
             .ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
-            .FetchPaginationResultAsync(pagination);
+            .ApplyPaginationPageSize(pagination)
+            .ToEntityWithCursorDto(pagination)
+            .BuildPaginationResultAsync<UserDto>(pagination);
     }
 
     /// <summary>

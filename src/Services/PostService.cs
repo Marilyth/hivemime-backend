@@ -58,7 +58,8 @@ public class PostService(HiveMimeContext context,
         var result = await posts.ApplyPaginationFilter(pagination)
             .ApplyPaginationOrdering(pagination)
             .ApplyPaginationPageSize(pagination)
-            .FetchPaginationResultAsync(pagination);
+            .ToEntityWithCursorDto(pagination)
+            .BuildPaginationResultAsync<PostDto>(pagination);
 
         hotnessQueue.EnqueuePosts(result.Items.Select(p => p.Id));
 

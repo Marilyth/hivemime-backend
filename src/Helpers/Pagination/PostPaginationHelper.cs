@@ -60,27 +60,36 @@ public static class PostPaginationHelper
         return entities.Take(pagination.PageSize + 1);
     }
 
-    public static async Task<PaginationResultDto<T>> BuildPaginationResultAsync<T>(IQueryable<T> entities, PaginationDto pagination, Func<T, object> cursorSelector) where T : IHasIdentifier
+    public static IQueryable<EntityWithCursorDto<Post>> ToEntityWithCursorDto(this IQueryable<Post> entities, PostPaginationDto pagination)
     {
-        var result = await entities.ToListAsync();
-        T? lastItem = result.Count > pagination.PageSize ? result[pagination.PageSize - 1] : default;
-        PaginationCursorDto cursor = lastItem is null ? null :
-            new() { Cursor = cursorSelector(lastItem).ToString(), Id = lastItem.Id };
-
-        return new PaginationResultDto<T>
+        return pagination.OrderBy switch
         {
-            Items = result.Take(pagination.PageSize).ToList(),
-            NextCursor = cursor
+            PostOrderBy.New => entities.Select(p => new EntityWithCursorDto<Post> { Entity = p, Rank = p.CreatedAt }),
+            PostOrderBy.Old => entities.Select(p => new EntityWithCursorDto<Post> { Entity = p, Rank = p.CreatedAt }),
+            PostOrderBy.Hot => entities.Select(p => new EntityWithCursorDto<Post> { Entity = p, Rank = p.Hotness }),
+            _ => throw new ValidationException("Invalid order by option.")
         };
     }
 
-    public static async Task<PaginationResultDto<PostDto>> FetchPaginationResultAsync(this IQueryable<Post> entities, PostPaginationDto pagination)
+    public static async Task<PaginationResultDto<T>> BuildPaginationResultAsync<T>(this IQueryable entities, PaginationDto pagination)
+        where T : IHasIdentifier
     {
-        return await BuildPaginationResultAsync(entities.ProjectToType<PostDto>(), pagination, p => pagination.OrderBy switch
+        var result = await entities.ProjectToType<EntityWithCursorDto<T>>().ToListAsync();
+
+        EntityWithCursorDto<T>? lastItem = result.Count > pagination.PageSize ? result[pagination.PageSize - 1] : default;
+        PaginationCursorDto cursor = lastItem is null ? null :
+            new() { Cursor = lastItem.Rank.ToString(), Id = lastItem.Entity.Id };
+
+        return new PaginationResultDto<T>
         {
-            PostOrderBy.New or PostOrderBy.Old => p.CreatedAt,
-            PostOrderBy.Hot => p.Hotness,
-            _ => throw new ValidationException("Invalid order by option.")
-        });
+            Items = result.Take(pagination.PageSize).Select(e => e.Entity).ToList(),
+            NextCursor = cursor
+        };
     }
+}
+
+public class EntityWithCursorDto<T> where T : IHasIdentifier
+{
+    public T Entity { get; set; }
+    public object Rank { get; set; }
 }

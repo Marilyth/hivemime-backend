@@ -50,13 +50,14 @@ public static class CommentPaginationHelper
         return orderedComments.ThenBy(c => c.Id);
     }
 
-    public static async Task<PaginationResultDto<CommentDto>> FetchPaginationResultAsync(this IQueryable<Comment> entities, CommentPaginationDto pagination)
+    public static IQueryable<EntityWithCursorDto<Comment>> ToEntityWithCursorDto(this IQueryable<Comment> entities, CommentPaginationDto pagination)
     {
-        return await PostPaginationHelper.BuildPaginationResultAsync(entities.ProjectToType<CommentDto>(), pagination, c => pagination.OrderBy switch
+        return pagination.OrderBy switch
         {
-            CommentOrderBy.New or CommentOrderBy.Old => c.CreatedAt,
-            CommentOrderBy.Best => c.CreatedAt, // ToDo: Implement comment scoring.
+            CommentOrderBy.New => entities.Select(c => new EntityWithCursorDto<Comment> { Entity = c, Rank = c.CreatedAt }),
+            CommentOrderBy.Old => entities.Select(c => new EntityWithCursorDto<Comment> { Entity = c, Rank = c.CreatedAt }),
+            CommentOrderBy.Best => entities.Select(c => new EntityWithCursorDto<Comment> { Entity = c, Rank = c.CreatedAt }), // ToDo: Implement comment scoring.
             _ => throw new ValidationException("Invalid order by option.")
-        });
+        };
     }
 }
