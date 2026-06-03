@@ -5,13 +5,10 @@ public static class PostPaginationHelper
 {
     public static IQueryable<Post> ApplyPaginationFilter(this IQueryable<Post> posts, PostPaginationDto pagination)
     {
-        // TODO 5: Add reverse index. This does not scale well.
         if (!string.IsNullOrWhiteSpace(pagination.Filter))
         {
-            string filter = pagination.Filter.Trim().ToLower();
-
-            posts = posts.Where(p => p.Polls.Any(poll => poll.Title.ToLower().Contains(filter)
-                                  || poll.Description.ToLower().Contains(filter)));
+            var fsQuery = EF.Functions.WebSearchToTsQuery("english", pagination.Filter);
+            posts = posts.Where(p => p.Polls.Any(poll => poll.SearchVector.Matches(fsQuery)));
         }
 
         if (pagination.Cursor is null)

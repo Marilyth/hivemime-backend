@@ -1,14 +1,16 @@
 using Mapster;
+using Microsoft.EntityFrameworkCore;
 
 public static class HivePaginationHelper
 {
     public static IQueryable<Hive> ApplyPaginationFilter(this IQueryable<Hive> hives, HivePaginationDto pagination)
     {
-        // TODO 5: Add reverse index. This does not scale well.
         if (pagination.Filter is not null)
         {
-            string filter = pagination.Filter.Trim().ToLower();
-            hives = hives.Where(h => h.Name.ToLower().Contains(filter));
+            string filter = pagination.Filter.Trim();
+
+            var fsQuery = EF.Functions.WebSearchToTsQuery("english", filter);
+            hives = hives.Where(h => h.Name.StartsWith(filter) || h.SearchVector.Matches(fsQuery));
         }
         
         if (pagination.Cursor is null)

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using NpgsqlTypes;
 
 public class Poll : EntityWithIdentifier
 {
@@ -7,6 +8,8 @@ public class Poll : EntityWithIdentifier
     public string Title { get; set; }
     [MaxLength(1024)]
     public string? Description { get; set; }
+    public NpgsqlTsVector SearchVector { get; set; }
+    
     public List<string> MediaKeys { get; set; } = [];
 
     public bool AllowCustomAnswer { get; set; }

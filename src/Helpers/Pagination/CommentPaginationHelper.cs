@@ -5,11 +5,10 @@ public static class CommentPaginationHelper
 {
     public static IQueryable<Comment> ApplyPaginationFilter(this IQueryable<Comment> comments, CommentPaginationDto pagination)
     {
-        // TODO 5: Add reverse index. This does not scale well.
         if (pagination.Filter is not null)
         {
-            string filter = pagination.Filter.Trim().ToLower();
-            comments = comments.Where(c => c.Content.ToLower().Contains(filter));
+            var fsQuery = EF.Functions.WebSearchToTsQuery("english", pagination.Filter);
+            comments = comments.Where(c => c.SearchVector.Matches(fsQuery));
         }
 
         if (pagination.Cursor is null)

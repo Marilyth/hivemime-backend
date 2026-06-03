@@ -6,8 +6,8 @@ public static class HiveUserPaginationHelper
     {
         if (pagination.Filter is not null)
         {
-            string filter = pagination.Filter.Trim().ToLower();
-            hiveUsers = hiveUsers.Where(f => f.User.Username.ToLower().StartsWith(filter));
+            string filter = pagination.Filter.Trim();
+            hiveUsers = hiveUsers.Where(f => f.User.Username.StartsWith(filter));
         }
 
         if (pagination.Cursor is null)

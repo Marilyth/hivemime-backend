@@ -1,10 +1,13 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using NpgsqlTypes;
 
 public class Comment : EntityWithIdentifier
 {
     [MaxLength(1024)]
     public string Content { get; set; }
+    public NpgsqlTsVector SearchVector { get; set; }
+    
     public List<Comment> Replies { get; set; } = [];
 
     [ForeignKey(nameof(User))]
