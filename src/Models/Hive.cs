@@ -1,15 +1,17 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
 
 [Index(nameof(Name), IsUnique = true)]
 public class Hive : EntityWithIdentifier
 {
     [MaxLength(64)]
     public string Name { get; set; }
-
     [MaxLength(1024)]
     public string Description { get; set; }
+    public NpgsqlTsVector SearchVector { get; set; }
+
     public HiveSettings Settings { get; set; } = new();
 
     public List<Post> Posts { get; set; }

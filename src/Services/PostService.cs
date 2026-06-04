@@ -55,10 +55,8 @@ public class PostService(HiveMimeContext context,
                  p.Hive.Users.Any(f => f.UserId == userId && f.Role > MemberRole.Guest && f.ApprovalStatus == ApprovalStatus.Approved)));
         }
 
-        var result = await posts.ApplyPaginationFilter(pagination)
-            .ApplyPaginationOrdering(pagination)
-            .ApplyPaginationPageSize(pagination)
-            .FetchPaginationResultAsync(pagination);
+        var result = await new PostPaginationHelper(pagination)
+            .ApplyPaginationAsync<PostDto>(posts);
 
         hotnessQueue.EnqueuePosts(result.Items.Select(p => p.Id));
 

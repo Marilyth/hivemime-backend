@@ -123,10 +123,8 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
             .Where(r => r.HiveId == hiveId && r.ApprovalStatus == status)
             .OrderByDescending(r => r.Role);
 
-        return await query.ApplyPaginationFilter(pagination)
-            .ApplyPaginationOrdering(pagination)
-            .ApplyPaginationPageSize(pagination)
-            .FetchPaginationResultAsync(pagination);
+        return await new HiveUserPaginationHelper(pagination)
+            .ApplyPaginationAsync<HiveUserDto>(query);
     }
 
     /// <summary>
@@ -154,10 +152,8 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
             .Where(h => !h.Settings.IsPrivate)
             .AsNoTracking();
 
-        return await query.ApplyPaginationFilter(pagination)
-            .ApplyPaginationOrdering(pagination)
-            .ApplyPaginationPageSize(pagination)
-            .FetchPaginationResultAsync(pagination);
+        return await new HivePaginationHelper(pagination)
+            .ApplyPaginationAsync<HiveDto>(query);
     }
 
     /// <summary>

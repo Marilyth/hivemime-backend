@@ -33,9 +33,51 @@ public class HiveMimeContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        SetTextIndices(modelBuilder);
+        
         // Define relationships and constraints here if needed.
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
             SetEntityRules(entity);
+    }
+
+    private void SetTextIndices(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasPostgresExtension("citext");
+
+        modelBuilder.Entity<Hive>()
+            .HasGeneratedTsVectorColumn(
+                h => h.SearchVector,
+                "simple",
+                h => new { h.Name, h.Description }
+            )
+            .HasIndex(h => h.SearchVector)
+            .HasMethod("GIN");
+
+        modelBuilder.Entity<Comment>()
+            .HasGeneratedTsVectorColumn(
+                c => c.SearchVector,
+                "simple",
+                c => new { c.Content }
+            )
+            .HasIndex(c => c.SearchVector)
+            .HasMethod("GIN");
+
+        modelBuilder.Entity<Poll>()
+            .HasGeneratedTsVectorColumn(
+                p => p.SearchVector,
+                "simple",
+                p => new { p.Title, p.Description }
+            )
+            .HasIndex(p => p.SearchVector)
+            .HasMethod("GIN");
+
+        modelBuilder.Entity<Hive>()
+            .Property(h => h.Name)
+            .HasColumnType("citext");
+
+        modelBuilder.Entity<User>()
+            .Property(u => u.Username)
+            .HasColumnType("citext");
     }
 
     private void SetEntityRules(IMutableEntityType entityType)

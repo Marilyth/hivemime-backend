@@ -1,63 +1,37 @@
-using Mapster;
 using Microsoft.EntityFrameworkCore;
 
-public static class CommentPaginationHelper
+public class CommentPaginationHelper : PaginationHelperBase<Comment, CommentPaginationDto>
 {
-    public static IQueryable<Comment> ApplyPaginationFilter(this IQueryable<Comment> comments, CommentPaginationDto pagination)
+    public CommentPaginationHelper(CommentPaginationDto pagination) : base(pagination)
     {
-        // TODO 5: Add reverse index. This does not scale well.
-        if (pagination.Filter is not null)
+        IsDescending = pagination.OrderBy is CommentOrderBy.New or CommentOrderBy.Best;
+
+        PropertySelector = pagination.OrderBy switch
         {
-            string filter = pagination.Filter.Trim().ToLower();
-            comments = comments.Where(c => c.Content.ToLower().Contains(filter));
-        }
-
-        if (pagination.Cursor is null)
-            return comments;
-
-        switch (pagination.OrderBy)
-        {
-            // ToDo: Implement comment scoring.
-            case CommentOrderBy.New: case CommentOrderBy.Best:
-                DateTimeOffset newCursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
-                return comments.Where(c => c.CreatedAt < newCursor ||
-                                           (c.CreatedAt == newCursor && c.Id > pagination.Cursor.Id));
-            case CommentOrderBy.Old:
-                DateTimeOffset oldCursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
-                return comments.Where(c => c.CreatedAt > oldCursor ||
-                                           (c.CreatedAt == oldCursor && c.Id > pagination.Cursor.Id));
-            default:
-                throw new ValidationException("Invalid order by option.");
-        }
-    }
-
-    public static IOrderedQueryable<Comment> ApplyPaginationOrdering(this IQueryable<Comment> comments, CommentPaginationDto pagination)
-    {
-        IOrderedQueryable<Comment> orderedComments;
-
-        switch (pagination.OrderBy)
-        {
-            // ToDo: Implement comment scoring.
-            case CommentOrderBy.New: case CommentOrderBy.Best:
-                orderedComments = comments.OrderByDescending(c => c.CreatedAt);
-                break;
-            case CommentOrderBy.Old:
-                orderedComments = comments.OrderBy(c => c.CreatedAt);
-                break;
-            default:
-                throw new ValidationException("Invalid order by option.");
-        }
-
-        return orderedComments.ThenBy(c => c.Id);
-    }
-
-    public static async Task<PaginationResultDto<CommentDto>> FetchPaginationResultAsync(this IQueryable<Comment> entities, CommentPaginationDto pagination)
-    {
-        return await PostPaginationHelper.BuildPaginationResultAsync(entities.ProjectToType<CommentDto>(), pagination, c => pagination.OrderBy switch
-        {
-            CommentOrderBy.New or CommentOrderBy.Old => c.CreatedAt,
-            CommentOrderBy.Best => c.CreatedAt, // ToDo: Implement comment scoring.
+            CommentOrderBy.New => (Comment c) => c.CreatedAt,
+            CommentOrderBy.Old => (Comment c) => c.CreatedAt,
+            CommentOrderBy.Best => (Comment c) => c.CreatedAt, // ToDo: Implement comment scoring.
             _ => throw new ValidationException("Invalid order by option.")
-        });
+         };
+
+        Cursor = pagination.Cursor is null ? null : pagination.OrderBy switch
+        {
+            CommentOrderBy.New => DateTimeOffset.Parse(pagination.Cursor.Cursor),
+            CommentOrderBy.Old => DateTimeOffset.Parse(pagination.Cursor.Cursor),
+            CommentOrderBy.Best => DateTimeOffset.Parse(pagination.Cursor.Cursor), // ToDo: Implement comment scoring.
+            _ => throw new ValidationException("Invalid order by option.")
+        };
+    }
+
+    protected override IQueryable<Comment> ApplyPreFiltering(IQueryable<Comment> query)
+    {
+        if (Pagination.Filter is not null)
+        {
+            string filter = Pagination.Filter.Trim();
+            query = query.Where(c
+                => c.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("simple", filter)));
+        }
+
+        return query;
     }
 }

@@ -33,10 +33,8 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     /// <returns>A paginated list of user profiles.</returns>
     public async Task<PaginationResultDto<UserDto>> BrowseUsersAsync(UserPaginationDto pagination)
     {
-        return await context.Users.AsNoTracking()
-            .ApplyPaginationFilter(pagination)
-            .ApplyPaginationOrdering(pagination)
-            .FetchPaginationResultAsync(pagination);
+        return await new UserPaginationHelper(pagination)
+            .ApplyPaginationAsync<UserDto>(context.Users.AsNoTracking());
     }
 
     /// <summary>
@@ -72,7 +70,6 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
 
             existingUser = new User()
             {
-                Username = "guest_" + Guid.NewGuid().ToString(),
                 FirebaseId = uid,
                 IsAnonymous = true,
                 Settings = new()
@@ -80,6 +77,8 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
                     Country = country
                 }
             };
+
+            await SetUsernameAsync(existingUser, "guest_" + Guid.NewGuid().ToString(), true);
 
             context.Users.Add(existingUser);
         }
@@ -98,21 +97,7 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     public async Task<UserDetailsDto> UpdateUserAsync(Guid userId, UserDetailsDto userDetails)
     {
         var user = await context.Users.Include(u => u.Settings).FirstOrExceptionAsync(u => u.Id == userId);
-        string newUserName = userDetails.Username?.Trim();
-
-        if (newUserName.Length < 3)
-            throw new ValidationException("Username must be at least 3 characters long.");
-
-        if (newUserName.Length > 64)
-            throw new ValidationException("Username must be at most 64 characters long.");
-
-        if (user.Username != newUserName)
-        {
-            if (context.Users.Any(u => u.Username == newUserName && u.Id != userId))
-                throw new ValidationException($"Username \"{newUserName}\" is already taken. Please pick another one.");
-
-            user.Username = newUserName;
-        }
+        await SetUsernameAsync(user, userDetails.Username, false);
 
         if (!string.IsNullOrEmpty(userDetails.Settings.Country) && !_countries.Contains(userDetails.Settings.Country))
             throw new ValidationException("Invalid country code.");
@@ -213,22 +198,18 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
         // If the user has a guest name, overwrite it with a new one.
         if (user.IsAnonymous && provider != "anonymous")
         {
+            string newUsername = "";
+
             if (claims.HasClaim(c => c.Type == "name"))
-                user.Username = claims.FindFirst("name")!.Value;
+                newUsername = claims.FindFirst("name")!.Value;
             else if (email is not null)
-                user.Username = email.Split('@')[0];
+                newUsername = email.Split('@')[0];
             else
-                user.Username = "user_" + Guid.NewGuid().ToString();
+                newUsername = "user_" + Guid.NewGuid().ToString();
 
-            user.Username = user.Username.Length > 64 ? user.Username[..64] : user.Username;
+            newUsername = newUsername.Length > 64 ? newUsername[..64] : newUsername;
 
-            // This is not perfect but if it collides just try again.
-            if (context.Users.Any(u => u.Username == user.Username && u.Id != user.Id))
-            {
-                user.Username = user.Username.Length > 55 ? user.Username[..55] : user.Username;
-                user.Username += "_" + Guid.NewGuid().ToString()[..8];
-            }
-
+            await SetUsernameAsync(user, newUsername, true);
             user.IsAnonymous = false;
         }
 
@@ -240,5 +221,33 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
 
         user.LastLogin = DateTimeOffset.UtcNow;
         await context.SaveChangesAsync();
+    }
+
+    private async Task SetUsernameAsync(User user, string newUserName, bool regenerateIfCollision)
+    {
+        newUserName = newUserName.Trim();
+        
+        if (newUserName.Length < 3)
+            throw new ValidationException("Username must be at least 3 characters long.");
+
+        if (newUserName.Length > 64)
+            throw new ValidationException("Username must be at most 64 characters long.");
+
+        if (user.Username != newUserName)
+        {
+            if (await context.Users.AnyAsync(u => u.Username == newUserName && u.Id != user.Id))
+            {
+                if (!regenerateIfCollision)
+                    throw new ValidationException($"Username \"{newUserName}\" is already taken. Please pick another one.");
+
+                string baseUserName = newUserName.Length > 55 ? newUserName[..55] : newUserName;
+                newUserName = baseUserName + "_" + Guid.NewGuid().ToString()[..8];
+
+                await SetUsernameAsync(user, newUserName, false);
+                return;
+            }
+
+            user.Username = newUserName;
+        }
     }
 }

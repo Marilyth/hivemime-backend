@@ -1,58 +1,32 @@
-using Mapster;
-
-public static class HiveUserPaginationHelper
+public class HiveUserPaginationHelper : PaginationHelperBase<HiveUser, HiveUserPaginationDto>
 {
-    public static IQueryable<HiveUser> ApplyPaginationFilter(this IQueryable<HiveUser> hiveUsers, HiveUserPaginationDto pagination)
+    public HiveUserPaginationHelper(HiveUserPaginationDto pagination) : base(pagination)
     {
-        if (pagination.Filter is not null)
+        IsDescending = pagination.OrderBy is HiveUserOrderBy.New;
+
+        PropertySelector = pagination.OrderBy switch
         {
-            string filter = pagination.Filter.Trim().ToLower();
-            hiveUsers = hiveUsers.Where(f => f.User.Username.ToLower().StartsWith(filter));
-        }
-
-        if (pagination.Cursor is null)
-            return hiveUsers;
-
-        switch (pagination.OrderBy)
-        {
-            case HiveUserOrderBy.New:
-                DateTimeOffset newCursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
-                return hiveUsers.Where(f => f.CreatedAt < newCursor ||
-                                       (f.CreatedAt == newCursor && f.Id > pagination.Cursor.Id));
-            case HiveUserOrderBy.Old:
-                DateTimeOffset oldCursor = DateTimeOffset.Parse(pagination.Cursor.Cursor);
-                return hiveUsers.Where(f => f.CreatedAt > oldCursor ||
-                                       (f.CreatedAt == oldCursor && f.Id > pagination.Cursor.Id));
-            default:
-                throw new ValidationException("Invalid order by option.");
-        }
-    }
-
-    public static IOrderedQueryable<HiveUser> ApplyPaginationOrdering(this IQueryable<HiveUser> hiveUsers, HiveUserPaginationDto pagination)
-    {
-        IOrderedQueryable<HiveUser> orderedHiveUsers = hiveUsers.OrderByDescending(f => f.Role);
-
-        switch (pagination.OrderBy)
-        {
-            case HiveUserOrderBy.New:
-                orderedHiveUsers = orderedHiveUsers.ThenByDescending(f => f.CreatedAt);
-                break;
-            case HiveUserOrderBy.Old:
-                orderedHiveUsers = orderedHiveUsers.ThenBy(f => f.CreatedAt);
-                break;
-            default:
-                throw new ValidationException("Invalid order by option.");
-        }
-
-        return orderedHiveUsers.ThenBy(f => f.Id);
-    }
-
-    public static async Task<PaginationResultDto<HiveUserDto>> FetchPaginationResultAsync(this IQueryable<HiveUser> entities, HiveUserPaginationDto pagination)
-    {
-        return await PostPaginationHelper.BuildPaginationResultAsync(entities.ProjectToType<HiveUserDto>(), pagination, f => pagination.OrderBy switch
-        {
-            HiveUserOrderBy.New or HiveUserOrderBy.Old => f.CreatedAt,
+            HiveUserOrderBy.New => (HiveUser f) => f.CreatedAt,
+            HiveUserOrderBy.Old => (HiveUser f) => f.CreatedAt,
             _ => throw new ValidationException("Invalid order by option.")
-        });
+        };
+
+        Cursor = Pagination.Cursor is null ? null : pagination.OrderBy switch
+        {
+            HiveUserOrderBy.New => DateTimeOffset.Parse(Pagination.Cursor.Cursor),
+            HiveUserOrderBy.Old => DateTimeOffset.Parse(Pagination.Cursor.Cursor),
+            _ => throw new ValidationException("Invalid order by option.")
+        };
+    }
+
+    protected override IQueryable<HiveUser> ApplyPreFiltering(IQueryable<HiveUser> query)
+    {
+        if (Pagination.Filter is not null)
+        {
+            string filter = Pagination.Filter.Trim();
+            query = query.Where(f => f.User.Username.StartsWith(filter));
+        }
+
+        return query;
     }
 }
