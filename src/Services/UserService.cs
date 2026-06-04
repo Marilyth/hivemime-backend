@@ -33,12 +33,8 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     /// <returns>A paginated list of user profiles.</returns>
     public async Task<PaginationResultDto<UserDto>> BrowseUsersAsync(UserPaginationDto pagination)
     {
-        return await context.Users.AsNoTracking()
-            .ApplyPaginationFilter(pagination)
-            .ApplyPaginationOrdering(pagination)
-            .ApplyPaginationPageSize(pagination)
-            .ToEntityWithCursorDto(pagination)
-            .BuildPaginationResultAsync<UserDto>(pagination);
+        return await new UserPaginationHelper(pagination)
+            .ApplyPaginationAsync<UserDto>(context.Users.AsNoTracking());
     }
 
     /// <summary>
