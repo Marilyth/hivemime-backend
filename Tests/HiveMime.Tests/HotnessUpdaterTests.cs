@@ -45,8 +45,8 @@ public class HotnessUpdaterTests : IntegrationTest
                     PollType = PollType.Choice,
                     Candidates = new List<Candidate>
                     {
-                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
-                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                        new Candidate { NormalizedName = "option 1", Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { NormalizedName = "option 2", Name = "Option 2", Description = "Option 2 Description" }
                     }
                 }
             ]

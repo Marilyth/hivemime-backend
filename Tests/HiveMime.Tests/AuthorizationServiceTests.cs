@@ -224,7 +224,7 @@ public class AuthorizationServiceTests : IntegrationTest
                     Title = "Hive poll",
                     Description = "poll",
                     PollType = PollType.Choice,
-                    Candidates = [new Candidate { Name = "A" }]
+                    Candidates = [new Candidate { NormalizedName = "a", Name = "A" }]
                 }
             ]
         };
@@ -240,7 +240,7 @@ public class AuthorizationServiceTests : IntegrationTest
                     Title = "Public poll",
                     Description = "poll",
                     PollType = PollType.Choice,
-                    Candidates = [new Candidate { Name = "A" }]
+                    Candidates = [new Candidate { NormalizedName = "a", Name = "A" }]
                 }
             ]
         };
