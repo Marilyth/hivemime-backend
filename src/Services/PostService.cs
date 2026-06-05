@@ -418,24 +418,25 @@ public class PostService(HiveMimeContext context,
         if (string.IsNullOrWhiteSpace(trimmedQuery) || trimmedQuery.Length < 3)
             throw new ValidationException("Query must be at least 3 characters long.");
 
-        var poll = await context.Polls.Where(p => p.Id == pollId)
-            .Select(p => new
-            {
-                p.AllowCustomCandidate,
-                Candidates = p.Candidates.Where(c => c.NormalizedName.StartsWith(trimmedQuery) && c.IsCustom)
-                    .Select(c => new CandidateDto
-                    {
-                        Id = c.Id,
-                        Name = c.Name,
-                        Description = c.Description
-                    }).OrderBy(c => c.Name)
-            })
-            .FirstOrExceptionAsync();
+        bool? allowCustomCandidate = await context.Polls
+            .AsNoTracking()
+            .Where(p => p.Id == pollId)
+            .Select(p => p.AllowCustomCandidate)
+            .FirstOrDefaultAsync();
 
-        if (!poll.AllowCustomCandidate)
+        if (allowCustomCandidate == null)
+            throw new ValidationException("Poll not found.");
+
+        if (!allowCustomCandidate.Value)
             throw new ValidationException("This poll does not allow custom candidates.");
 
-        return [.. poll.Candidates];
+        return await context.Candidates
+            .Where(c => c.PollId == pollId)
+            .Where(c => c.NormalizedName.StartsWith(trimmedQuery) && c.IsCustom)
+            .OrderBy(c => c.Name)
+            .Take(10)
+            .ProjectToType<CandidateDto>()
+            .ToListAsync();
     }
 
     private async Task<Dictionary<(Guid, string), Candidate>> GetOrCreateCustomCandidates(PostVoteDto postVoteDto, int retryCount = 0)
