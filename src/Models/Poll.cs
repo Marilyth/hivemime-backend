@@ -12,7 +12,7 @@ public class Poll : EntityWithIdentifier
     
     public List<string> MediaKeys { get; set; } = [];
 
-    public bool AllowCustomCandidate { get; set; }
+    public int AllowedCustomCandidateCount { get; set; }
     public bool IsShuffled { get; set; }
 
     public int MinValue { get; set; }

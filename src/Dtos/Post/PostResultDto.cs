@@ -1,4 +1,4 @@
-public class PollResultDto<T> : PollDto
+public class PollResultDto<T> : PollDto where T : CandidateResultDto
 {
     public new List<T> Candidates { get; set; }
 }
@@ -6,6 +6,7 @@ public class PollResultDto<T> : PollDto
 public class CandidateResultDto
 {
     public Guid Id { get; set; }
+    public string Name { get; set; }
     public int VoteCount { get; set; }
 }
 

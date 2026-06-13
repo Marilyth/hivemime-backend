@@ -235,12 +235,14 @@ public class PostService(HiveMimeContext context,
                 Sum = g.Sum(v => v.Value),
                 VoteCount = g.Count()
             })
+            .OrderByDescending(r => r.VoteCount)
+            .Take(25)
             .ToListAsync();
 
-        return new PollResultDto<CandidateSumResultDto>
+        return await FillResultCandidateNamesAsync(new PollResultDto<CandidateSumResultDto>
         {
             Candidates = sumResults
-        };
+        });
     }
 
     /// <summary>
@@ -272,12 +274,14 @@ public class PostService(HiveMimeContext context,
             FROM ({sql}) AS "CandidateVotes"
             GROUP BY "CandidateId"
             """)
+            .OrderByDescending(r => r.VoteCount)
+            .Take(25)
             .ToListAsync();
 
-        return new PollResultDto<CandidateStatisticsResultDto>
+        return await FillResultCandidateNamesAsync(new PollResultDto<CandidateStatisticsResultDto>
         {
             Candidates = statisticsResults
-        };
+        });
     }
 
     /// <summary>
@@ -311,12 +315,14 @@ public class PostService(HiveMimeContext context,
                     VoteCount = r.Count
                 }).ToList()
             })
+            .OrderByDescending(r => r.VoteCount)
+            .Take(25)
             .ToList();
 
-        return new PollResultDto<CandidateDistributionResultDto>
+        return await FillResultCandidateNamesAsync(new PollResultDto<CandidateDistributionResultDto>
         {
             Candidates = groupedResults
-        };
+        });
     }
 
     /// <summary>
@@ -421,7 +427,7 @@ public class PostService(HiveMimeContext context,
         bool? allowCustomCandidate = await context.Polls
             .AsNoTracking()
             .Where(p => p.Id == pollId)
-            .Select(p => p.AllowCustomCandidate)
+            .Select(p => p.AllowedCustomCandidateCount > 0)
             .FirstOrDefaultAsync();
 
         if (allowCustomCandidate == null)
@@ -578,12 +584,14 @@ public class PostService(HiveMimeContext context,
 
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
-        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, dto.Candidates.Count);
+        int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
+        
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
 
         if (dto.MaxVotes == -1)
-            dto.MaxVotes = dto.Candidates.Count;
+            dto.MaxVotes = effectiveCandidateCount;
         else
-            dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, dto.Candidates.Count);
+            dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
 
         if (dto.PollType == PollType.Score)
         {
@@ -613,7 +621,7 @@ public class PostService(HiveMimeContext context,
         else if (dto.Title.Trim().Length < 3)
             yield return "Poll title must be at least 3 characters long.";
 
-        if (dto.Candidates is null || !dto.Candidates.Any())
+        if (effectiveCandidateCount == 0)
             yield return "A poll must contain at least one candidate.";
 
         if (dto.PollType == PollType.Category)
@@ -657,7 +665,7 @@ public class PostService(HiveMimeContext context,
         if (pollVote.Candidates.Any(v => v.Value.HasValue && v.Value > poll.MaxValue))
             yield return $"Poll has a maximum value of {poll.MaxValue}.";
 
-        if (pollVote.Candidates.Any(c => c.Id is null) && !poll.AllowCustomCandidate)
+        if (pollVote.Candidates.Any(c => c.Id is null) && poll.AllowedCustomCandidateCount == 0)
             yield return "Custom candidates are not allowed for this poll.";
 
         // Poll type specific validation.
@@ -690,5 +698,19 @@ public class PostService(HiveMimeContext context,
             if (!uniqueRanks.Contains(rank))
                 yield return $"Ranking poll is missing rank {rank}.";
         }
+    }
+
+    private async Task<PollResultDto<T>> FillResultCandidateNamesAsync<T>(PollResultDto<T> result) where T : CandidateResultDto
+    {
+        List<Guid> candidateIds = result.Candidates.Select(c => c.Id).ToList();
+        Dictionary<Guid, string> candidateNames = await context.Candidates
+            .AsNoTracking()
+            .Where(c => candidateIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
+
+        foreach (T candidateResult in result.Candidates)
+            candidateResult.Name = candidateNames[candidateResult.Id];
+
+        return result;
     }
 }
