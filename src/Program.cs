@@ -74,6 +74,12 @@ public class Program
                     .AllowAnyHeader());
         });
 
+        // In case we ever decide to use Redis, use HybridCache where it makes sense.
+        services.AddHybridCache(o => o.DefaultEntryOptions = new()
+        {
+            Expiration = TimeSpan.FromMinutes(5)
+        });
+
         // Add custom services.
         services.AddMemoryCache();
         services.AddScoped<PostService>();
