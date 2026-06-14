@@ -359,6 +359,7 @@ public class PostService(HiveMimeContext context,
         };
 
         context.PostVotes.Add(postVote);
+        HashSet<Guid> votedCandidateIds = new();
 
         foreach (PollVoteDto pollVote in vote.Polls)
         {
@@ -370,6 +371,9 @@ public class PostService(HiveMimeContext context,
                 if (candidateVote.Id is null)
                     candidateVote.Id = customCandidateIds[(pollVote.Id, candidateVote.Name)].Id;
 
+                if (votedCandidateIds.Contains(candidateVote.Id.Value))
+                    continue;
+
                 var dbVote = new CandidateVote
                 {
                     CandidateId = candidateVote.Id.Value,
@@ -379,6 +383,7 @@ public class PostService(HiveMimeContext context,
                 postVote.Votes.Add(dbVote);
 
                 dbVote.Value = candidateVote.Value ?? 0;
+                votedCandidateIds.Add(candidateVote.Id.Value);
             }
         }
 
@@ -413,10 +418,10 @@ public class PostService(HiveMimeContext context,
     /// <exception cref="ValidationException">Thrown if the query is invalid or the poll does not allow custom answers.</exception>
     public async Task<List<CandidateDto>> GetCustomCandidateSuggestionsAsync(Guid pollId, string query)
     {
-        string trimmedQuery = query.Normalize(true);
+        string trimmedQuery = query.Normalize(false);
 
         if (string.IsNullOrWhiteSpace(trimmedQuery) || trimmedQuery.Length < 3)
-            throw new ValidationException("Query must be at least 3 characters long.");
+            return [];
 
         bool? allowCustomCandidate = await context.Polls
             .AsNoTracking()
@@ -441,10 +446,10 @@ public class PostService(HiveMimeContext context,
 
     private async Task<Dictionary<(Guid, string), Candidate>> GetOrCreateCustomCandidates(PostVoteDto postVoteDto, int retryCount = 0)
     {
-        List<(Guid, string, string)> customCandidates = postVoteDto.Polls
-            .SelectMany(p => p.Candidates.Where(c => !c.Id.HasValue)
-            .Select(candidate => (p.Id, candidate.Name.Normalize(true), candidate.Name)))
-            .ToList();
+        HashSet<(Guid, string, string)> customCandidates = postVoteDto.Polls
+            .SelectMany(p => p.Candidates.Where(c => !c.Id.HasValue && c.Value.HasValue)
+                .Select(candidate => (p.Id, candidate.Name.Normalize(true), candidate.Name)))
+            .ToHashSet();
 
         if (!customCandidates.Any())
             return [];
@@ -680,8 +685,8 @@ public class PostService(HiveMimeContext context,
         if (pollVote.Candidates.Any(v => v.Value.HasValue && v.Value > poll.MaxValue))
             yield return $"Poll has a maximum value of {poll.MaxValue}.";
 
-        if (pollVote.Candidates.Any(c => c.Id is null) && poll.AllowedCustomCandidateCount == 0)
-            yield return "Custom candidates are not allowed for this poll.";
+        if (pollVote.Candidates.Count(c => c.Id is null && c.Value.HasValue) > poll.AllowedCustomCandidateCount)
+            yield return $"Poll allows a maximum of {poll.AllowedCustomCandidateCount} custom candidates.";
 
         // Poll type specific validation.
         switch (poll.PollType)
