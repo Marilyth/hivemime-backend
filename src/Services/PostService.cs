@@ -225,24 +225,21 @@ public class PostService(HiveMimeContext context,
     /// <param name="filter">The filter to apply to the poll results.</param>
     public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(Guid pollId, string filter)
     {
-        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+        IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
 
         var sumResults = await candidateVotes
-            .GroupBy(v => v.CandidateId)
+            .GroupBy(v => new { v.CandidateId, v.CandidateName, v.IsCustom })
             .Select(g => new CandidateSumResultDto
             {
-                Id = g.Key,
+                Id = g.Key.CandidateId,
+                Name = g.Key.CandidateName,
+                IsCustom = g.Key.IsCustom,
                 Sum = g.Sum(v => v.Value),
                 VoteCount = g.Count()
             })
-            .OrderByDescending(r => r.VoteCount)
-            .Take(25)
             .ToListAsync();
 
-        return await FillResultCandidateNamesAsync(new PollResultDto<CandidateSumResultDto>
-        {
-            Candidates = sumResults
-        });
+        return ToPollResultDto(sumResults);
     }
 
     /// <summary>
@@ -252,7 +249,8 @@ public class PostService(HiveMimeContext context,
     /// <param name="filter">The filter to apply to the poll results.</param>
     public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(Guid pollId, string filter)
     {
-        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+        IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
+
         string sql = candidateVotes.AsSingleQuery().ToQueryString();
 
         Dictionary<string, string> parameters = Regex.Matches(sql, @"-- (@\w+)=(.+)")
@@ -264,6 +262,8 @@ public class PostService(HiveMimeContext context,
         var statisticsResults = await context.Database.SqlQueryRaw<CandidateStatisticsResultDto>($"""
             SELECT 
                 "CandidateId" AS "Id",
+                "CandidateName" AS "Name",
+                "IsCustom" AS "IsCustom",
                 MIN("Value") AS "Min",
                 PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "Value") AS "Q1",
                 PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "Value") AS "Median",
@@ -272,16 +272,11 @@ public class PostService(HiveMimeContext context,
                 AVG("Value") AS "Average",
                 Count(*) AS "VoteCount"
             FROM ({sql}) AS "CandidateVotes"
-            GROUP BY "CandidateId"
+            GROUP BY "CandidateId", "CandidateName", "IsCustom"
             """)
-            .OrderByDescending(r => r.VoteCount)
-            .Take(25)
             .ToListAsync();
 
-        return await FillResultCandidateNamesAsync(new PollResultDto<CandidateStatisticsResultDto>
-        {
-            Candidates = statisticsResults
-        });
+        return ToPollResultDto(statisticsResults);
     }
 
     /// <summary>
@@ -291,23 +286,27 @@ public class PostService(HiveMimeContext context,
     /// <param name="filter">The filter to apply to the poll results.</param>
     public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(Guid pollId, string filter)
     {
-        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+        IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
 
         var distributionResults = await candidateVotes
-            .GroupBy(v => new { v.CandidateId, v.Value })
+            .GroupBy(v => new { v.CandidateId, v.Value, v.CandidateName, v.IsCustom })
             .Select(g => new
             {
                 g.Key.CandidateId,
                 g.Key.Value,
+                g.Key.CandidateName,
+                g.Key.IsCustom,
                 Count = g.Count()
             })
             .ToListAsync();
 
         var groupedResults = distributionResults
-            .GroupBy(r => r.CandidateId)
+            .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
             .Select(g => new CandidateDistributionResultDto
             {
-                Id = g.Key,
+                Id = g.Key.CandidateId,
+                Name = g.Key.CandidateName,
+                IsCustom = g.Key.IsCustom,
                 VoteCount = g.Sum(r => r.Count),
                 Distribution = g.Select(r => new CandidationDistributionResultValueDto
                 {
@@ -315,14 +314,9 @@ public class PostService(HiveMimeContext context,
                     VoteCount = r.Count
                 }).ToList()
             })
-            .OrderByDescending(r => r.VoteCount)
-            .Take(25)
             .ToList();
 
-        return await FillResultCandidateNamesAsync(new PollResultDto<CandidateDistributionResultDto>
-        {
-            Candidates = groupedResults
-        });
+        return ToPollResultDto(groupedResults);
     }
 
     /// <summary>
@@ -496,7 +490,7 @@ public class PostService(HiveMimeContext context,
         return existingCandidates;
     }
 
-    private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, string filter)
+    private IQueryable<CandidateVoteWithMetaData> GetApplicableVotes(Guid pollId, string filter)
     {
         IQueryable<PostVote> votes = context.PostVotes
             .Where(v => v.Post.Polls.Any(p => p.Id == pollId));
@@ -510,7 +504,28 @@ public class PostService(HiveMimeContext context,
         }
 
         return votes.SelectMany(v => v.Votes)
-            .Where(cv => cv.Candidate.PollId == pollId);
+            .Where(cv => cv.Candidate.PollId == pollId)
+            .Select(cv => new CandidateVoteWithMetaData
+            {
+                CandidateId = cv.CandidateId,
+                Value = cv.Value,
+                CandidateName = cv.Candidate.Name,
+                IsCustom = cv.Candidate.IsCustom
+            });
+    }
+
+    private PollResultDto<T> ToPollResultDto<T>(List<T> candidateResults, int customCount = 50) where T : CandidateResultDto
+    {
+        var customResults = candidateResults.Where(c => c.IsCustom)
+            .OrderByDescending(c => c.VoteCount)
+            .Take(customCount);
+
+        var nonCustomResults = candidateResults.Where(c => !c.IsCustom);
+
+        return new PollResultDto<T>
+        {
+            Candidates = nonCustomResults.Concat(customResults).ToList()
+        };
     }
 
     /// <summary>
@@ -700,17 +715,11 @@ public class PostService(HiveMimeContext context,
         }
     }
 
-    private async Task<PollResultDto<T>> FillResultCandidateNamesAsync<T>(PollResultDto<T> result) where T : CandidateResultDto
+    private class CandidateVoteWithMetaData
     {
-        List<Guid> candidateIds = result.Candidates.Select(c => c.Id).ToList();
-        Dictionary<Guid, string> candidateNames = await context.Candidates
-            .AsNoTracking()
-            .Where(c => candidateIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id, c => c.Name);
-
-        foreach (T candidateResult in result.Candidates)
-            candidateResult.Name = candidateNames[candidateResult.Id];
-
-        return result;
+        public Guid CandidateId { get; set; }
+        public int Value { get; set; }
+        public string CandidateName { get; set; }
+        public bool IsCustom { get; set; }
     }
 }

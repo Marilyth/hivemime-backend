@@ -7,6 +7,7 @@ public class CandidateResultDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; }
+    public bool IsCustom { get; set; }
     public int VoteCount { get; set; }
 }
 
