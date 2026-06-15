@@ -25,7 +25,7 @@ public class CommentPaginationHelper : PaginationHelperBase<Comment, CommentPagi
 
     protected override IQueryable<Comment> ApplyPreFiltering(IQueryable<Comment> query)
     {
-        if (Pagination.Filter is not null)
+        if (!string.IsNullOrWhiteSpace(Pagination.Filter))
         {
             string filter = Pagination.Filter.Trim();
             query = query.Where(c
