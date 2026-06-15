@@ -25,7 +25,7 @@ public class HivePaginationHelper : PaginationHelperBase<Hive, HivePaginationDto
 
     protected override IQueryable<Hive> ApplyPreFiltering(IQueryable<Hive> query)
     {
-        if (Pagination.Filter is not null)
+        if (!string.IsNullOrWhiteSpace(Pagination.Filter))
         {
             string filter = Pagination.Filter.Trim();
             query = query.Where(h => h.Name.StartsWith(filter) ||

@@ -25,7 +25,7 @@ public class UserPaginationHelper : PaginationHelperBase<User, UserPaginationDto
 
     protected override IQueryable<User> ApplyPreFiltering(IQueryable<User> query)
     {
-        if (Pagination.Filter is not null)
+        if (!string.IsNullOrWhiteSpace(Pagination.Filter))
         {
             string filter = Pagination.Filter.Trim().ToLower();
             query = query.Where(u => u.Username.ToLower().StartsWith(filter));

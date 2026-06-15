@@ -168,7 +168,9 @@ public class PostService(HiveMimeContext context,
         Post newPost = postDto.Adapt<Post>();
         newPost.IsDraft = true;
 
-        // Set order properties of children.
+        foreach(var candidate in newPost.Polls.SelectMany(p => p.Candidates))
+            candidate.NormalizedName = candidate.Name.Normalize(true);
+            
         for (int i = 0; i < newPost.Polls.Count; i++)
         {
             newPost.Polls[i].Order = i;
@@ -223,22 +225,21 @@ public class PostService(HiveMimeContext context,
     /// <param name="filter">The filter to apply to the poll results.</param>
     public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(Guid pollId, string filter)
     {
-        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+        IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
 
         var sumResults = await candidateVotes
-            .GroupBy(v => v.CandidateId)
+            .GroupBy(v => new { v.CandidateId, v.CandidateName, v.IsCustom })
             .Select(g => new CandidateSumResultDto
             {
-                Id = g.Key,
+                Id = g.Key.CandidateId,
+                Name = g.Key.CandidateName,
+                IsCustom = g.Key.IsCustom,
                 Sum = g.Sum(v => v.Value),
                 VoteCount = g.Count()
             })
             .ToListAsync();
 
-        return new PollResultDto<CandidateSumResultDto>
-        {
-            Candidates = sumResults
-        };
+        return ToPollResultDto(sumResults);
     }
 
     /// <summary>
@@ -248,7 +249,8 @@ public class PostService(HiveMimeContext context,
     /// <param name="filter">The filter to apply to the poll results.</param>
     public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(Guid pollId, string filter)
     {
-        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+        IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
+
         string sql = candidateVotes.AsSingleQuery().ToQueryString();
 
         Dictionary<string, string> parameters = Regex.Matches(sql, @"-- (@\w+)=(.+)")
@@ -260,6 +262,8 @@ public class PostService(HiveMimeContext context,
         var statisticsResults = await context.Database.SqlQueryRaw<CandidateStatisticsResultDto>($"""
             SELECT 
                 "CandidateId" AS "Id",
+                "CandidateName" AS "Name",
+                "IsCustom" AS "IsCustom",
                 MIN("Value") AS "Min",
                 PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "Value") AS "Q1",
                 PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "Value") AS "Median",
@@ -268,14 +272,11 @@ public class PostService(HiveMimeContext context,
                 AVG("Value") AS "Average",
                 Count(*) AS "VoteCount"
             FROM ({sql}) AS "CandidateVotes"
-            GROUP BY "CandidateId"
+            GROUP BY "CandidateId", "CandidateName", "IsCustom"
             """)
             .ToListAsync();
 
-        return new PollResultDto<CandidateStatisticsResultDto>
-        {
-            Candidates = statisticsResults
-        };
+        return ToPollResultDto(statisticsResults);
     }
 
     /// <summary>
@@ -285,23 +286,27 @@ public class PostService(HiveMimeContext context,
     /// <param name="filter">The filter to apply to the poll results.</param>
     public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(Guid pollId, string filter)
     {
-        IQueryable<CandidateVote> candidateVotes = GetApplicableVotes(pollId, filter);
+        IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
 
         var distributionResults = await candidateVotes
-            .GroupBy(v => new { v.CandidateId, v.Value })
+            .GroupBy(v => new { v.CandidateId, v.Value, v.CandidateName, v.IsCustom })
             .Select(g => new
             {
                 g.Key.CandidateId,
                 g.Key.Value,
+                g.Key.CandidateName,
+                g.Key.IsCustom,
                 Count = g.Count()
             })
             .ToListAsync();
 
         var groupedResults = distributionResults
-            .GroupBy(r => r.CandidateId)
+            .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
             .Select(g => new CandidateDistributionResultDto
             {
-                Id = g.Key,
+                Id = g.Key.CandidateId,
+                Name = g.Key.CandidateName,
+                IsCustom = g.Key.IsCustom,
                 VoteCount = g.Sum(r => r.Count),
                 Distribution = g.Select(r => new CandidationDistributionResultValueDto
                 {
@@ -311,10 +316,7 @@ public class PostService(HiveMimeContext context,
             })
             .ToList();
 
-        return new PollResultDto<CandidateDistributionResultDto>
-        {
-            Candidates = groupedResults
-        };
+        return ToPollResultDto(groupedResults);
     }
 
     /// <summary>
@@ -327,65 +329,61 @@ public class PostService(HiveMimeContext context,
         await authorizationService.VerifyVoteOnPostAsync(userId, vote.Id);
         
         Post post = await context.Posts
+            .AsNoTracking()
             .Include(p => p.Polls)
-                .ThenInclude(o => o.Candidates)
-            .Include(p => p.Polls)
-                .ThenInclude(o => o.Categories)
             .FirstOrExceptionAsync(p => p.Id == vote.Id);
 
         IEnumerable<string> validationErrors = ValidatePostVotes(post, vote);
 
         if (validationErrors.Any())
             throw new ValidationException("Vote validation failed: " + string.Join("; ", validationErrors));
-            
+        
+        var customCandidateIds = await GetOrCreateCustomCandidates(vote);
+
         HoneyDeltaDto<bool> honeyDelta = new() { Dto = true };
 
         PostVote postVote = await context.PostVotes
             .Include(pv => pv.Votes)
             .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.Id);
-            
-        if (postVote is null)
-        {
-            postVote = new PostVote
-            {
-                UserId = userId,
-                PostId = post.Id,
-                Votes = new List<CandidateVote>()
-            };
-
-            context.PostVotes.Add(postVote);
+        
+        if (postVote is not null)
+            context.PostVotes.Remove(postVote);
+        else
             honeyDelta = await honeyDeltaCalculator.FromPostVoteAsync(userId, vote);
-        }
+            
+        postVote = new PostVote
+        {
+            UserId = userId,
+            PostId = post.Id,
+            Votes = new List<CandidateVote>()
+        };
+
+        context.PostVotes.Add(postVote);
+        HashSet<Guid> votedCandidateIds = new();
 
         foreach (PollVoteDto pollVote in vote.Polls)
         {
             foreach (CandidateVoteDto candidateVote in pollVote.Candidates)
             {
-                // Either update the vote if one already exists, or create a new one.
-                CandidateVote dbVote = postVote.Votes.FirstOrDefault(v => v.CandidateId == candidateVote.Id);
-
-                // The user did not vote for the candidate.
-                if (candidateVote.Value is null && post.Polls.First(p => p.Id == pollVote.Id).PollType != PollType.Choice)
-                {
-                    if (dbVote is not null)
-                        context.CandidateVotes.Remove(dbVote);
-
+                if (!candidateVote.Value.HasValue)
                     continue;
-                }
+                
+                if (candidateVote.Id is null)
+                    candidateVote.Id = customCandidateIds[(pollVote.Id, candidateVote.Name)].Id;
 
-                // The user voted for the candidate.
-                if (dbVote is null)
+                if (votedCandidateIds.Contains(candidateVote.Id.Value))
+                    continue;
+
+                var dbVote = new CandidateVote
                 {
-                    dbVote = new CandidateVote
-                    {
-                        CandidateId = candidateVote.Id,
-                        PostVote = postVote
-                    };
+                    CandidateId = candidateVote.Id.Value,
+                    PostVote = postVote
+                };
 
-                    postVote.Votes.Add(dbVote);
-                }
+                postVote.Votes.Add(dbVote);
 
                 dbVote.Value = candidateVote.Value ?? 0;
+                votedCandidateIds.Add(candidateVote.Id.Value);
             }
         }
 
@@ -410,7 +408,94 @@ public class PostService(HiveMimeContext context,
         await context.SaveChangesAsync();
     }
 
-    private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, string filter)
+    /// <summary>
+    /// Returns a list of custom candidate suggestions for a poll based on a query string.
+    /// Only candidates that start with the query string and are marked as custom will be returned.
+    /// </summary>
+    /// <param name="pollId">The ID of the poll for which to retrieve custom candidate suggestions.</param>
+    /// <param name="query">The query string to filter custom candidates.</param>
+    /// <returns>A list of <see cref="CandidateDto"/> representing the custom candidate suggestions.</returns>
+    /// <exception cref="ValidationException">Thrown if the query is invalid or the poll does not allow custom answers.</exception>
+    public async Task<List<CandidateDto>> GetCustomCandidateSuggestionsAsync(Guid pollId, string query)
+    {
+        string trimmedQuery = query.Normalize(false);
+
+        if (string.IsNullOrWhiteSpace(trimmedQuery) || trimmedQuery.Length < 3)
+            return [];
+
+        bool? allowCustomCandidate = await context.Polls
+            .AsNoTracking()
+            .Where(p => p.Id == pollId)
+            .Select(p => p.AllowedCustomCandidateCount > 0)
+            .FirstOrDefaultAsync();
+
+        if (allowCustomCandidate == null)
+            throw new ValidationException("Poll not found.");
+
+        if (!allowCustomCandidate.Value)
+            throw new ValidationException("This poll does not allow custom candidates.");
+
+        return await context.Candidates
+            .Where(c => c.PollId == pollId)
+            .Where(c => c.NormalizedName.StartsWith(trimmedQuery) && c.IsCustom)
+            .OrderBy(c => c.Name)
+            .Take(10)
+            .ProjectToType<CandidateDto>()
+            .ToListAsync();
+    }
+
+    private async Task<Dictionary<(Guid, string), Candidate>> GetOrCreateCustomCandidates(PostVoteDto postVoteDto, int retryCount = 0)
+    {
+        HashSet<(Guid, string, string)> customCandidates = postVoteDto.Polls
+            .SelectMany(p => p.Candidates.Where(c => !c.Id.HasValue && c.Value.HasValue)
+                .Select(candidate => (p.Id, candidate.Name.Normalize(true), candidate.Name)))
+            .ToHashSet();
+
+        if (!customCandidates.Any())
+            return [];
+
+        IEnumerable<string> customCandidateNames = customCandidates.Select(c => c.Item2).Distinct();
+        Dictionary<(Guid, string), Candidate> existingCandidates = 
+            context.Candidates.Where(c => c.Poll.PostId == postVoteDto.Id)
+                .AsNoTracking()
+                .Where(c => c.IsCustom && customCandidateNames.Contains(c.NormalizedName))
+                .ToDictionary(c => (c.PollId, c.NormalizedName), c => c);
+
+        foreach (var customCandidate in customCandidates)
+        {
+            if (!existingCandidates.ContainsKey((customCandidate.Item1, customCandidate.Item2)))
+            {
+                Candidate newCandidate = new()
+                {
+                    PollId = customCandidate.Item1,
+                    Name = customCandidate.Item3,
+                    NormalizedName = customCandidate.Item2,
+                    IsCustom = true
+                };
+
+                context.Candidates.Add(newCandidate);
+                existingCandidates[(customCandidate.Item1, customCandidate.Item2)] = newCandidate;
+            }
+        }
+
+        try
+        {
+            await context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("duplicate key value violates unique constraint") == true)
+        {
+            if (retryCount >= 3)
+                throw new ValidationException("Failed to create custom candidates after multiple attempts due to concurrent modifications. Please try again later.");
+
+            context.ChangeTracker.Clear();
+
+            return await GetOrCreateCustomCandidates(postVoteDto, retryCount + 1);
+        }
+
+        return existingCandidates;
+    }
+
+    private IQueryable<CandidateVoteWithMetaData> GetApplicableVotes(Guid pollId, string filter)
     {
         IQueryable<PostVote> votes = context.PostVotes
             .Where(v => v.Post.Polls.Any(p => p.Id == pollId));
@@ -424,7 +509,28 @@ public class PostService(HiveMimeContext context,
         }
 
         return votes.SelectMany(v => v.Votes)
-            .Where(cv => cv.Candidate.PollId == pollId);
+            .Where(cv => cv.Candidate.PollId == pollId)
+            .Select(cv => new CandidateVoteWithMetaData
+            {
+                CandidateId = cv.CandidateId,
+                Value = cv.Value,
+                CandidateName = cv.Candidate.Name,
+                IsCustom = cv.Candidate.IsCustom
+            });
+    }
+
+    private PollResultDto<T> ToPollResultDto<T>(List<T> candidateResults, int customCount = 50) where T : CandidateResultDto
+    {
+        var customResults = candidateResults.Where(c => c.IsCustom)
+            .OrderByDescending(c => c.VoteCount)
+            .Take(customCount);
+
+        var nonCustomResults = candidateResults.Where(c => !c.IsCustom);
+
+        return new PollResultDto<T>
+        {
+            Candidates = nonCustomResults.Concat(customResults).ToList()
+        };
     }
 
     /// <summary>
@@ -498,12 +604,14 @@ public class PostService(HiveMimeContext context,
 
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
-        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, dto.Candidates.Count);
+        int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
+        
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
 
         if (dto.MaxVotes == -1)
-            dto.MaxVotes = dto.Candidates.Count;
+            dto.MaxVotes = effectiveCandidateCount;
         else
-            dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, dto.Candidates.Count);
+            dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
 
         if (dto.PollType == PollType.Score)
         {
@@ -533,7 +641,7 @@ public class PostService(HiveMimeContext context,
         else if (dto.Title.Trim().Length < 3)
             yield return "Poll title must be at least 3 characters long.";
 
-        if (dto.Candidates is null || !dto.Candidates.Any())
+        if (effectiveCandidateCount == 0)
             yield return "A poll must contain at least one candidate.";
 
         if (dto.PollType == PollType.Category)
@@ -565,9 +673,6 @@ public class PostService(HiveMimeContext context,
         int votesCount = pollVote.Candidates.Count(v => v.Value.HasValue && (poll.PollType != PollType.Choice || v.Value.Value != 0));
 
         // General validation.
-        if (pollVote.Candidates.Count != poll.Candidates.Count)
-            yield return $"Poll has an invalid number of candidate votes.";
-
         if (votesCount < poll.MinVotes)
             yield return $"Poll requires at least {poll.MinVotes} votes.";
 
@@ -579,6 +684,9 @@ public class PostService(HiveMimeContext context,
 
         if (pollVote.Candidates.Any(v => v.Value.HasValue && v.Value > poll.MaxValue))
             yield return $"Poll has a maximum value of {poll.MaxValue}.";
+
+        if (pollVote.Candidates.Count(c => c.Id is null && c.Value.HasValue) > poll.AllowedCustomCandidateCount)
+            yield return $"Poll allows a maximum of {poll.AllowedCustomCandidateCount} custom candidates.";
 
         // Poll type specific validation.
         switch (poll.PollType)
@@ -610,5 +718,13 @@ public class PostService(HiveMimeContext context,
             if (!uniqueRanks.Contains(rank))
                 yield return $"Ranking poll is missing rank {rank}.";
         }
+    }
+
+    private class CandidateVoteWithMetaData
+    {
+        public Guid CandidateId { get; set; }
+        public int Value { get; set; }
+        public string CandidateName { get; set; }
+        public bool IsCustom { get; set; }
     }
 }

@@ -12,6 +12,7 @@ public class PollVoteDto
 
 public class CandidateVoteDto
 {
-    public Guid Id { get; set; }
+    public Guid? Id { get; set; }
+    public string Name { get; set; }
     public int? Value { get; set; }
 }

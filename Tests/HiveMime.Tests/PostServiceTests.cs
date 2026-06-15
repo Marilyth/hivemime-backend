@@ -114,7 +114,7 @@ public class PostServiceTests : IntegrationTest
             Creator = _defaultUser!,
             Hive = _defaultHive!,
             ApprovalStatus = ApprovalStatus.Pending,
-            Polls = [new Poll { Title = "Hidden approval", Description = "hidden", PollType = PollType.Choice, Candidates = [new Candidate { Name = "A" }] }]
+            Polls = [new Poll { Title = "Hidden approval", Description = "hidden", PollType = PollType.Choice, Candidates = [new Candidate { NormalizedName = "a", Name = "A" }] }]
         };
 
         var hiddenByPrivacy = new Post
@@ -122,7 +122,7 @@ public class PostServiceTests : IntegrationTest
             Creator = _defaultUser!,
             Hive = privateHive,
             ApprovalStatus = ApprovalStatus.Approved,
-            Polls = [new Poll { Title = "Hidden privacy", Description = "hidden", PollType = PollType.Choice, Candidates = [new Candidate { Name = "A" }] }]
+            Polls = [new Poll { Title = "Hidden privacy", Description = "hidden", PollType = PollType.Choice, Candidates = [new Candidate { NormalizedName = "a", Name = "A" }] }]
         };
 
         Context.Posts.AddRange(hiddenByApproval, hiddenByPrivacy);
@@ -517,8 +517,8 @@ public class PostServiceTests : IntegrationTest
                     PollType = PollType.Choice,
                     Candidates = new List<Candidate>
                     {
-                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
-                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                        new Candidate { NormalizedName = "option 1", Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { NormalizedName = "option 2", Name = "Option 2", Description = "Option 2 Description" }
                     }
                 }
             ]
@@ -537,8 +537,8 @@ public class PostServiceTests : IntegrationTest
                     PollType = PollType.Choice,
                     Candidates = new List<Candidate>
                     {
-                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
-                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                        new Candidate { NormalizedName = "option 1", Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { NormalizedName = "option 2", Name = "Option 2", Description = "Option 2 Description" }
                     }
                 }
             ]
@@ -559,7 +559,7 @@ public class PostServiceTests : IntegrationTest
                     MaxValue = 100, // Large range to trigger bucketing
                     Candidates = new List<Candidate>
                     {
-                        new Candidate { Name = "Score Option", Description = "Score Option Description" }
+                        new Candidate { NormalizedName = "score option", Name = "Score Option", Description = "Score Option Description" }
                     }
                 },
                 new Poll
@@ -571,7 +571,7 @@ public class PostServiceTests : IntegrationTest
                     MaxValue = 5, // Small range, no bucketing
                     Candidates = new List<Candidate>
                     {
-                        new Candidate { Name = "Small Score Option", Description = "Small Score Option Description" }
+                        new Candidate { NormalizedName = "small score option", Name = "Small Score Option", Description = "Small Score Option Description" }
                     }
                 }
             ]
@@ -592,7 +592,7 @@ public class PostServiceTests : IntegrationTest
                     MaxValue = 2,
                     Candidates = new List<Candidate>
                     {
-                        new Candidate { Name = "A" }
+                        new Candidate { NormalizedName = "a", Name = "A" }
                     },
                     Categories = new List<Category>
                     {
@@ -615,8 +615,8 @@ public class PostServiceTests : IntegrationTest
                     PollType = PollType.Choice,
                     Candidates = new List<Candidate>
                     {
-                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
-                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                        new Candidate { NormalizedName = "option 1", Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { NormalizedName = "option 2", Name = "Option 2", Description = "Option 2 Description" }
                     }
                 }
             ]
@@ -635,8 +635,8 @@ public class PostServiceTests : IntegrationTest
                     PollType = PollType.Choice,
                     Candidates = new List<Candidate>
                     {
-                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
-                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                        new Candidate { NormalizedName = "option 1", Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { NormalizedName = "option 2", Name = "Option 2", Description = "Option 2 Description" }
                     }
                 }
             ]
@@ -664,8 +664,8 @@ public class PostServiceTests : IntegrationTest
                     PollType = PollType.Choice,
                     Candidates = new List<Candidate>
                     {
-                        new Candidate { Name = "Option 1", Description = "Option 1 Description" },
-                        new Candidate { Name = "Option 2", Description = "Option 2 Description" }
+                        new Candidate { NormalizedName = "option 1", Name = "Option 1", Description = "Option 1 Description" },
+                        new Candidate { NormalizedName = "option 2", Name = "Option 2", Description = "Option 2 Description" }
                     }
                 }
             ]

@@ -7,6 +7,7 @@ public class CreatePollDto
 
     public int MinValue { get; set; }
     public int MaxValue { get; set; }
+    public int AllowedCustomCandidateCount { get; set; }
     public double? StepValue { get; set; }
 
     // For polls where multiple answers are allowed.

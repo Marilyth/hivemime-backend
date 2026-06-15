@@ -4,6 +4,7 @@ public class PollDto
     public string Title { get; set; }
     public List<string> MediaKeys { get; set; }
     public string? Description { get; set; }
+    public int AllowedCustomCandidateCount { get; set; }
     public bool IsShuffled { get; set; }
 
     public int MinValue { get; set; }

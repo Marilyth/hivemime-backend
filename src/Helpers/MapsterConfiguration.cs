@@ -39,7 +39,7 @@ public static class MapsterConfiguration
     {
         _config.NewConfig<Poll, PollDto>()
             .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m))
-            .Map(dest => dest.Candidates, src => src.Candidates.OrderBy(c => c.Order))
+            .Map(dest => dest.Candidates, src => src.Candidates.Where(c => !c.IsCustom).OrderBy(c => c.Order))
             .Map(dest => dest.Categories, src => src.Categories.OrderBy(c => c.Order));
     }
 
