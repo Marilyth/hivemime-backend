@@ -369,7 +369,7 @@ public class PostService(HiveMimeContext context,
                     continue;
                 
                 if (candidateVote.Id is null)
-                    candidateVote.Id = customCandidateIds[(pollVote.Id, candidateVote.Name)].Id;
+                    candidateVote.Id = customCandidateIds[(pollVote.Id, candidateVote.Name.Normalize(false))].Id;
 
                 if (votedCandidateIds.Contains(candidateVote.Id.Value))
                     continue;
@@ -448,7 +448,7 @@ public class PostService(HiveMimeContext context,
     {
         HashSet<(Guid, string, string)> customCandidates = postVoteDto.Polls
             .SelectMany(p => p.Candidates.Where(c => !c.Id.HasValue && c.Value.HasValue)
-                .Select(candidate => (p.Id, candidate.Name.Normalize(true), candidate.Name)))
+                .Select(candidate => (p.Id, candidate.Name.Normalize(false), candidate.Name)))
             .ToHashSet();
 
         if (!customCandidates.Any())
