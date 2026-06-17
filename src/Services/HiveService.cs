@@ -1,7 +1,8 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
 
-public class HiveService(HiveMimeContext context, AuthorizationService authorizationService)
+public class HiveService(HiveMimeContext context, AuthorizationService authorizationService, HybridCache cache)
 {
     /// <summary>
     /// Fetches and returns a hive by its ID.
@@ -9,22 +10,32 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// <param name="hiveId">The ID of the hive to fetch.</param>
     /// <returns>The hive with the specified ID.</returns>
     public async Task<HiveDto> GetHiveAsync(Guid hiveId)
-        => await context.Hives.AsNoTracking()
-            .QueryableFind(hiveId)
-            .ProjectToType<HiveDto>()
-            .FirstOrExceptionAsync();
+    {
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([hiveId]), async entry =>
+        {
+            return await context.Hives.AsNoTracking()
+                .QueryableFind(hiveId)
+                .ProjectToType<HiveDto>()
+                .FirstOrExceptionAsync();
+        });
+    }
 
     /// <summary>
     /// Fetches and returns all hives followed by the user.
     /// </summary>
     /// <param name="userId">The ID of the user whose followed hives to fetch.</param>
     public async Task<List<HiveUserDto>> GetJoinedHivesAsync(Guid userId)
-        => await context.Users.AsNoTracking()
-            .Where(u => u.Id == userId)
-            .SelectMany(u => u.JoinedHives)
-            .OrderByDescending(h => h.Id)
-            .ProjectToType<HiveUserDto>()
-            .ToListAsync();
+    {
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([userId]), async entry =>
+        {
+            return await context.Users.AsNoTracking()
+                .Where(u => u.Id == userId)
+                .SelectMany(u => u.JoinedHives)
+                .OrderByDescending(h => h.Id)
+                .ProjectToType<HiveUserDto>()
+                .ToListAsync();
+        });
+    }
 
     /// <summary>
     /// Adds a moderator to the hive, allowing them to manage the hive and its content.
@@ -119,12 +130,15 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     {
         await authorizationService.VerifyViewHiveUsersAsync(userId, hiveId);
 
-        IQueryable<HiveUser> query = context.HiveUsers.AsNoTracking()
-            .Where(r => r.HiveId == hiveId && r.ApprovalStatus == status)
-            .OrderByDescending(r => r.Role);
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([hiveId, status, pagination]), async entry =>
+        {
+            IQueryable<HiveUser> query = context.HiveUsers.AsNoTracking()
+                .Where(r => r.HiveId == hiveId && r.ApprovalStatus == status)
+                .OrderByDescending(r => r.Role);
 
-        return await new HiveUserPaginationHelper(pagination)
-            .ApplyPaginationAsync<HiveUserDto>(query);
+            return await new HiveUserPaginationHelper(pagination)
+                .ApplyPaginationAsync<HiveUserDto>(query);
+        });
     }
 
     /// <summary>
@@ -148,12 +162,15 @@ public class HiveService(HiveMimeContext context, AuthorizationService authoriza
     /// <param name="pagination">The pagination parameters, including filter and order by options.</param>
     public async Task<PaginationResultDto<HiveDto>> BrowseHivesAsync(HivePaginationDto pagination)
     {
-        IQueryable<Hive> query = context.Hives
-            .Where(h => !h.Settings.IsPrivate)
-            .AsNoTracking();
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pagination]), async entry =>
+        {
+            IQueryable<Hive> query = context.Hives
+                .Where(h => !h.Settings.IsPrivate)
+                .AsNoTracking();
 
-        return await new HivePaginationHelper(pagination)
-            .ApplyPaginationAsync<HiveDto>(query);
+            return await new HivePaginationHelper(pagination)
+                .ApplyPaginationAsync<HiveDto>(query);
+        });
     }
 
     /// <summary>
