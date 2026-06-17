@@ -38,11 +38,11 @@ public class PostService(HiveMimeContext context,
     /// <param name="status">The approval status to filter posts by.</param>
     public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(Guid userId, Guid? creatorId, Guid? hiveId, PostPaginationDto pagination, ApprovalStatus status)
     {
-        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([creatorId, hiveId, pagination, status]), async entry =>
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([userId, creatorId, hiveId, pagination, status]), async entry =>
         {
             IQueryable<Post> posts = context.Posts
-            .Where(p => !p.IsDraft && p.ApprovalStatus == status)
-            .AsNoTracking();
+                .Where(p => !p.IsDraft && p.ApprovalStatus == status)
+                .AsNoTracking();
 
             if (creatorId.HasValue)
                 posts = posts.Where(p => p.CreatorId == creatorId.Value);
