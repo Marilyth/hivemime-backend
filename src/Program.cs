@@ -141,6 +141,7 @@ public class Program
             };
         });
         
+        var observabilityEndpoint = new Uri(builder.Configuration["Observability:Endpoint"]);
         builder.Logging.AddOpenTelemetry();
 
         services.AddOpenTelemetry()
@@ -151,19 +152,19 @@ public class Program
                 .AddEntityFrameworkCoreInstrumentation()
                 .AddOtlpExporter(o =>
                 {
-                    o.Endpoint = new Uri("http://localhost:4317");
+                    o.Endpoint = observabilityEndpoint;
                 }))
             .WithMetrics(m => m
                 .AddAspNetCoreInstrumentation()
                 .AddRuntimeInstrumentation()
                 .AddOtlpExporter(o =>
                 {
-                    o.Endpoint = new Uri("http://localhost:4317");
+                    o.Endpoint = observabilityEndpoint;
                 }))
             .WithLogging(l => l
                 .AddOtlpExporter(o =>
                 {
-                    o.Endpoint = new Uri("http://localhost:4317");
+                    o.Endpoint = observabilityEndpoint;
                 }));
 
         // In case we ever decide to use Redis, use HybridCache where it makes sense.
