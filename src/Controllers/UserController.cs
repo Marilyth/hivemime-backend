@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -9,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 public class UserController(UserService userService, HiveMimeContext context, IOptionsMonitor<JwtBearerOptions> optionsMonitor) : ControllerBase
 {
     [HttpGet("merge")]
+    [EnableRateLimiting("1/1m")]
     public async Task MergeAccounts(string previousJwt)
     {
         var jwtOptions = optionsMonitor.Get(JwtBearerDefaults.AuthenticationScheme);
@@ -29,22 +31,27 @@ public class UserController(UserService userService, HiveMimeContext context, IO
     }
 
     [HttpGet("me")]
+    [EnableRateLimiting("1/1s")]
     public async Task<UserDetailsDto> GetUserDetails()
         => await userService.GetUserDetailsAsync(await User.GetUserIdAsync(context));
 
     [HttpPost("browse")]
+    [EnableRateLimiting("5/1s")]
     public async Task<PaginationResultDto<UserDto>> BrowseUsers([FromBody] UserPaginationDto pagination)
         => await userService.BrowseUsersAsync(pagination);
 
     [HttpGet("profile")]
+    [EnableRateLimiting("1/1s")]
     public async Task<UserProfileDto> GetUserProfile(Guid userId)
         => await userService.GetUserProfileAsync(userId);
 
     [HttpGet("login")]
+    [EnableRateLimiting("1/1s")]
     public async Task<UserDetailsDto> LoginUser()
         => await userService.CreateOrLoginUserAsync(User);
 
     [HttpPost("update")]
+    [EnableRateLimiting("1/5s")]
     public async Task<UserDetailsDto> UpdateUser([FromBody] UserDetailsDto userDetails)
         => await userService.UpdateUserAsync(await User.GetUserIdAsync(context), userDetails);
 }
