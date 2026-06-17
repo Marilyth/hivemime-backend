@@ -141,31 +141,35 @@ public class Program
             };
         });
         
-        var observabilityEndpoint = new Uri(builder.Configuration["Observability:Endpoint"]);
-        builder.Logging.AddOpenTelemetry();
+        string observabilityEndpointString = builder.Configuration["Observability:Endpoint"];
+        if (!string.IsNullOrEmpty(observabilityEndpointString))
+        {
+            var observabilityEndpoint = new Uri(observabilityEndpointString);
+            builder.Logging.AddOpenTelemetry();
 
-        services.AddOpenTelemetry()
-            .ConfigureResource(r => r.AddService("HiveMime-Backend"))
-            .WithTracing(t => t
-                .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation()
-                .AddEntityFrameworkCoreInstrumentation()
-                .AddOtlpExporter(o =>
-                {
-                    o.Endpoint = observabilityEndpoint;
-                }))
-            .WithMetrics(m => m
-                .AddAspNetCoreInstrumentation()
-                .AddRuntimeInstrumentation()
-                .AddOtlpExporter(o =>
-                {
-                    o.Endpoint = observabilityEndpoint;
-                }))
-            .WithLogging(l => l
-                .AddOtlpExporter(o =>
-                {
-                    o.Endpoint = observabilityEndpoint;
-                }));
+            services.AddOpenTelemetry()
+                .ConfigureResource(r => r.AddService("HiveMime-Backend"))
+                .WithTracing(t => t
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddEntityFrameworkCoreInstrumentation()
+                    .AddOtlpExporter(o =>
+                    {
+                        o.Endpoint = observabilityEndpoint;
+                    }))
+                .WithMetrics(m => m
+                    .AddAspNetCoreInstrumentation()
+                    .AddRuntimeInstrumentation()
+                    .AddOtlpExporter(o =>
+                    {
+                        o.Endpoint = observabilityEndpoint;
+                    }))
+                .WithLogging(l => l
+                    .AddOtlpExporter(o =>
+                    {
+                        o.Endpoint = observabilityEndpoint;
+                    }));
+        }
 
         // In case we ever decide to use Redis, use HybridCache where it makes sense.
         services.AddHybridCache(o => o.DefaultEntryOptions = new()
