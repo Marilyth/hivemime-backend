@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -139,9 +140,11 @@ public class Program
                 await context.HttpContext.Response.WriteAsync("Rate limit exceeded. Please try again later.", cancellationToken);
             };
         });
+        
+        builder.Logging.AddOpenTelemetry();
 
-        builder.Services.AddOpenTelemetry()
-            .ConfigureResource(r => r.AddService("MyService"))
+        services.AddOpenTelemetry()
+            .ConfigureResource(r => r.AddService("HiveMime-Backend"))
             .WithTracing(t => t
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
@@ -153,6 +156,11 @@ public class Program
             .WithMetrics(m => m
                 .AddAspNetCoreInstrumentation()
                 .AddRuntimeInstrumentation()
+                .AddOtlpExporter(o =>
+                {
+                    o.Endpoint = new Uri("http://localhost:4317");
+                }))
+            .WithLogging(l => l
                 .AddOtlpExporter(o =>
                 {
                     o.Endpoint = new Uri("http://localhost:4317");
