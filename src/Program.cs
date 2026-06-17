@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 public class Program
 {
@@ -137,8 +140,23 @@ public class Program
             };
         });
 
-        services.AddMiniProfiler(o => o.RouteBasePath = "/profiler")
-            .AddEntityFramework();
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(r => r.AddService("MyService"))
+            .WithTracing(t => t
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddEntityFrameworkCoreInstrumentation()
+                .AddOtlpExporter(o =>
+                {
+                    o.Endpoint = new Uri("http://localhost:4317");
+                }))
+            .WithMetrics(m => m
+                .AddAspNetCoreInstrumentation()
+                .AddRuntimeInstrumentation()
+                .AddOtlpExporter(o =>
+                {
+                    o.Endpoint = new Uri("http://localhost:4317");
+                }));
 
         // In case we ever decide to use Redis, use HybridCache where it makes sense.
         services.AddHybridCache(o => o.DefaultEntryOptions = new()
@@ -220,7 +238,6 @@ public class Program
         _app.UseHttpsRedirection();
         _app.MapControllers();
         _app.UseRateLimiter();
-        _app.UseMiniProfiler();
         
         OnContextReady();
 
