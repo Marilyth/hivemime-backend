@@ -1,7 +1,7 @@
 using Mapster;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Moq;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 
 namespace HiveMime.Tests;
 
@@ -12,8 +12,6 @@ public class PostServiceTests : IntegrationTest
     private Post? _defaultPost2;
     private Post? _scorePost;
     private Post? _categoryPost;
-    private Post? _privatePost;
-    private Post? _unpublishedPost;
     private User? _defaultUser;
     private User? _defaultUser2;
 
@@ -199,7 +197,12 @@ public class PostServiceTests : IntegrationTest
                 $"posts/{post.Id}/{post.Polls[0].Id}/{post.Polls[0].Candidates[0].Id}/asdf.png"
             ]);
 
-        var service = new PostService(Context, Context.GetService<HotnessUpdateQueue>(), Context.GetService<HoneyDeltaCalculator>(), mediaServiceMock.Object, Context.GetService<AuthorizationService>());
+        var service = new PostService(Context,
+            Context.GetService<HotnessUpdateQueue>(),
+            Context.GetService<HoneyDeltaCalculator>(),
+            mediaServiceMock.Object,
+            Context.GetService<AuthorizationService>(),
+            Context.GetService<HybridCache>());
 
         // Act
         await service.PublishPostAsync(_defaultUser!.Id, post.Id);
@@ -315,6 +318,9 @@ public class PostServiceTests : IntegrationTest
         // Arrange 2
         await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1, 1, 1, 1, 1, 1 ]);
         await Context.SaveChangesAsync();
+        await Context.GetService<HybridCache>().RemoveAsync(
+            CacheHelper.GetCacheKey([_defaultUser.Id, null, null, new PostPaginationDto() { OrderBy = PostOrderBy.Hot }, ApprovalStatus.Approved],
+            nameof(_service.BrowsePostsAsync)));
 
         // Act 2
         var result2 = await _service.BrowsePostsAsync(_defaultUser.Id, null, null, new PostPaginationDto { OrderBy = PostOrderBy.Hot }, ApprovalStatus.Approved);
@@ -598,45 +604,6 @@ public class PostServiceTests : IntegrationTest
                     {
                         new Category { Name = "Category 1" },
                         new Category { Name = "Category 2" }
-                    }
-                }
-            ]
-        };
-
-        _privatePost = new()
-        {
-            Creator = _defaultUser,
-            ApprovalStatus = ApprovalStatus.Approved,
-            Polls = [
-                new Poll
-                {
-                    Title = "Default Poll",
-                    Description = "This is a default poll.",
-                    PollType = PollType.Choice,
-                    Candidates = new List<Candidate>
-                    {
-                        new Candidate { NormalizedName = "option 1", Name = "Option 1", Description = "Option 1 Description" },
-                        new Candidate { NormalizedName = "option 2", Name = "Option 2", Description = "Option 2 Description" }
-                    }
-                }
-            ]
-        };
-
-        _unpublishedPost = new()
-        {
-            Creator = _defaultUser,
-            Hive = _defaultHive,
-            IsDraft = true,
-            Polls = [
-                new Poll
-                {
-                    Title = "Default Poll",
-                    Description = "This is a default poll.",
-                    PollType = PollType.Choice,
-                    Candidates = new List<Candidate>
-                    {
-                        new Candidate { NormalizedName = "option 1", Name = "Option 1", Description = "Option 1 Description" },
-                        new Candidate { NormalizedName = "option 2", Name = "Option 2", Description = "Option 2 Description" }
                     }
                 }
             ]

@@ -1,13 +1,17 @@
 using System.Linq.Expressions;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
 
 public class PostService(HiveMimeContext context,
     HotnessUpdateQueue hotnessQueue,
     HoneyDeltaCalculator honeyDeltaCalculator,
     IMediaService mediaService,
-    AuthorizationService authorizationService)
+    AuthorizationService authorizationService,
+    HybridCache cache)
 {
     /// <summary>
     /// Fetches and returns a post by its ID, including all its polls and candidates.
@@ -15,11 +19,14 @@ public class PostService(HiveMimeContext context,
     /// <param name="postId">The ID of the post to fetch.</param>
     public async Task<PostDto> GetPostAsync(Guid postId)
     {
-        return await context.Posts
-            .AsNoTracking()
-            .QueryableFind(postId)
-            .ProjectToType<PostDto>()
-            .FirstOrExceptionAsync();
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([postId]), async entry =>
+        {
+            return await context.Posts
+                .AsNoTracking()
+                .QueryableFind(postId)
+                .ProjectToType<PostDto>()
+                .FirstOrExceptionAsync();
+        });
     }
 
     /// <summary>
@@ -31,36 +38,39 @@ public class PostService(HiveMimeContext context,
     /// <param name="status">The approval status to filter posts by.</param>
     public async Task<PaginationResultDto<PostDto>> BrowsePostsAsync(Guid userId, Guid? creatorId, Guid? hiveId, PostPaginationDto pagination, ApprovalStatus status)
     {
-        IQueryable<Post> posts = context.Posts
-            .Where(p => !p.IsDraft && p.ApprovalStatus == status)
-            .AsNoTracking();
-
-        if (creatorId.HasValue)
-            posts = posts.Where(p => p.CreatorId == creatorId.Value);
-            
-        if (hiveId.HasValue)
-            posts = posts.Where(p => p.HiveId == hiveId.Value);
-
-        if (status != ApprovalStatus.Approved)
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([userId, creatorId, hiveId, pagination, status]), async entry =>
         {
-            if (!hiveId.HasValue)
-                throw new ValidationException("Hive ID must be provided for outstanding posts.");
+            IQueryable<Post> posts = context.Posts
+                .Where(p => !p.IsDraft && p.ApprovalStatus == status)
+                .AsNoTracking();
 
-            await authorizationService.VerifyApprovePostsAsync(userId, hiveId.Value);
-        }
-        else
-        {
-            posts = posts.Where(p => p.HiveId != null &&
-                (!p.Hive!.Settings.IsPrivate ||
-                 p.Hive.Users.Any(f => f.UserId == userId && f.Role > MemberRole.Guest && f.ApprovalStatus == ApprovalStatus.Approved)));
-        }
+            if (creatorId.HasValue)
+                posts = posts.Where(p => p.CreatorId == creatorId.Value);
+                
+            if (hiveId.HasValue)
+                posts = posts.Where(p => p.HiveId == hiveId.Value);
 
-        var result = await new PostPaginationHelper(pagination)
-            .ApplyPaginationAsync<PostDto>(posts);
+            if (status != ApprovalStatus.Approved)
+            {
+                if (!hiveId.HasValue)
+                    throw new ValidationException("Hive ID must be provided for outstanding posts.");
 
-        hotnessQueue.EnqueuePosts(result.Items.Select(p => p.Id));
+                await authorizationService.VerifyApprovePostsAsync(userId, hiveId.Value);
+            }
+            else
+            {
+                posts = posts.Where(p => p.HiveId != null &&
+                    (!p.Hive!.Settings.IsPrivate ||
+                    p.Hive.Users.Any(f => f.UserId == userId && f.Role > MemberRole.Guest && f.ApprovalStatus == ApprovalStatus.Approved)));
+            }
 
-        return result;
+            var result = await new PostPaginationHelper(pagination)
+                .ApplyPaginationAsync<PostDto>(posts);
+
+            hotnessQueue.EnqueuePosts(result.Items.Select(p => p.Id));
+
+            return result;
+        });
     }
 
     /// <summary>
@@ -225,19 +235,23 @@ public class PostService(HiveMimeContext context,
     /// <param name="filter">The filter to apply to the poll results.</param>
     public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(Guid pollId, string filter)
     {
-        IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
+        var sumResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
+        {
+            IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
 
-        var sumResults = await candidateVotes
-            .GroupBy(v => new { v.CandidateId, v.CandidateName, v.IsCustom })
-            .Select(g => new CandidateSumResultDto
-            {
-                Id = g.Key.CandidateId,
-                Name = g.Key.CandidateName,
-                IsCustom = g.Key.IsCustom,
-                Sum = g.Sum(v => v.Value),
-                VoteCount = g.Count()
-            })
-            .ToListAsync();
+            return await candidateVotes
+                .GroupBy(v => new { v.CandidateId, v.CandidateName, v.IsCustom })
+                .Select(g => new CandidateSumResultDto
+                {
+                    Id = g.Key.CandidateId,
+                    Name = g.Key.CandidateName,
+                    IsCustom = g.Key.IsCustom,
+                    Sum = g.Sum(v => v.Value),
+                    VoteCount = g.Count()
+                })
+                .ToListAsync();
+        });
+        
 
         return ToPollResultDto(sumResults);
     }
@@ -249,32 +263,35 @@ public class PostService(HiveMimeContext context,
     /// <param name="filter">The filter to apply to the poll results.</param>
     public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(Guid pollId, string filter)
     {
-        IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
+        var statisticsResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
+        {
+            IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
 
-        string sql = candidateVotes.AsSingleQuery().ToQueryString();
+            string sql = candidateVotes.AsSingleQuery().ToQueryString();
 
-        Dictionary<string, string> parameters = Regex.Matches(sql, @"-- (@\w+)=(.+)")
-            .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.TrimEnd());
+            Dictionary<string, string> parameters = Regex.Matches(sql, @"-- (@\w+)=(.+)")
+                .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.TrimEnd());
 
-        foreach (var param in parameters)
-            sql = sql.Replace(param.Key, param.Value);
+            foreach (var param in parameters)
+                sql = sql.Replace(param.Key, param.Value);
 
-        var statisticsResults = await context.Database.SqlQueryRaw<CandidateStatisticsResultDto>($"""
-            SELECT 
-                "CandidateId" AS "Id",
-                "CandidateName" AS "Name",
-                "IsCustom" AS "IsCustom",
-                MIN("Value") AS "Min",
-                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "Value") AS "Q1",
-                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "Value") AS "Median",
-                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY "Value") AS "Q3",
-                MAX("Value") AS "Max",
-                AVG("Value") AS "Average",
-                Count(*) AS "VoteCount"
-            FROM ({sql}) AS "CandidateVotes"
-            GROUP BY "CandidateId", "CandidateName", "IsCustom"
-            """)
-            .ToListAsync();
+            return await context.Database.SqlQueryRaw<CandidateStatisticsResultDto>($"""
+                SELECT 
+                    "CandidateId" AS "Id",
+                    "CandidateName" AS "Name",
+                    "IsCustom" AS "IsCustom",
+                    MIN("Value") AS "Min",
+                    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "Value") AS "Q1",
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "Value") AS "Median",
+                    PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY "Value") AS "Q3",
+                    MAX("Value") AS "Max",
+                    AVG("Value") AS "Average",
+                    Count(*) AS "VoteCount"
+                FROM ({sql}) AS "CandidateVotes"
+                GROUP BY "CandidateId", "CandidateName", "IsCustom"
+                """)
+                .ToListAsync();
+        });
 
         return ToPollResultDto(statisticsResults);
     }
@@ -286,37 +303,42 @@ public class PostService(HiveMimeContext context,
     /// <param name="filter">The filter to apply to the poll results.</param>
     public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(Guid pollId, string filter)
     {
-        IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
+        var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
+        {
+            IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
 
-        var distributionResults = await candidateVotes
-            .GroupBy(v => new { v.CandidateId, v.Value, v.CandidateName, v.IsCustom })
-            .Select(g => new
-            {
-                g.Key.CandidateId,
-                g.Key.Value,
-                g.Key.CandidateName,
-                g.Key.IsCustom,
-                Count = g.Count()
-            })
-            .ToListAsync();
-
-        var groupedResults = distributionResults
-            .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
-            .Select(g => new CandidateDistributionResultDto
-            {
-                Id = g.Key.CandidateId,
-                Name = g.Key.CandidateName,
-                IsCustom = g.Key.IsCustom,
-                VoteCount = g.Sum(r => r.Count),
-                Distribution = g.Select(r => new CandidationDistributionResultValueDto
+            var distributionResults = await candidateVotes
+                .GroupBy(v => new { v.CandidateId, v.Value, v.CandidateName, v.IsCustom })
+                .Select(g => new
                 {
-                    Value = r.Value,
-                    VoteCount = r.Count
-                }).ToList()
-            })
-            .ToList();
+                    g.Key.CandidateId,
+                    g.Key.Value,
+                    g.Key.CandidateName,
+                    g.Key.IsCustom,
+                    Count = g.Count()
+                })
+                .ToListAsync();
 
-        return ToPollResultDto(groupedResults);
+            var groupedResults = distributionResults
+                .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
+                .Select(g => new CandidateDistributionResultDto
+                {
+                    Id = g.Key.CandidateId,
+                    Name = g.Key.CandidateName,
+                    IsCustom = g.Key.IsCustom,
+                    VoteCount = g.Sum(r => r.Count),
+                    Distribution = g.Select(r => new CandidationDistributionResultValueDto
+                    {
+                        Value = r.Value,
+                        VoteCount = r.Count
+                    }).ToList()
+                })
+                .ToList();
+
+            return groupedResults;
+        });
+
+        return ToPollResultDto(distributionResults);
     }
 
     /// <summary>
@@ -423,25 +445,28 @@ public class PostService(HiveMimeContext context,
         if (string.IsNullOrWhiteSpace(trimmedQuery) || trimmedQuery.Length < 3)
             return [];
 
-        bool? allowCustomCandidate = await context.Polls
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, trimmedQuery]), async entry =>
+        {
+            bool? allowCustomCandidate = await context.Polls
             .AsNoTracking()
             .Where(p => p.Id == pollId)
             .Select(p => p.AllowedCustomCandidateCount > 0)
             .FirstOrDefaultAsync();
 
-        if (allowCustomCandidate == null)
-            throw new ValidationException("Poll not found.");
+            if (allowCustomCandidate == null)
+                throw new ValidationException("Poll not found.");
 
-        if (!allowCustomCandidate.Value)
-            throw new ValidationException("This poll does not allow custom candidates.");
+            if (!allowCustomCandidate.Value)
+                throw new ValidationException("This poll does not allow custom candidates.");
 
-        return await context.Candidates
-            .Where(c => c.PollId == pollId)
-            .Where(c => c.NormalizedName.StartsWith(trimmedQuery) && c.IsCustom)
-            .OrderBy(c => c.Name)
-            .Take(10)
-            .ProjectToType<CandidateDto>()
-            .ToListAsync();
+            return await context.Candidates
+                .Where(c => c.PollId == pollId)
+                .Where(c => c.NormalizedName.StartsWith(trimmedQuery) && c.IsCustom)
+                .OrderBy(c => c.Name)
+                .Take(10)
+                .ProjectToType<CandidateDto>()
+                .ToListAsync();
+        });
     }
 
     private async Task<Dictionary<(Guid, string), Candidate>> GetOrCreateCustomCandidates(PostVoteDto postVoteDto, int retryCount = 0)

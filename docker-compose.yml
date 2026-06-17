@@ -15,6 +15,16 @@ services:
       - postgres-data:/var/lib/postgresql
     restart: unless-stopped
 
+
+  grafana-lgtm:
+    image: grafana/otel-lgtm:0.28.0
+    container_name: hivemime-grafana-lgtm
+    restart: unless-stopped
+    ports:
+      - "3001:3000"  # Grafana UI
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+
   backend:
     image: marilyth/hivemime-backend:latest
     container_name: hivemime-backend
@@ -23,6 +33,7 @@ services:
       - "8080:8080"
     environment:
       ConnectionStrings__Default: ${ConnectionStrings__Default}
+      Observability__Endpoint: ${Observability__Endpoint}
       R2__AccessKey: ${R2__AccessKey}
       R2__SecretKey: ${R2__SecretKey}
       R2__S3API: ${R2__S3API}

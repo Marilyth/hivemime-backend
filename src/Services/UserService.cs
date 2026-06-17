@@ -4,8 +4,9 @@ using System.Text.Json;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Caching.Hybrid;
 
-public class UserService(HiveMimeContext context, IConfiguration configuration, GeoIPService geoIPService)
+public class UserService(HiveMimeContext context, IConfiguration configuration, GeoIPService geoIPService, HybridCache cache)
 {
     private HashSet<string> _countries = CultureInfo.GetCultures(CultureTypes.SpecificCultures)
         .Select(c => new RegionInfo(c.Name).TwoLetterISORegionName)
@@ -20,10 +21,13 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
         if (userId == Guid.Empty)
             throw new NotFoundException("User does not exist.");
 
-        return await context.Users.AsNoTracking()
-            .QueryableFind(userId)
-            .ProjectToType<UserDetailsDto>()
-            .FirstOrExceptionAsync();
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([userId]), async entry =>
+        {
+            return await context.Users.AsNoTracking()
+                .QueryableFind(userId)
+                .ProjectToType<UserDetailsDto>()
+                .FirstOrExceptionAsync();
+        });
     }
 
     /// <summary>
@@ -33,8 +37,11 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
     /// <returns>A paginated list of user profiles.</returns>
     public async Task<PaginationResultDto<UserDto>> BrowseUsersAsync(UserPaginationDto pagination)
     {
-        return await new UserPaginationHelper(pagination)
-            .ApplyPaginationAsync<UserDto>(context.Users.AsNoTracking());
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pagination]), async entry =>
+        {
+            return await new UserPaginationHelper(pagination)
+                .ApplyPaginationAsync<UserDto>(context.Users.AsNoTracking());
+        });
     }
 
     /// <summary>
@@ -48,10 +55,13 @@ public class UserService(HiveMimeContext context, IConfiguration configuration, 
         if (userId == Guid.Empty)
             throw new NotFoundException("User does not exist.");
 
-        return await context.Users.AsNoTracking()
-            .QueryableFind(userId)
-            .ProjectToType<UserProfileDto>()
-            .FirstOrExceptionAsync();
+        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([userId]), async entry =>
+        {
+            return await context.Users.AsNoTracking()
+                .QueryableFind(userId)
+                .ProjectToType<UserProfileDto>()
+                .FirstOrExceptionAsync();
+        });
     }
 
     /// <summary>

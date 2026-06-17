@@ -1,10 +1,15 @@
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 public class Program
 {
@@ -73,6 +78,98 @@ public class Program
                     .AllowAnyMethod()
                     .AllowAnyHeader());
         });
+
+        services.AddRateLimiter(options =>
+        {
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                RateLimitPartition.GetFixedWindowLimiter(GetUserIdentifier(context), _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 60,
+                    Window = TimeSpan.FromMinutes(1)
+                })
+            );
+
+            options.AddPolicy("5/1s", context =>
+                RateLimitPartition.GetFixedWindowLimiter(GetUserIdentifier(context), _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromSeconds(1)
+                })
+            );
+
+            options.AddPolicy("5/5s", context =>
+                RateLimitPartition.GetFixedWindowLimiter(GetUserIdentifier(context), _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromSeconds(5)
+                })
+            );
+
+            options.AddPolicy("1/1s", context =>
+                RateLimitPartition.GetFixedWindowLimiter(GetUserIdentifier(context), _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 1,
+                    Window = TimeSpan.FromSeconds(1)
+                })
+            );
+
+            options.AddPolicy("1/5s", context =>
+                RateLimitPartition.GetFixedWindowLimiter(GetUserIdentifier(context), _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 1,
+                    Window = TimeSpan.FromSeconds(5)
+                })
+            );
+
+            options.AddPolicy("1/1m", context =>
+                RateLimitPartition.GetFixedWindowLimiter(GetUserIdentifier(context), _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 1,
+                    Window = TimeSpan.FromMinutes(1)
+                })
+            );
+
+            options.OnRejected = async (context, cancellationToken) =>
+            {
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                context.HttpContext.Response.Headers["Retry-After"] =
+                    context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter) ?
+                        retryAfter.TotalSeconds.ToString() :
+                        "60";
+
+                await context.HttpContext.Response.WriteAsync("Rate limit exceeded. Please try again later.", cancellationToken);
+            };
+        });
+        
+        string observabilityEndpointString = builder.Configuration["Observability:Endpoint"];
+        if (!string.IsNullOrEmpty(observabilityEndpointString))
+        {
+            var observabilityEndpoint = new Uri(observabilityEndpointString);
+            builder.Logging.AddOpenTelemetry();
+
+            services.AddOpenTelemetry()
+                .ConfigureResource(r => r.AddService("HiveMime-Backend"))
+                .WithTracing(t => t
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddEntityFrameworkCoreInstrumentation()
+                    .AddOtlpExporter(o =>
+                    {
+                        o.Endpoint = observabilityEndpoint;
+                    }))
+                .WithMetrics(m => m
+                    .AddAspNetCoreInstrumentation()
+                    .AddRuntimeInstrumentation()
+                    .AddOtlpExporter(o =>
+                    {
+                        o.Endpoint = observabilityEndpoint;
+                    }))
+                .WithLogging(l => l
+                    .AddOtlpExporter(o =>
+                    {
+                        o.Endpoint = observabilityEndpoint;
+                    }));
+        }
 
         // In case we ever decide to use Redis, use HybridCache where it makes sense.
         services.AddHybridCache(o => o.DefaultEntryOptions = new()
@@ -153,7 +250,8 @@ public class Program
         _app.UseAuthorization();
         _app.UseHttpsRedirection();
         _app.MapControllers();
-
+        _app.UseRateLimiter();
+        
         OnContextReady();
 
         _app.Run();
@@ -171,6 +269,13 @@ public class Program
             db.Database.EnsureDeleted();
             db.Database.EnsureCreated();
         }
+    }
+
+    private static string GetUserIdentifier(HttpContext context)
+    {
+        return $"{(context.User.Identity.Name ??
+            context.Connection.RemoteIpAddress?.ToString() ??
+            "unknown")}_{context.Request.Path}";
     }
 }
 
