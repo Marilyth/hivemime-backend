@@ -137,6 +137,9 @@ public class Program
             };
         });
 
+        services.AddMiniProfiler(o => o.RouteBasePath = "/profiler")
+            .AddEntityFramework();
+
         // In case we ever decide to use Redis, use HybridCache where it makes sense.
         services.AddHybridCache(o => o.DefaultEntryOptions = new()
         {
@@ -217,7 +220,8 @@ public class Program
         _app.UseHttpsRedirection();
         _app.MapControllers();
         _app.UseRateLimiter();
-
+        _app.UseMiniProfiler();
+        
         OnContextReady();
 
         _app.Run();
@@ -239,7 +243,9 @@ public class Program
 
     private static string GetUserIdentifier(HttpContext context)
     {
-        return context.User.Identity.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return $"{(context.User.Identity.Name ??
+            context.Connection.RemoteIpAddress?.ToString() ??
+            "unknown")}_{context.Request.Path}";
     }
 }
 
