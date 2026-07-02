@@ -127,7 +127,7 @@ public class PostResultService(HiveMimeContext context,
                     Name = g.Key.CandidateName,
                     IsCustom = g.Key.IsCustom,
                     VoteCount = g.Sum(r => r.Count),
-                    Distribution = g.Select(r => new CandidationRankDistributionResultDto
+                    Distribution = g.Select(r => new CandidateRankDistributionResultDto
                     {
                         Rank = r.Rank,
                         VoteCount = r.Count
@@ -175,7 +175,7 @@ public class PostResultService(HiveMimeContext context,
                     Name = g.Key.CandidateName,
                     IsCustom = g.Key.IsCustom,
                     VoteCount = g.Sum(r => r.Count),
-                    Distribution = g.Select(r => new CandidationCategoryDistributionResultDto
+                    Distribution = g.Select(r => new CandidateCategoryDistributionResultDto
                     {
                         CategoryId = r.CategoryId,
                         VoteCount = r.Count

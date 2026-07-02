@@ -25,10 +25,10 @@ public class CandidateScoreResultDto : CandidateResultDto
 
 public class CandidateRankResultDto : CandidateResultDto
 {
-    public List<CandidationRankDistributionResultDto> Distribution { get; set; }
+    public List<CandidateRankDistributionResultDto> Distribution { get; set; }
 }
 
-public class CandidationRankDistributionResultDto
+public class CandidateRankDistributionResultDto
 {
     public int Rank { get; set; }
     public int VoteCount { get; set; }
@@ -36,10 +36,10 @@ public class CandidationRankDistributionResultDto
 
 public class CandidateCategoryResultDto : CandidateResultDto
 {
-    public List<CandidationCategoryDistributionResultDto> Distribution { get; set; }
+    public List<CandidateCategoryDistributionResultDto> Distribution { get; set; }
 }
 
-public class CandidationCategoryDistributionResultDto
+public class CandidateCategoryDistributionResultDto
 {
     public Guid CategoryId { get; set; }
     public int VoteCount { get; set; }
