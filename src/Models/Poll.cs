@@ -15,8 +15,8 @@ public class Poll : EntityWithIdentifier
     public int AllowedCustomCandidateCount { get; set; }
     public bool IsShuffled { get; set; }
 
-    public int MinValue { get; set; }
-    public int MaxValue { get; set; }
+    public double MinValue { get; set; }
+    public double MaxValue { get; set; }
     public double? StepValue { get; set; }
 
     /// <summary>

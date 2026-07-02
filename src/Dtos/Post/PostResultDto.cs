@@ -11,12 +11,9 @@ public class CandidateResultDto
     public int VoteCount { get; set; }
 }
 
-public class CandidateSumResultDto : CandidateResultDto
-{
-    public int Sum { get; set; }
-}
+public class CandidateChoiceResultDto : CandidateResultDto { }
 
-public class CandidateStatisticsResultDto : CandidateResultDto
+public class CandidateScoreResultDto : CandidateResultDto
 {
     public double Min { get; set; }
     public double Q1 { get; set; }
@@ -26,13 +23,24 @@ public class CandidateStatisticsResultDto : CandidateResultDto
     public double Average { get; set; }
 }
 
-public class CandidateDistributionResultDto : CandidateResultDto
+public class CandidateRankResultDto : CandidateResultDto
 {
-    public List<CandidationDistributionResultValueDto> Distribution { get; set; }
+    public List<CandidationRankDistributionResultDto> Distribution { get; set; }
 }
 
-public class CandidationDistributionResultValueDto
+public class CandidationRankDistributionResultDto
 {
-    public double Value { get; set; }
+    public int Rank { get; set; }
+    public int VoteCount { get; set; }
+}
+
+public class CandidateCategoryResultDto : CandidateResultDto
+{
+    public List<CandidationCategoryDistributionResultDto> Distribution { get; set; }
+}
+
+public class CandidationCategoryDistributionResultDto
+{
+    public Guid CategoryId { get; set; }
     public int VoteCount { get; set; }
 }

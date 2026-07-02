@@ -13,6 +13,5 @@ public class Category : EntityWithIdentifier
     public Guid PollId { get; set; }
     public Poll? Poll { get; set; }
 
-    public int Value { get; set; }
     public int Order { get; set; }
 }

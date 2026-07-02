@@ -22,7 +22,7 @@ public class CloudflareR2Service : IMediaService
             ForcePathStyle = true
         };
 
-        _amazonS3 = new AmazonS3Client(accessKey, secretKey, config);
+        //_amazonS3 = new AmazonS3Client(accessKey, secretKey, config);
     }
 
     public async Task DeleteObjectsAsync(string prefix)

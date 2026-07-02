@@ -33,6 +33,13 @@ public class HiveMimeContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Register different inherited vote types.
+        foreach(Type type in typeof(CandidateVote).Assembly.GetTypes()
+            .Where(t => t.IsSubclassOf(typeof(CandidateVote))))
+        {
+            modelBuilder.Entity(type);
+        }
+
         SetTextIndices(modelBuilder);
         
         // Define relationships and constraints here if needed.
