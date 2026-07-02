@@ -1,7 +1,4 @@
-
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Caching.Memory;
-using Xunit;
 
 namespace HiveMime.Tests;
 
@@ -65,7 +62,7 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         var user = new User { Username = "testuser3", Honey = 0, Settings = new() };
         Context.Users.Add(user);
         await Context.SaveChangesAsync();
-        var pollVote = new PollVoteDto { Candidates = [ new CandidateVoteDto { Value = 1 } ] };
+        var pollVote = new PollVoteDto { Candidates = [ new CandidateChoiceVoteDto() ] };
         var dto = new PostVoteDto { Polls = [ pollVote ] };
 
         // Act

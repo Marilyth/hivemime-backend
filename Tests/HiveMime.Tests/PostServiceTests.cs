@@ -16,10 +16,14 @@ public class PostServiceTests : IntegrationTest
     private User? _defaultUser2;
 
     private PostService _service;
+    private PostVoteService _postVoteService;
+    private PostResultService _postResultService;
 
     public PostServiceTests(DatabaseContainer fixture) : base(fixture)
     {
         _service = Context.GetService<PostService>();
+        _postVoteService = Context.GetService<PostVoteService>();
+        _postResultService = Context.GetService<PostResultService>();
     }
 
     [Fact]
@@ -301,8 +305,14 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_OrderByHotness_ReturnsOrdered()
     {
         // Arrange
-        await AddVotesToCandidate(_defaultPost2!.Polls[0].Candidates[0].Id, _defaultPost2.Id, [ 1, 1, 1 ]);
-        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1 ]);
+        await AddVotesToCandidate(_defaultPost2!.Polls[0].Candidates[0].Id, _defaultPost2.Id, [
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 }
+        ]);
+        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, [
+            new CandidateScoreVote(){ Score = 1 }
+        ]);
         
         _defaultPost2.Comments = [new() { Content = "c1", User = _defaultUser }, new() { Content = "c2", User = _defaultUser }];
         _defaultPost.Comments = [new() { Content = "c1", User = _defaultUser2 }];
@@ -316,7 +326,14 @@ public class PostServiceTests : IntegrationTest
         Assert.True(Algorithms.HotnessFunction(result.Items[0].Adapt<Post>()) > Algorithms.HotnessFunction(result.Items[1].Adapt<Post>()));
 
         // Arrange 2
-        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1, 1, 1, 1, 1, 1 ]);
+        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 }
+        ]);
         await Context.SaveChangesAsync();
         await Context.GetService<HybridCache>().RemoveAsync(
             CacheHelper.GetCacheKey([_defaultUser.Id, null, null, new PostPaginationDto() { OrderBy = PostOrderBy.Hot }, ApprovalStatus.Approved],
@@ -362,7 +379,9 @@ public class PostServiceTests : IntegrationTest
     public async Task CreatePost_UpdatesVoteCount()
     {
         // Act
-        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, new[] { 1, 1 });
+        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, [
+            new CandidateChoiceVote(),
+            new CandidateChoiceVote()]);
         var updated = await _service.GetPostAsync(_defaultPost.Id);
 
         // Assert
@@ -392,11 +411,16 @@ public class PostServiceTests : IntegrationTest
         var candidate1 = poll.Candidates[0];
         var candidate2 = poll.Candidates[1];
 
-        await AddVotesToCandidate(candidate1.Id, post.Id, [1, 2, 3]);
-        await AddVotesToCandidate(candidate2.Id, post.Id, [4, 5]);
+        await AddVotesToCandidate(candidate1.Id, post.Id, [
+            new CandidateChoiceVote(),
+            new CandidateChoiceVote(),
+            new CandidateChoiceVote()]);
+        await AddVotesToCandidate(candidate2.Id, post.Id, [
+            new CandidateChoiceVote(),
+            new CandidateChoiceVote()]);
 
         // Act
-        var result = await _service.GetPollSumResult(poll.Id, string.Empty);
+        var result = await _postResultService.GetChoicePollResult(poll.Id, string.Empty);
 
         // Assert
         Assert.Equal(2, result.Candidates.Count);
@@ -404,10 +428,7 @@ public class PostServiceTests : IntegrationTest
         var candidate1Result = Assert.Single(result.Candidates.Where(c => c.Id == candidate1.Id));
         var candidate2Result = Assert.Single(result.Candidates.Where(c => c.Id == candidate2.Id));
 
-        Assert.Equal(6, candidate1Result.Sum);
         Assert.Equal(3, candidate1Result.VoteCount);
-
-        Assert.Equal(9, candidate2Result.Sum);
         Assert.Equal(2, candidate2Result.VoteCount);
     }
 
@@ -419,10 +440,15 @@ public class PostServiceTests : IntegrationTest
         var poll = post.Polls[0];
         var candidate = poll.Candidates[0];
 
-        await AddVotesToCandidate(candidate.Id, post.Id, [1, 2, 3, 4]);
+        await AddVotesToCandidate(candidate.Id, post.Id, [
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 2 },
+            new CandidateScoreVote(){ Score = 3 },
+            new CandidateScoreVote(){ Score = 4 }
+        ]);
 
         // Act
-        var result = await _service.GetPollStatisticsResult(poll.Id, string.Empty);
+        var result = await _postResultService.GetScorePollResult(poll.Id, string.Empty);
 
         // Assert
         var candidateResult = Assert.Single(result.Candidates);
@@ -444,28 +470,37 @@ public class PostServiceTests : IntegrationTest
         var poll = post.Polls[0];
         var candidate = poll.Candidates[0];
 
-        await AddVotesToCandidate(candidate.Id, post.Id, [1, 1, 2, 3, 3, 3]);
+        await AddVotesToCandidate(candidate.Id, post.Id, [
+            new CandidateRankVote(){ Rank = 1 },
+            new CandidateRankVote(){ Rank = 1 },
+            new CandidateRankVote(){ Rank = 2 },
+            new CandidateRankVote(){ Rank = 3 },
+            new CandidateRankVote(){ Rank = 3 },
+            new CandidateRankVote(){ Rank = 3 }
+        ]);
 
         // Act
-        var result = await _service.GetPollDistributionResult(poll.Id, string.Empty);
+        var result = await _postResultService.GetRankPollResult(poll.Id, string.Empty);
 
         // Assert
         var candidateResult = Assert.Single(result.Candidates);
         Assert.Equal(candidate.Id, candidateResult.Id);
         Assert.Equal(6, candidateResult.VoteCount);
 
-        var distribution = candidateResult.Distribution.ToDictionary(d => d.Value, d => d.VoteCount);
+        var distribution = candidateResult.Distribution.ToDictionary(d => d.Rank, d => d.VoteCount);
         Assert.Equal(3, distribution.Count);
         Assert.Equal(2, distribution[1]);
         Assert.Equal(1, distribution[2]);
         Assert.Equal(3, distribution[3]);
     }
 
-    private async Task AddVotesToCandidate(Guid candidateId, Guid postId, int[] values)
+    private async Task AddVotesToCandidate(Guid candidateId, Guid postId, CandidateVote[] values)
     {
         // Create separate users for each vote to simulate different users voting
         for (int i = 0; i < values.Length; i++)
         {
+            values[i].CandidateId = candidateId;
+
             var user = new User 
             { 
                 Username = $"testuser_{candidateId}_{i}_{DateTime.Now.Ticks}", 
@@ -478,14 +513,7 @@ public class PostServiceTests : IntegrationTest
             {
                 UserId = user.Id,
                 PostId = postId,
-                Votes = new List<CandidateVote>
-                {
-                    new CandidateVote 
-                    { 
-                        CandidateId = candidateId, 
-                        Value = values[i]
-                    }
-                }
+                Votes = values.ToList()
             };
             
             Context.PostVotes.Add(postVote);

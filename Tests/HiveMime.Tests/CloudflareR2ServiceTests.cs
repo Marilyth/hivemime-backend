@@ -3,6 +3,8 @@ using Amazon.S3.Model;
 using Microsoft.Extensions.Configuration;
 using Moq;
 
+namespace HiveMime.Tests;
+
 public class CloudflareR2ServiceTests
 {
     private readonly Mock<IConfiguration> _mockConfig;
