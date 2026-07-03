@@ -45,13 +45,13 @@ public class CandidateCategoryDistributionResultDto
     public int VoteCount { get; set; }
 }
 
-public class CandidatePinpointResultDto : CandidateResultDto
+public class CandidateLocateResultDto : CandidateResultDto
 {
     public int Resolution { get; set; }
-    public List<CandidatePinpointDistributionResultDto> Distribution { get; set; }
+    public List<CandidateLocateDistributionResultDto> Distribution { get; set; }
 }
 
-public class CandidatePinpointDistributionResultDto
+public class CandidateLocateDistributionResultDto
 {
     public int X { get; set; }
     public int Y { get; set; }

@@ -33,7 +33,7 @@ public class CandidateCategoryVoteDto : CandidateVoteDto
     public Guid CategoryId { get; set; }
 }
 
-public class CandidatePinpointVoteDto : CandidateVoteDto
+public class CandidateLocateVoteDto : CandidateVoteDto
 {
     public double Left { get; set; }
     public double Top { get; set; }

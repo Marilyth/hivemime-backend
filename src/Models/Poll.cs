@@ -43,5 +43,5 @@ public enum PollType
     Score,
     Rank,
     Category,
-    Pinpoint
+    Locate
 }

@@ -189,14 +189,14 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    public async Task<PollResultDto<CandidatePinpointResultDto>> GetPinpointPollResult(Guid pollId, string filter)
+    public async Task<PollResultDto<CandidateLocateResultDto>> GetLocatePollResult(Guid pollId, string filter)
     {
-        var pinpointResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
+        var locateResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
             // Doing this aggregation in the database is not feasible, so we have to do it in memory.
-            List<CandidatePinpointVoteWithMetaData> candidateVotes = await GetApplicableVotes(pollId, filter)
-                .OfType<CandidatePinpointVote>()
-                .Select(cv => new CandidatePinpointVoteWithMetaData
+            List<CandidateLocateVoteWithMetaData> candidateVotes = await GetApplicableVotes(pollId, filter)
+                .OfType<CandidateLocateVote>()
+                .Select(cv => new CandidateLocateVoteWithMetaData
                 {
                     CandidateId = cv.CandidateId,
                     CandidateName = cv.Candidate.Name,
@@ -242,13 +242,13 @@ public class PostResultService(HiveMimeContext context,
                         }
                     }
 
-                    return new CandidatePinpointResultDto
+                    return new CandidateLocateResultDto
                     {
                         Id = g.Key,
                         Name = g.First().CandidateName,
                         IsCustom = g.First().IsCustom,
                         VoteCount = g.Count(),
-                        Distribution = heatmaps.Select(kvp => new CandidatePinpointDistributionResultDto
+                        Distribution = heatmaps.Select(kvp => new CandidateLocateDistributionResultDto
                         {
                             X = kvp.Key.X,
                             Y = kvp.Key.Y,
@@ -262,7 +262,7 @@ public class PostResultService(HiveMimeContext context,
             return groupedResults;
         });
 
-        return ToPollResultDto(pinpointResults);
+        return ToPollResultDto(locateResults);
     }
     
     private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, string filter)
@@ -320,7 +320,7 @@ public class PostResultService(HiveMimeContext context,
         public Guid CategoryId { get; set; }
     }
 
-    private class CandidatePinpointVoteWithMetaData : CandidateVoteWithMetaData
+    private class CandidateLocateVoteWithMetaData : CandidateVoteWithMetaData
     {
         public double Left { get; set; }
         public double Top { get; set; }

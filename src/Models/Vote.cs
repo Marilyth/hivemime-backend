@@ -43,7 +43,7 @@ public class CandidateCategoryVote : CandidateVote
     public Category? Category { get; set; }
 }
 
-public class CandidatePinpointVote : CandidateVote
+public class CandidateLocateVote : CandidateVote
 {
     public double Left { get; set; }
     public double Top { get; set; }

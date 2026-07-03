@@ -88,15 +88,15 @@ public class PostVoteService(HiveMimeContext context,
                             CategoryId = ((CandidateCategoryVoteDto)candidateVote).CategoryId
                         };
                         break;
-                    case PollType.Pinpoint:
-                        CandidatePinpointVoteDto pinpointVoteDto = candidateVote as CandidatePinpointVoteDto;
-                        dbVote = new CandidatePinpointVote
+                    case PollType.Locate:
+                        CandidateLocateVoteDto locateVoteDto = candidateVote as CandidateLocateVoteDto;
+                        dbVote = new CandidateLocateVote
                         {
                             CandidateId = candidateVote.Id.Value,
-                            Left = pinpointVoteDto.Left,
-                            Top = pinpointVoteDto.Top,
-                            Right = pinpointVoteDto.Right,
-                            Bottom = pinpointVoteDto.Bottom
+                            Left = locateVoteDto.Left,
+                            Top = locateVoteDto.Top,
+                            Right = locateVoteDto.Right,
+                            Bottom = locateVoteDto.Bottom
                         };
                         break;
                     default:
