@@ -58,7 +58,8 @@ public class PostVoteService(HiveMimeContext context,
                 if (candidateVote.Id is null)
                     candidateVote.Id = customCandidateIds[(pollVote.Id, candidateVote.Name.Normalize(false))].Id;
 
-                if (votedCandidateIds.Contains(candidateVote.Id.Value))
+                // Locate polls can assign multiple votes to the same candidate.
+                if (votedCandidateIds.Contains(candidateVote.Id.Value) && poll.PollType != PollType.Locate)
                     continue;
 
                 CandidateVote dbVote;
