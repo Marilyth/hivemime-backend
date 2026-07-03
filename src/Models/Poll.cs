@@ -42,5 +42,6 @@ public enum PollType
     Choice,
     Score,
     Rank,
-    Category
+    Category,
+    Pinpoint
 }

@@ -188,6 +188,82 @@ public class PostResultService(HiveMimeContext context,
 
         return ToPollResultDto(distributionResults);
     }
+
+    public async Task<PollResultDto<CandidatePinpointResultDto>> GetPinpointPollResult(Guid pollId, string filter)
+    {
+        var pinpointResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
+        {
+            // Doing this aggregation in the database is not feasible, so we have to do it in memory.
+            List<CandidatePinpointVoteWithMetaData> candidateVotes = await GetApplicableVotes(pollId, filter)
+                .OfType<CandidatePinpointVote>()
+                .Select(cv => new CandidatePinpointVoteWithMetaData
+                {
+                    CandidateId = cv.CandidateId,
+                    CandidateName = cv.Candidate.Name,
+                    IsCustom = cv.Candidate.IsCustom,
+                    Left = cv.Left,
+                    Top = cv.Top,
+                    Right = cv.Right,
+                    Bottom = cv.Bottom
+                }).ToListAsync();
+
+            const int resolution = 100;
+            
+            var groupedResults = candidateVotes
+                .GroupBy(r => r.CandidateId)
+                .Select(g =>
+                {
+                    Dictionary<(int X, int Y), double> heatmaps = new();
+                    Dictionary<(int X, int Y), int> voteCounts = new();
+
+                    foreach (var vote in candidateVotes)
+                    {
+                        int left = (int)(vote.Left * resolution);
+                        int top = (int)(vote.Top * resolution);
+                        int right = (int)(vote.Right * resolution);
+                        int bottom = (int)(vote.Bottom * resolution);
+                        var area = Math.Max(1, (right - left) * (bottom - top));
+
+                        var weightPerCell = 1.0 / area;
+
+                        for (int x = left; x <= right; x++)
+                        for (int y = top; y <= bottom; y++)
+                        {
+                            var key = (X: x, Y: y);
+
+                            if (!heatmaps.ContainsKey(key))
+                            {
+                                heatmaps[key] = 0;
+                                voteCounts[key] = 0;
+                            }
+
+                            heatmaps[key] += weightPerCell;
+                            voteCounts[key]++;
+                        }
+                    }
+
+                    return new CandidatePinpointResultDto
+                    {
+                        Id = g.Key,
+                        Name = g.First().CandidateName,
+                        IsCustom = g.First().IsCustom,
+                        VoteCount = g.Count(),
+                        Distribution = heatmaps.Select(kvp => new CandidatePinpointDistributionResultDto
+                        {
+                            X = kvp.Key.X,
+                            Y = kvp.Key.Y,
+                            Score = kvp.Value,
+                            VoteCount = voteCounts[kvp.Key]
+                        }).ToList()
+                    };
+                })
+                .ToList();
+
+            return groupedResults;
+        });
+
+        return ToPollResultDto(pinpointResults);
+    }
     
     private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, string filter)
     {
@@ -242,5 +318,13 @@ public class PostResultService(HiveMimeContext context,
     private class CandidateCategoryVoteWithMetaData : CandidateVoteWithMetaData
     {
         public Guid CategoryId { get; set; }
+    }
+
+    private class CandidatePinpointVoteWithMetaData : CandidateVoteWithMetaData
+    {
+        public double Left { get; set; }
+        public double Top { get; set; }
+        public double Right { get; set; }
+        public double Bottom { get; set; }
     }
 }

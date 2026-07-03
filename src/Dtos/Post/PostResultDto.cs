@@ -44,3 +44,17 @@ public class CandidateCategoryDistributionResultDto
     public Guid CategoryId { get; set; }
     public int VoteCount { get; set; }
 }
+
+public class CandidatePinpointResultDto : CandidateResultDto
+{
+    public int Resolution { get; set; }
+    public List<CandidatePinpointDistributionResultDto> Distribution { get; set; }
+}
+
+public class CandidatePinpointDistributionResultDto
+{
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Score { get; set; }
+    public int VoteCount { get; set; }
+}

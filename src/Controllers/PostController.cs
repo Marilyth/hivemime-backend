@@ -61,6 +61,11 @@ public class PostController(PostService postService,
     public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, string? filter)
         => await postResultService.GetCategoryPollResult(pollId, filter);
 
+    [HttpGet("pinpointResult")]
+    [EnableRateLimiting("5/5s")]
+    public async Task<PollResultDto<CandidatePinpointResultDto>> GetPinpointPollResult(Guid pollId, string? filter)
+        => await postResultService.GetPinpointPollResult(pollId, filter);
+
     [HttpGet("customCandidateSuggestions")]
     [EnableRateLimiting("5/1s")]
     public async Task<List<CandidateDto>> GetCustomCandidateSuggestions(Guid pollId, string query)

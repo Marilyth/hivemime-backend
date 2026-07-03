@@ -51,6 +51,8 @@ public class PostVoteService(HiveMimeContext context,
 
         foreach (PollVoteDto pollVote in vote.Polls)
         {
+            Poll poll = post.Polls.First(p => p.Id == pollVote.Id);
+
             foreach (CandidateVoteDto candidateVote in pollVote.Candidates)
             {
                 if (candidateVote.Id is null)
@@ -59,29 +61,47 @@ public class PostVoteService(HiveMimeContext context,
                 if (votedCandidateIds.Contains(candidateVote.Id.Value))
                     continue;
 
-                CandidateVote dbVote = candidateVote switch
+                CandidateVote dbVote;
+                switch (poll.PollType)
                 {
-                    CandidateChoiceVoteDto choiceVote => new CandidateChoiceVote
-                    {
-                        CandidateId = candidateVote.Id.Value
-                    },
-                    CandidateScoreVoteDto scoreVote => new CandidateScoreVote
-                    {
-                        CandidateId = candidateVote.Id.Value,
-                        Score = scoreVote.Score
-                    },
-                    CandidateRankVoteDto rankVote => new CandidateRankVote
-                    {
-                        CandidateId = candidateVote.Id.Value,
-                        Rank = rankVote.Rank
-                    },
-                    CandidateCategoryVoteDto categoryVote => new CandidateCategoryVote
-                    {
-                        CandidateId = candidateVote.Id.Value,
-                        CategoryId = categoryVote.CategoryId
-                    },
-                    _ => throw new ValidationException("Unknown vote type.")
-                };
+                    case PollType.Choice:
+                        dbVote = new CandidateChoiceVote { CandidateId = candidateVote.Id.Value };
+                        break;
+                    case PollType.Score:
+                        dbVote = new CandidateScoreVote
+                        {
+                            CandidateId = candidateVote.Id.Value,
+                            Score = ((CandidateScoreVoteDto)candidateVote).Score
+                        };
+                        break;
+                    case PollType.Rank:
+                        dbVote = new CandidateRankVote
+                        {
+                            CandidateId = candidateVote.Id.Value,
+                            Rank = ((CandidateRankVoteDto)candidateVote).Rank
+                        };
+                        break;
+                    case PollType.Category:
+                        dbVote = new CandidateCategoryVote
+                        {
+                            CandidateId = candidateVote.Id.Value,
+                            CategoryId = ((CandidateCategoryVoteDto)candidateVote).CategoryId
+                        };
+                        break;
+                    case PollType.Pinpoint:
+                        CandidatePinpointVoteDto pinpointVoteDto = candidateVote as CandidatePinpointVoteDto;
+                        dbVote = new CandidatePinpointVote
+                        {
+                            CandidateId = candidateVote.Id.Value,
+                            Left = pinpointVoteDto.Left,
+                            Top = pinpointVoteDto.Top,
+                            Right = pinpointVoteDto.Right,
+                            Bottom = pinpointVoteDto.Bottom
+                        };
+                        break;
+                    default:
+                        throw new ValidationException("Unknown vote type.");
+                }
 
                 postVote.Votes.Add(dbVote);
                 votedCandidateIds.Add(candidateVote.Id.Value);
