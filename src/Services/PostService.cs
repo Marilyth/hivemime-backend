@@ -115,31 +115,7 @@ public class PostService(HiveMimeContext context,
             throw new ValidationException("Post is already published.");
 
         post.IsDraft = false;
-
-        var uploadedFiles = await mediaService.ListObjectsAsync($"posts/{post.Id}/");
-
-        foreach (var uploadedFile in uploadedFiles)
-        {
-            string[] keyParts = uploadedFile.Split('/');
-
-            if (keyParts.Length == 4)
-            {
-                Guid pollId = Guid.Parse(keyParts[2]);
-                Poll poll = post.Polls.First(p => p.Id == pollId);
-
-                poll.MediaKeys.Add(uploadedFile);
-            }
-
-            else if (keyParts.Length == 5)
-            {
-                Guid pollId = Guid.Parse(keyParts[2]);
-                Guid candidateId = Guid.Parse(keyParts[3]);
-                Poll poll = post.Polls.First(p => p.Id == pollId);
-                Candidate candidate = poll.Candidates.FirstOrDefault(c => c.Id == candidateId);
-
-                candidate.MediaKeys.Add(uploadedFile);
-            }
-        }
+        await CheckForMediaAsync(post);
 
         if (post.HiveId is null || !post.Hive!.Settings.PostRequiresApproval)
             post.ApprovalStatus = ApprovalStatus.Approved;
@@ -233,6 +209,34 @@ public class PostService(HiveMimeContext context,
         await context.SaveChangesAsync();
     }
 
+    private async Task CheckForMediaAsync(Post post)
+    {
+        bool hasMedia = post.Polls.Any(p => p.MediaKeys.Any() || p.Candidates.Any(c => c.MediaKeys.Any()));
+
+        if (!hasMedia)
+            return;
+
+        HashSet<string> uploadedFiles = [..await mediaService.ListObjectsAsync($"posts/{post.Id}/")];
+
+        foreach (var poll in post.Polls)
+        {
+            foreach (var mediaKey in poll.MediaKeys.ToList())
+            {
+                if (!uploadedFiles.Contains(mediaKey))
+                    poll.MediaKeys.Remove(mediaKey);
+            }
+
+            foreach (var candidate in poll.Candidates)
+            {
+                foreach (var mediaKey in candidate.MediaKeys.ToList())
+                {
+                    if (!uploadedFiles.Contains(mediaKey))
+                        candidate.MediaKeys.Remove(mediaKey);
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// Generates pre-signed upload URLs for the media files associated with a post's polls and candidates,
     /// allowing the client to upload files directly to Cloudflare R2. Validates the total content length
@@ -249,34 +253,54 @@ public class PostService(HiveMimeContext context,
 
         for (int i = 0; i < postDto.Polls.Count; i++)
         {
-            var poll = postDto.Polls[i];
+            var poll = post.Polls[i];
+            var pollDto = postDto.Polls[i];
             var uploadPoll = uploadPost.Polls[i];
             
-            if (poll.Media is not null)
+            if (pollDto.Media is not null)
             {
                 string objectKey = $"posts/{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
-                string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
-                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, poll.Media.ContentType);
+                string signedUploadUrl = mediaService.GetPreSignedURL(objectKey,
+                    pollDto.Media.ContentLength,
+                    pollDto.Media.ContentType,
+                    out string finalKey);
+                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb",
+                    pollDto.Media.ThumbnailContentLength,
+                    pollDto.Media.ContentType,
+                    out string finalThumbnailKey);
+
+                poll.MediaKeys.Add(finalKey);
+                poll.MediaKeys.Add(finalThumbnailKey);
 
                 uploadPoll.MediaUploadUrls = [signedUploadUrl, signedThumbnailUploadUrl];
-                totalContentLength += poll.Media.ContentLength;
-                totalContentLength += poll.Media.ThumbnailContentLength;
+                totalContentLength += pollDto.Media.ContentLength;
+                totalContentLength += pollDto.Media.ThumbnailContentLength;
             }
 
-            for (int j = 0; j < poll.Candidates.Count; j++)
+            for (int j = 0; j < pollDto.Candidates.Count; j++)
             {
                 var candidate = poll.Candidates[j];
+                var candidateDto = pollDto.Candidates[j];
                 var uploadCandidate = uploadPoll.Candidates[j];
 
-                if (candidate.Media is not null)
+                if (candidateDto.Media is not null)
                 {
                     string objectKey = $"posts/{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
-                    string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
-                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, candidate.Media.ContentType);
+                    string signedUploadUrl = mediaService.GetPreSignedURL(objectKey,
+                        candidateDto.Media.ContentLength,
+                        candidateDto.Media.ContentType,
+                        out string finalKey);
+                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail",
+                        candidateDto.Media.ThumbnailContentLength,
+                        candidateDto.Media.ContentType,
+                        out string finalThumbnailKey);
+
+                    candidate.MediaKeys.Add(finalKey);
+                    candidate.MediaKeys.Add(finalThumbnailKey);
 
                     uploadCandidate.MediaUploadUrls = new List<string> { signedUploadUrl, signedThumbnailUploadUrl };
-                    totalContentLength += candidate.Media.ContentLength;
-                    totalContentLength += candidate.Media.ThumbnailContentLength;
+                    totalContentLength += candidateDto.Media.ContentLength;
+                    totalContentLength += candidateDto.Media.ThumbnailContentLength;
                 }
             }
         }

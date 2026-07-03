@@ -53,8 +53,8 @@ public class CandidatePinpointResultDto : CandidateResultDto
 
 public class CandidatePinpointDistributionResultDto
 {
-    public double X { get; set; }
-    public double Y { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
     public double Score { get; set; }
     public int VoteCount { get; set; }
 }

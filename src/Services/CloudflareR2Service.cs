@@ -53,7 +53,7 @@ public class CloudflareR2Service : IMediaService
         return response.S3Objects?.Select(o => o.Key).ToList() ?? [];
     }
 
-    public string GetPreSignedURL(string objectKey, ulong contentLength, string contentType)
+    public string GetPreSignedURL(string objectKey, ulong contentLength, string contentType, out string finalKey)
     {
         if (string.IsNullOrEmpty(objectKey))
             throw new ValidationException("Object key cannot be null or empty.");
@@ -68,11 +68,12 @@ public class CloudflareR2Service : IMediaService
             throw new ValidationException("Content type cannot be null or empty.");
 
         string extension = MimeTypeToExtension(contentType);
+        finalKey = objectKey + extension;
 
         var request = new GetPreSignedUrlRequest
         {
             BucketName = BucketName,
-            Key = objectKey + extension,
+            Key = finalKey,
             Verb = HttpVerb.PUT,
             Expires = DateTime.UtcNow.Add(TimeSpan.FromMinutes(5))
         };
