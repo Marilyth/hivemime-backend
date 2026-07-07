@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Mapster;
 using Microsoft.Extensions.Caching.Hybrid;
+using System.Text.Json;
 
 public class PostVoteService(HiveMimeContext context,
     AuthorizationService authorizationService,
@@ -47,7 +48,7 @@ public class PostVoteService(HiveMimeContext context,
         };
 
         context.PostVotes.Add(postVote);
-        HashSet<Guid> votedCandidateIds = new();
+        HashSet<string> candidateValues = new();
 
         foreach (PollVoteDto pollVote in vote.Polls)
         {
@@ -57,10 +58,6 @@ public class PostVoteService(HiveMimeContext context,
             {
                 if (candidateVote.Id is null)
                     candidateVote.Id = customCandidateIds[(pollVote.Id, candidateVote.Name.Normalize(false))].Id;
-
-                // Locate polls can assign multiple votes to the same candidate.
-                if (votedCandidateIds.Contains(candidateVote.Id.Value) && poll.PollType != PollType.Locate)
-                    continue;
 
                 CandidateVote dbVote;
                 switch (poll.PollType)
@@ -94,18 +91,21 @@ public class PostVoteService(HiveMimeContext context,
                         dbVote = new CandidateLocateVote
                         {
                             CandidateId = candidateVote.Id.Value,
-                            Left = locateVoteDto.Left,
-                            Top = locateVoteDto.Top,
-                            Right = locateVoteDto.Right,
-                            Bottom = locateVoteDto.Bottom
+                            X = locateVoteDto.X,
+                            Y = locateVoteDto.Y,
+                            Width = locateVoteDto.Width,
+                            Height = locateVoteDto.Height
                         };
                         break;
                     default:
                         throw new ValidationException("Unknown vote type.");
                 }
 
+                string serializedVote = JsonSerializer.Serialize(dbVote);
+                if (!candidateValues.Add(serializedVote))
+                    throw new ValidationException("Duplicate votes are not allowed.");
+
                 postVote.Votes.Add(dbVote);
-                votedCandidateIds.Add(candidateVote.Id.Value);
             }
         }
 
@@ -223,7 +223,11 @@ public class PostVoteService(HiveMimeContext context,
 
     private IEnumerable<string> ValidateVote(Poll poll, PollVoteDto pollVote)
     {
+        var candidateGroup = pollVote.Candidates.GroupBy(c => c.Id);
+
         int votesCount = pollVote.Candidates.Count();
+        int minVotesPerCandidate = candidateGroup.Min(c => c.Count());
+        int maxVotesPerCandidate = candidateGroup.Max(c => c.Count());
 
         // General validation.
         if (votesCount < poll.MinVotes)
@@ -231,6 +235,12 @@ public class PostVoteService(HiveMimeContext context,
 
         if (votesCount > poll.MaxVotes)
             yield return $"Poll allows a maximum of {poll.MaxVotes} votes.";
+
+        if (minVotesPerCandidate < poll.MinVotesPerCandidate)
+            yield return $"Poll requires at least {poll.MinVotesPerCandidate} votes per candidate.";
+
+        if (maxVotesPerCandidate > poll.MaxVotesPerCandidate)
+            yield return $"Poll allows a maximum of {poll.MaxVotesPerCandidate} votes per candidate.";
 
         if (pollVote.Candidates.Count(c => c.Id is null) > poll.AllowedCustomCandidateCount)
             yield return $"Poll allows a maximum of {poll.AllowedCustomCandidateCount} custom candidates.";

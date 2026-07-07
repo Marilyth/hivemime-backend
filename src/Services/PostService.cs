@@ -308,6 +308,8 @@ public class PostService(HiveMimeContext context,
         if (totalContentLength > CloudflareR2Service.MaxTotalSize)
             throw new ValidationException($"Total content length cannot exceed {CloudflareR2Service.MaxTotalSize} bytes.");
 
+        await context.SaveChangesAsync();
+
         return uploadPost;
     }
 
@@ -329,13 +331,21 @@ public class PostService(HiveMimeContext context,
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
         int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
-        
-        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
+        int maxCandidateOptionCount = dto.PollType switch
+        {
+            PollType.Choice => 1,
+            PollType.Score => 1,
+            PollType.Rank => 1,
+            PollType.Category => dto.Categories.Count,
+            PollType.Locate => 10,
+            _ => throw new ValidationException("Invalid poll type.")
+        };
 
-        if (dto.MaxVotes == -1)
-            dto.MaxVotes = effectiveCandidateCount;
-        else
-            dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
+
+        dto.MinVotesPerCandidate = Math.Clamp(dto.MinVotesPerCandidate, 0, maxCandidateOptionCount);
+        dto.MaxVotesPerCandidate = Math.Clamp(dto.MaxVotesPerCandidate, dto.MinVotesPerCandidate, maxCandidateOptionCount);
 
         if (dto.PollType == PollType.Score)
         {

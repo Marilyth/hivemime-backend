@@ -25,6 +25,8 @@ public class Poll : EntityWithIdentifier
     /// </summary>
     public int MinVotes { get; set; }
     public int MaxVotes { get; set; }
+    public int MinVotesPerCandidate { get; set; }
+    public int MaxVotesPerCandidate { get; set; }
 
     public PollType PollType { get; set; }
     public List<Candidate> Candidates { get; set; } = [];

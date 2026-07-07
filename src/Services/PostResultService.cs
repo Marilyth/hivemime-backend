@@ -201,10 +201,10 @@ public class PostResultService(HiveMimeContext context,
                     CandidateId = cv.CandidateId,
                     CandidateName = cv.Candidate.Name,
                     IsCustom = cv.Candidate.IsCustom,
-                    Left = cv.Left,
-                    Top = cv.Top,
-                    Right = cv.Right,
-                    Bottom = cv.Bottom
+                    X = cv.X,
+                    Y = cv.Y,
+                    Width = cv.Width,
+                    Height = cv.Height
                 }).ToListAsync();
 
             const int resolution = 100;
@@ -218,18 +218,18 @@ public class PostResultService(HiveMimeContext context,
 
                     foreach (var vote in candidateVotes)
                     {
-                        int left = (int)(vote.Left * resolution);
-                        int top = (int)(vote.Top * resolution);
-                        int right = (int)(vote.Right * resolution);
-                        int bottom = (int)(vote.Bottom * resolution);
-                        var area = Math.Max(1, (right - left) * (bottom - top));
+                        int x = (int)(vote.X * resolution);
+                        int y = (int)(vote.Y * resolution);
+                        int width = (int)(vote.Width * resolution);
+                        int height = (int)(vote.Height * resolution);
+                        var area = Math.Max(1, width * height);
 
                         var weightPerCell = 1.0 / area;
 
-                        for (int x = left; x <= right; x++)
-                        for (int y = top; y <= bottom; y++)
+                        for (int i = x; i <= x + width; i++)
+                        for (int j = y; j <= y + height; j++)
                         {
-                            var key = (X: x, Y: y);
+                            var key = (X: i, Y: j);
 
                             if (!heatmaps.ContainsKey(key))
                             {
@@ -322,9 +322,9 @@ public class PostResultService(HiveMimeContext context,
 
     private class CandidateLocateVoteWithMetaData : CandidateVoteWithMetaData
     {
-        public double Left { get; set; }
-        public double Top { get; set; }
-        public double Right { get; set; }
-        public double Bottom { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
     }
 }
