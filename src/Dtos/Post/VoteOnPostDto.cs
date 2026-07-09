@@ -33,10 +33,7 @@ public class CandidateCategoryVoteDto : CandidateVoteDto
     public Guid CategoryId { get; set; }
 }
 
-public class CandidateLocateVoteDto : CandidateVoteDto
+public class CandidateDrawVoteDto : CandidateVoteDto
 {
-    public double X { get; set; }
-    public double Y { get; set; }
-    public double Width { get; set; }
-    public double Height { get; set; }
+    public int CellIndex { get; set; }
 }

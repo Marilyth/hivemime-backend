@@ -50,7 +50,7 @@ public class PostVoteService(HiveMimeContext context,
         context.PostVotes.Add(postVote);
         HashSet<string> candidateValues = new();
 
-        foreach (PollVoteDto pollVote in vote.Polls)
+        foreach (PollVoteDto pollVote in vote.Polls.DistinctBy(p => p.Id))
         {
             Poll poll = post.Polls.First(p => p.Id == pollVote.Id);
 
@@ -86,15 +86,13 @@ public class PostVoteService(HiveMimeContext context,
                             CategoryId = ((CandidateCategoryVoteDto)candidateVote).CategoryId
                         };
                         break;
-                    case PollType.Locate:
-                        CandidateLocateVoteDto locateVoteDto = candidateVote as CandidateLocateVoteDto;
-                        dbVote = new CandidateLocateVote
+                    case PollType.Draw:
+                        CandidateDrawVoteDto drawVoteDto = candidateVote as CandidateDrawVoteDto;
+                        dbVote = new CandidateDrawVote
                         {
                             CandidateId = candidateVote.Id.Value,
-                            X = locateVoteDto.X,
-                            Y = locateVoteDto.Y,
-                            Width = locateVoteDto.Width,
-                            Height = locateVoteDto.Height
+                            CellIndex = drawVoteDto.CellIndex,
+                            Value = 1.0 / pollVote.Candidates.Count
                         };
                         break;
                     default:

@@ -16,7 +16,7 @@ public sealed class CandidateVoteDtoConverter : JsonConverter<CandidateVoteDto>
             _ when root.TryGetProperty("score", out _) => typeof(CandidateScoreVoteDto),
             _ when root.TryGetProperty("rank", out _) => typeof(CandidateRankVoteDto),
             _ when root.TryGetProperty("categoryId", out _) => typeof(CandidateCategoryVoteDto),
-            _ when root.TryGetProperty("left", out _) => typeof(CandidateLocateVoteDto),
+            _ when root.TryGetProperty("cellIndex", out _) => typeof(CandidateDrawVoteDto),
             _ => typeof(CandidateChoiceVoteDto)
         };
 

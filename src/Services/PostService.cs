@@ -337,7 +337,7 @@ public class PostService(HiveMimeContext context,
             PollType.Score => 1,
             PollType.Rank => 1,
             PollType.Category => dto.Categories.Count,
-            PollType.Locate => 10,
+            PollType.Draw => 10000,
             _ => throw new ValidationException("Invalid poll type.")
         };
 
@@ -360,11 +360,17 @@ public class PostService(HiveMimeContext context,
         }
         else
         {
-            dto.MinValue = 1;
+            dto.MinValue = dto.PollType switch
+            {
+                PollType.Draw => 0,
+                _ => 1
+            };
+
             dto.MaxValue = dto.PollType switch
             {
                 PollType.Rank => dto.MaxVotes,
                 PollType.Category => dto.Categories.Count,
+                PollType.Draw => Math.Clamp(dto.MaxVotesPerCandidate, 1, maxCandidateOptionCount),
                 _ => 1
             };
         }

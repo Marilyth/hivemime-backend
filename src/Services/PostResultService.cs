@@ -189,80 +189,55 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    public async Task<PollResultDto<CandidateLocateResultDto>> GetLocatePollResult(Guid pollId, string filter)
+    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, string filter)
     {
-        var locateResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
+        var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
-            // Doing this aggregation in the database is not feasible, so we have to do it in memory.
-            List<CandidateLocateVoteWithMetaData> candidateVotes = await GetApplicableVotes(pollId, filter)
-                .OfType<CandidateLocateVote>()
-                .Select(cv => new CandidateLocateVoteWithMetaData
+            IQueryable<CandidateDrawVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter)
+                .OfType<CandidateDrawVote>()
+                .Select(cv => new CandidateDrawVoteWithMetaData
                 {
                     CandidateId = cv.CandidateId,
                     CandidateName = cv.Candidate.Name,
                     IsCustom = cv.Candidate.IsCustom,
-                    X = cv.X,
-                    Y = cv.Y,
-                    Width = cv.Width,
-                    Height = cv.Height
-                }).ToListAsync();
+                    CellIndex = cv.CellIndex,
+                    Value = cv.Value
+                });
 
-            const int resolution = 100;
-            
-            var groupedResults = candidateVotes
-                .GroupBy(r => r.CandidateId)
-                .Select(g =>
+            var distributionResults = await candidateVotes
+                .GroupBy(v => new { v.CandidateId, v.CellIndex, v.CandidateName, v.IsCustom })
+                .Select(g => new
                 {
-                    Dictionary<(int X, int Y), double> heatmaps = new();
-                    Dictionary<(int X, int Y), int> voteCounts = new();
+                    g.Key.CandidateId,
+                    g.Key.CellIndex,
+                    g.Key.CandidateName,
+                    g.Key.IsCustom,
+                    Count = g.Count(),
+                    Value = g.Sum(v => v.Value)
+                })
+                .ToListAsync();
 
-                    foreach (var vote in candidateVotes)
+            var groupedResults = distributionResults
+                .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
+                .Select(g => new CandidateDrawResultDto
+                {
+                    Id = g.Key.CandidateId,
+                    Name = g.Key.CandidateName,
+                    IsCustom = g.Key.IsCustom,
+                    VoteCount = g.Sum(r => r.Count),
+                    Distribution = g.Select(r => new CandidateDrawDistributionResultDto
                     {
-                        int x = (int)(vote.X * resolution);
-                        int y = (int)(vote.Y * resolution);
-                        int width = (int)(vote.Width * resolution);
-                        int height = (int)(vote.Height * resolution);
-                        var area = Math.Max(1, width * height);
-
-                        var weightPerCell = 1.0 / area;
-
-                        for (int i = x; i <= x + width; i++)
-                        for (int j = y; j <= y + height; j++)
-                        {
-                            var key = (X: i, Y: j);
-
-                            if (!heatmaps.ContainsKey(key))
-                            {
-                                heatmaps[key] = 0;
-                                voteCounts[key] = 0;
-                            }
-
-                            heatmaps[key] += weightPerCell;
-                            voteCounts[key]++;
-                        }
-                    }
-
-                    return new CandidateLocateResultDto
-                    {
-                        Id = g.Key,
-                        Name = g.First().CandidateName,
-                        IsCustom = g.First().IsCustom,
-                        VoteCount = g.Count(),
-                        Distribution = heatmaps.Select(kvp => new CandidateLocateDistributionResultDto
-                        {
-                            X = kvp.Key.X,
-                            Y = kvp.Key.Y,
-                            Score = kvp.Value,
-                            VoteCount = voteCounts[kvp.Key]
-                        }).ToList()
-                    };
+                        CellIndex = r.CellIndex,
+                        VoteCount = r.Count,
+                        Value = r.Value
+                    }).ToList()
                 })
                 .ToList();
 
             return groupedResults;
         });
 
-        return ToPollResultDto(locateResults);
+        return ToPollResultDto(distributionResults);
     }
     
     private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, string filter)
@@ -320,11 +295,9 @@ public class PostResultService(HiveMimeContext context,
         public Guid CategoryId { get; set; }
     }
 
-    private class CandidateLocateVoteWithMetaData : CandidateVoteWithMetaData
+    private class CandidateDrawVoteWithMetaData : CandidateVoteWithMetaData
     {
-        public double X { get; set; }
-        public double Y { get; set; }
-        public double Width { get; set; }
-        public double Height { get; set; }
+        public int CellIndex { get; set; }
+        public double Value { get; set; }
     }
 }
