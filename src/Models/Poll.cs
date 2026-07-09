@@ -17,7 +17,6 @@ public class Poll : EntityWithIdentifier
 
     public double MinValue { get; set; }
     public double MaxValue { get; set; }
-    public double? StepValue { get; set; }
 
     /// <summary>
     /// Gets or sets the minimum number of votes a user must cast in this poll.
@@ -27,6 +26,13 @@ public class Poll : EntityWithIdentifier
     public int MaxVotes { get; set; }
     public int MinVotesPerCandidate { get; set; }
     public int MaxVotesPerCandidate { get; set; }
+
+    // For draw polls.
+    public int? Rows { get; set; }
+    public int? Columns { get; set; }
+    
+    // For score polls.
+    public double? StepValue { get; set; }
 
     public PollType PollType { get; set; }
     public List<Candidate> Candidates { get; set; } = [];

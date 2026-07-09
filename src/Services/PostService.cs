@@ -337,7 +337,7 @@ public class PostService(HiveMimeContext context,
             PollType.Score => 1,
             PollType.Rank => 1,
             PollType.Category => dto.Categories.Count,
-            PollType.Draw => 10000,
+            PollType.Draw => (dto.Rows ?? 0) * (dto.Columns ?? 0),
             _ => throw new ValidationException("Invalid poll type.")
         };
 
@@ -357,6 +357,17 @@ public class PostService(HiveMimeContext context,
 
             if (dto.MinValue >= dto.MaxValue)
                 yield return "MinValue must be less than MaxValue.";
+        }
+        else if (dto.PollType == PollType.Draw)
+        {
+            if (dto.Rows is null || dto.Columns is null)
+                throw new ValidationException("Rows and Columns must be set for draw polls.");
+
+            if (dto.Rows <= 0 || dto.Columns <= 0)
+                yield return "Rows and Columns must be greater than 0.";
+
+            if (dto.Rows > 100 || dto.Columns > 100)
+                yield return "Rows and Columns must be less than or equal to 100.";
         }
         else
         {
