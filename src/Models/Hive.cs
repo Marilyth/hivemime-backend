@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using NpgsqlTypes;
 
 [Index(nameof(Name), IsUnique = true)]
-public class Hive : EntityWithIdentifier
+public class Hive : RootEntity
 {
     [MaxLength(64)]
     public string Name { get; set; }
@@ -22,7 +22,7 @@ public class Hive : EntityWithIdentifier
 }
 
 [Index(nameof(UserId), nameof(HiveId), IsUnique = true)]
-public class HiveUser : EntityWithIdentifier
+public class HiveUser : RootEntity
 {
     [ForeignKey(nameof(User))]
     public Guid UserId { get; set; }

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-public class Category : EntityWithIdentifier
+public class Category : Entity
 {
     [MaxLength(64)]
     public string Name { get; set; }

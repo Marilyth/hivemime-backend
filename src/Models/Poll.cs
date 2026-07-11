@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using NpgsqlTypes;
 
-public class Poll : EntityWithIdentifier
+public class Poll : Entity
 {
     [MaxLength(128)]
     public string Title { get; set; }

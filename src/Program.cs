@@ -274,10 +274,8 @@ public class Program
     {
         using (var scope = _app.Services.CreateScope())
         {
-            // During development, reset the databse on restart.
             var db = scope.ServiceProvider.GetRequiredService<HiveMimeContext>();
-            db.Database.EnsureDeleted();
-            db.Database.EnsureCreated();
+            db.Database.Migrate();
         }
     }
 

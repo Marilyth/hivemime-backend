@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using NpgsqlTypes;
 
-public class Comment : EntityWithIdentifier
+public class Comment : RootEntity
 {
     [MaxLength(1024)]
     public string Content { get; set; }

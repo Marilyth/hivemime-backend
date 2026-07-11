@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 [Index(nameof(Hotness))]
-public class Post : EntityWithIdentifier
+public class Post : RootEntity
 {
     public List<Poll> Polls { get; set; }
     public List<Comment> Comments { get; set; }

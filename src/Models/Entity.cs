@@ -6,14 +6,14 @@ public interface IHasIdentifier
     Guid Id { get; set; }
 }
 
-public abstract class EntityWithIdentifier : Entity, IHasIdentifier
+public class Entity : IHasIdentifier
 {
     [Key]
     public Guid Id { get; set; }
 }
 
 [Index(nameof(CreatedAt))]
-public abstract class Entity
+public abstract class RootEntity : Entity, IHasIdentifier
 {
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? DeletedAt { get; set; }

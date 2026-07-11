@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 /// <typeparam name="TEntity">Entity type being paginated.</typeparam>
 /// <typeparam name="TPaginationDto">Input pagination request DTO.</typeparam>
 public abstract class PaginationHelperBase<TEntity, TPaginationDto>
-    where TEntity : EntityWithIdentifier
+    where TEntity : RootEntity
     where TPaginationDto : PaginationDto
 {
     /// <summary>
@@ -100,7 +100,7 @@ public abstract class PaginationHelperBase<TEntity, TPaginationDto>
                 Expression.AndAlso(
                     Expression.Equal(propertyExpression, cursorExpression),
                     Expression.GreaterThan(
-                        Expression.Property(Parameter, nameof(EntityWithIdentifier.Id)),
+                        Expression.Property(Parameter, nameof(RootEntity.Id)),
                         Expression.Constant(Pagination.Cursor.Id))
                 ));
 

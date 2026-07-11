@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
-public class PostVote : EntityWithIdentifier
+public class PostVote : RootEntity
 {
     [ForeignKey(nameof(User))]
     public Guid UserId { get; set; }
@@ -13,7 +14,7 @@ public class PostVote : EntityWithIdentifier
     public List<CandidateVote> Votes { get; set; }
 }
 
-public abstract class CandidateVote : EntityWithIdentifier
+public abstract class CandidateVote : Entity
 {
     [ForeignKey(nameof(Candidate))]
     public Guid CandidateId { get; set; }
@@ -43,6 +44,7 @@ public class CandidateCategoryVote : CandidateVote
     public Category? Category { get; set; }
 }
 
+[Index(nameof(CellIndex))]
 public class CandidateDrawVote : CandidateVote
 {
     public double Value { get; set; }
