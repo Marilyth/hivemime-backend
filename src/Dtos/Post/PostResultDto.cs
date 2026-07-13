@@ -1,4 +1,4 @@
-public class PollResultDto<T> : PollDto where T : CandidateResultDto
+public class PollResultDto<T> where T : CandidateResultDto
 {
     public new List<T> Candidates { get; set; }
 }

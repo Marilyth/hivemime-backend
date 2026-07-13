@@ -224,8 +224,8 @@ public class PostVoteService(HiveMimeContext context,
         var candidateGroup = pollVote.Candidates.GroupBy(c => c.Id);
 
         int votesCount = pollVote.Candidates.Count();
-        int minVotesPerCandidate = candidateGroup.Min(c => c.Count());
-        int maxVotesPerCandidate = candidateGroup.Max(c => c.Count());
+        int minVotesPerCandidate = candidateGroup.Any() ? candidateGroup.Min(c => c.Count()) : 0;
+        int maxVotesPerCandidate = candidateGroup.Any() ? candidateGroup.Max(c => c.Count()) : 0;
 
         // General validation.
         if (votesCount < poll.MinVotes)
@@ -234,10 +234,10 @@ public class PostVoteService(HiveMimeContext context,
         if (votesCount > poll.MaxVotes)
             yield return $"Poll allows a maximum of {poll.MaxVotes} votes.";
 
-        if (minVotesPerCandidate < poll.MinVotesPerCandidate)
+        if (minVotesPerCandidate > 0 && minVotesPerCandidate < poll.MinVotesPerCandidate)
             yield return $"Poll requires at least {poll.MinVotesPerCandidate} votes per candidate.";
 
-        if (maxVotesPerCandidate > poll.MaxVotesPerCandidate)
+        if (maxVotesPerCandidate > 0 && maxVotesPerCandidate > poll.MaxVotesPerCandidate)
             yield return $"Poll allows a maximum of {poll.MaxVotesPerCandidate} votes per candidate.";
 
         if (pollVote.Candidates.Count(c => c.Id is null) > poll.AllowedCustomCandidateCount)
