@@ -99,10 +99,6 @@ public class PostVoteService(HiveMimeContext context,
                         throw new ValidationException("Unknown vote type.");
                 }
 
-                string serializedVote = JsonSerializer.Serialize(dbVote);
-                if (!candidateValues.Add(serializedVote))
-                    throw new ValidationException("Duplicate votes are not allowed.");
-
                 postVote.Votes.Add(dbVote);
             }
         }
@@ -221,9 +217,9 @@ public class PostVoteService(HiveMimeContext context,
 
     private IEnumerable<string> ValidateVote(Poll poll, PollVoteDto pollVote)
     {
-        var candidateGroup = pollVote.Candidates.GroupBy(c => c.Id);
+        var candidateGroup = pollVote.Candidates.GroupBy(c => (c.Id, c.Name));
 
-        int votesCount = pollVote.Candidates.Count();
+        int votesCount = candidateGroup.Count();
         int minVotesPerCandidate = candidateGroup.Any() ? candidateGroup.Min(c => c.Count()) : 0;
         int maxVotesPerCandidate = candidateGroup.Any() ? candidateGroup.Max(c => c.Count()) : 0;
 
