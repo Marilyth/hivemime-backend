@@ -11,5 +11,14 @@ public enum ValueOperator
     [Description("<")]
     Less,
     [Description("<=")]
-    LessEquals
+    LessEquals,
+
+    [Description("in")]
+    Inside,
+    [Description("out")]
+    Outside,
+    [Description("xin")]
+    ExclusiveInside,
+    [Description("xout")]
+    ExclusiveOutside
 }
