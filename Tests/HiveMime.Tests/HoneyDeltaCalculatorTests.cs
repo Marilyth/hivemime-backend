@@ -78,6 +78,28 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
     }
 
     [Fact]
+    public async Task FromPostVoteAsync_MultipleCandidates_IncreasesDelta()
+    {
+        // Arrange
+        var user = new User { Username = "testuser5", Honey = 0, Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+
+        var single = new PostVoteDto { Polls = [ new PollVoteDto { Candidates = [ new CandidateChoiceVoteDto() ] } ] };
+        var multiple = new PostVoteDto
+        {
+            Polls = [ new PollVoteDto { Candidates = [ new CandidateChoiceVoteDto(), new CandidateChoiceVoteDto(), new CandidateChoiceVoteDto() ] } ]
+        };
+
+        // Act
+        var singleDelta = await _calculator.FromPostVoteAsync(user.Id, single);
+        var multipleDelta = await _calculator.FromPostVoteAsync(user.Id, multiple);
+
+        // Assert
+        Assert.True(multipleDelta.HoneyDelta > singleDelta.HoneyDelta);
+    }
+
+    [Fact]
     public async Task AwardScoreAsync_DecaysHoneyWithMultipleAwards()
     {
         // Arrange
