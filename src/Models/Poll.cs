@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using NpgsqlTypes;
 
-public class Poll : EntityWithIdentifier
+public class Poll : Entity
 {
     [MaxLength(128)]
     public string Title { get; set; }
@@ -15,9 +15,8 @@ public class Poll : EntityWithIdentifier
     public int AllowedCustomCandidateCount { get; set; }
     public bool IsShuffled { get; set; }
 
-    public int MinValue { get; set; }
-    public int MaxValue { get; set; }
-    public double? StepValue { get; set; }
+    public double MinValue { get; set; }
+    public double MaxValue { get; set; }
 
     /// <summary>
     /// Gets or sets the minimum number of votes a user must cast in this poll.
@@ -25,6 +24,15 @@ public class Poll : EntityWithIdentifier
     /// </summary>
     public int MinVotes { get; set; }
     public int MaxVotes { get; set; }
+    public int MinVotesPerCandidate { get; set; }
+    public int MaxVotesPerCandidate { get; set; }
+
+    // For draw polls.
+    public int? Rows { get; set; }
+    public int? Columns { get; set; }
+    
+    // For score polls.
+    public double? StepValue { get; set; }
 
     public PollType PollType { get; set; }
     public List<Candidate> Candidates { get; set; } = [];
@@ -42,5 +50,6 @@ public enum PollType
     Choice,
     Score,
     Rank,
-    Category
+    Category,
+    Draw
 }

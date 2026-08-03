@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-public class Category : EntityWithIdentifier
+public class Category : Entity
 {
     [MaxLength(64)]
     public string Name { get; set; }
@@ -13,6 +13,5 @@ public class Category : EntityWithIdentifier
     public Guid PollId { get; set; }
     public Poll? Poll { get; set; }
 
-    public int Value { get; set; }
     public int Order { get; set; }
 }

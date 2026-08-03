@@ -10,9 +10,30 @@ public class PollVoteDto
     public List<CandidateVoteDto> Candidates { get; set; }
 }
 
-public class CandidateVoteDto
+public abstract class CandidateVoteDto
 {
     public Guid? Id { get; set; }
     public string Name { get; set; }
-    public int? Value { get; set; }
+}
+
+public class CandidateChoiceVoteDto : CandidateVoteDto { }
+
+public class CandidateScoreVoteDto : CandidateVoteDto
+{
+    public double Score { get; set; }
+}
+
+public class CandidateRankVoteDto : CandidateVoteDto
+{
+    public int Rank { get; set; }
+}
+
+public class CandidateCategoryVoteDto : CandidateVoteDto
+{
+    public Guid CategoryId { get; set; }
+}
+
+public class CandidateDrawVoteDto : CandidateVoteDto
+{
+    public int CellIndex { get; set; }
 }

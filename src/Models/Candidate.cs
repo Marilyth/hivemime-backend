@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 [Index(nameof(NormalizedName), nameof(PollId), IsUnique = true)]
-public class Candidate : EntityWithIdentifier
+public class Candidate : Entity
 {
     [MaxLength(128)]
     public string NormalizedName { get; set; }

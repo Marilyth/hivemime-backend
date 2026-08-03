@@ -1,7 +1,4 @@
-
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Caching.Memory;
-using Xunit;
 
 namespace HiveMime.Tests;
 
@@ -65,7 +62,7 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         var user = new User { Username = "testuser3", Honey = 0, Settings = new() };
         Context.Users.Add(user);
         await Context.SaveChangesAsync();
-        var pollVote = new PollVoteDto { Candidates = [ new CandidateVoteDto { Value = 1 } ] };
+        var pollVote = new PollVoteDto { Candidates = [ new CandidateChoiceVoteDto() ] };
         var dto = new PostVoteDto { Polls = [ pollVote ] };
 
         // Act
@@ -78,6 +75,28 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         Assert.True(result.HoneyDelta > 0);
         Assert.True(result.Dto);
         Assert.True(updatedUser.Honey > 0);
+    }
+
+    [Fact]
+    public async Task FromPostVoteAsync_MultipleCandidates_IncreasesDelta()
+    {
+        // Arrange
+        var user = new User { Username = "testuser5", Honey = 0, Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+
+        var single = new PostVoteDto { Polls = [ new PollVoteDto { Candidates = [ new CandidateChoiceVoteDto() ] } ] };
+        var multiple = new PostVoteDto
+        {
+            Polls = [ new PollVoteDto { Candidates = [ new CandidateChoiceVoteDto(), new CandidateChoiceVoteDto(), new CandidateChoiceVoteDto() ] } ]
+        };
+
+        // Act
+        var singleDelta = await _calculator.FromPostVoteAsync(user.Id, single);
+        var multipleDelta = await _calculator.FromPostVoteAsync(user.Id, multiple);
+
+        // Assert
+        Assert.True(multipleDelta.HoneyDelta > singleDelta.HoneyDelta);
     }
 
     [Fact]

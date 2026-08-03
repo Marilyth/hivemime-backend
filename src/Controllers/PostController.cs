@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -5,7 +6,10 @@ namespace HiveMime.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class PostController(PostService postService, HiveMimeContext context) : ControllerBase
+public class PostController(PostService postService,
+    PostVoteService postVoteService,
+    PostResultService postResultService,
+    HiveMimeContext context) : ControllerBase
 {
     [HttpGet("get")]
     [EnableRateLimiting("1/1s")]
@@ -37,28 +41,38 @@ public class PostController(PostService postService, HiveMimeContext context) : 
     public async Task ModifyPost(Guid postId, ApprovalStatus approvalStatus)
         => await postService.ModifyPostAsync(await User.GetUserIdAsync(context), postId, approvalStatus);
 
-    [HttpGet("sumResult")]
+    [HttpPost("choiceResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(Guid pollId, string? filter)
-        => await postService.GetPollSumResult(pollId, filter);
+    public async Task<PollResultDto<CandidateChoiceResultDto>> GetChoicePollResult(Guid pollId, VoteQueryBase? filter)
+        => await postResultService.GetChoicePollResult(pollId, filter);
 
-    [HttpGet("statisticsResult")]
+    [HttpPost("scoreResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(Guid pollId, string? filter)
-        => await postService.GetPollStatisticsResult(pollId, filter);
+    public async Task<PollResultDto<CandidateScoreResultDto>> GetScorePollResult(Guid pollId, VoteQueryBase? filter)
+        => await postResultService.GetScorePollResult(pollId, filter);
 
-    [HttpGet("distributionResult")]
+    [HttpPost("rankResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(Guid pollId, string? filter)
-        => await postService.GetPollDistributionResult(pollId, filter);
+    public async Task<PollResultDto<CandidateRankResultDto>> GetRankPollResult(Guid pollId, VoteQueryBase? filter)
+        => await postResultService.GetRankPollResult(pollId, filter);
+
+    [HttpPost("categoryResult")]
+    [EnableRateLimiting("5/5s")]
+    public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, VoteQueryBase? filter)
+        => await postResultService.GetCategoryPollResult(pollId, filter);
+
+    [HttpPost("drawResult")]
+    [EnableRateLimiting("5/5s")]
+    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, VoteQueryBase? filter)
+        => await postResultService.GetDrawPollResult(pollId, filter);
 
     [HttpGet("customCandidateSuggestions")]
     [EnableRateLimiting("5/1s")]
     public async Task<List<CandidateDto>> GetCustomCandidateSuggestions(Guid pollId, string query)
-        => await postService.GetCustomCandidateSuggestionsAsync(pollId, query);
+        => await postVoteService.GetCustomCandidateSuggestionsAsync(pollId, query);
 
     [HttpPost("vote")]
     [EnableRateLimiting("1/5s")]
     public async Task<HoneyDeltaDto<bool>> UpsertVoteToPost([FromBody] PostVoteDto vote)
-        => await postService.VoteOnPostAsync(await User.GetUserIdAsync(context), vote);
+        => await postVoteService.VoteOnPostAsync(await User.GetUserIdAsync(context), vote);
 }

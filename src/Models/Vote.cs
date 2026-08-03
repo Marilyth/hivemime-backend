@@ -1,19 +1,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
-public class CandidateVote : EntityWithIdentifier
-{
-    [ForeignKey(nameof(Candidate))]
-    public Guid CandidateId { get; set; }
-    public Candidate? Candidate { get; set; }
-
-    [ForeignKey(nameof(PostVote))]
-    public Guid PostVoteId { get; set; }
-    public PostVote? PostVote { get; set; }
-
-    public int Value { get; set; }
-}
-
-public class PostVote : EntityWithIdentifier
+public class PostVote : RootEntity
 {
     [ForeignKey(nameof(User))]
     public Guid UserId { get; set; }
@@ -24,4 +12,41 @@ public class PostVote : EntityWithIdentifier
     public Post? Post { get; set; }
 
     public List<CandidateVote> Votes { get; set; }
+}
+
+public abstract class CandidateVote : Entity
+{
+    [ForeignKey(nameof(Candidate))]
+    public Guid CandidateId { get; set; }
+    public Candidate? Candidate { get; set; }
+
+    [ForeignKey(nameof(PostVote))]
+    public Guid PostVoteId { get; set; }
+    public PostVote? PostVote { get; set; }
+}
+
+public class CandidateChoiceVote : CandidateVote { }
+
+public class CandidateScoreVote : CandidateVote
+{
+    public double Score { get; set; }
+}
+
+public class CandidateRankVote : CandidateVote
+{
+    public int Rank { get; set; }
+}
+
+public class CandidateCategoryVote : CandidateVote
+{
+    [ForeignKey(nameof(Category))]
+    public Guid CategoryId { get; set; }
+    public Category? Category { get; set; }
+}
+
+[Index(nameof(CellIndex))]
+public class CandidateDrawVote : CandidateVote
+{
+    public double Value { get; set; }
+    public int CellIndex { get; set; }
 }

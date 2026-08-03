@@ -37,7 +37,7 @@ public class HoneyDeltaCalculator(HiveMimeContext context, IMemoryCache cache)
 
     public async Task<HoneyDeltaDto<bool>> FromPostVoteAsync(Guid userId, PostVoteDto dto)
     {
-        int totalVotes = dto.Polls.Sum(p => p.Candidates.Count(c => c.Value.HasValue));
+        int totalVotes = dto.Polls.Sum(p => p.Candidates.Count());
 
         double finalScore = Math.Sqrt(totalVotes + 1);
         finalScore = await AwardScoreAsync(userId, finalScore);

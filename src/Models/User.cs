@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 [Index(nameof(FirebaseId), IsUnique = true)]
 [Index(nameof(Username), IsUnique = true)]
-public class User : EntityWithIdentifier
+public class User : RootEntity
 {
     public string? FirebaseId { get; set; }
     public bool IsAnonymous { get; set; }

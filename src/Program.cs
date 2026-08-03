@@ -32,12 +32,21 @@ public class Program
 
         // Add services to the container.
         services.AddEndpointsApiExplorer();
-        services.AddSwaggerGen();
+        services.AddSwaggerGen(o =>
+        {
+            o.UseOneOfForPolymorphism();
+            o.UseAllOfForInheritance();
+        });
         services.AddResponseCompression();
         services.AddRequestDecompression();
         services.AddControllers()
             .AddMvcOptions(o => o.Filters.Add(new AuthorizeFilter()))
-            .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                options.JsonSerializerOptions.Converters.Add(new CandidateVoteDtoConverter());
+                options.JsonSerializerOptions.Converters.Add(new VoteQueryConverter());
+            });
 
         services.AddDbContextFactory<HiveMimeContext>(options =>
             options.UseNpgsql(builder.Configuration.GetConnectionString("Default"),
@@ -180,6 +189,8 @@ public class Program
         // Add custom services.
         services.AddMemoryCache();
         services.AddScoped<PostService>();
+        services.AddScoped<PostVoteService>();
+        services.AddScoped<PostResultService>();
         services.AddScoped<UserService>();
         services.AddScoped<HiveService>();
         services.AddScoped<CommentService>();
@@ -264,10 +275,8 @@ public class Program
     {
         using (var scope = _app.Services.CreateScope())
         {
-            // During development, reset the databse on restart.
             var db = scope.ServiceProvider.GetRequiredService<HiveMimeContext>();
-            db.Database.EnsureDeleted();
-            db.Database.EnsureCreated();
+            db.Database.Migrate();
         }
     }
 

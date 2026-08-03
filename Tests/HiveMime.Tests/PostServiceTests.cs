@@ -1,4 +1,5 @@
 using Mapster;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Moq;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -185,16 +186,21 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task PublishPostAsync_SetsIsDraftFalse_AndLinksMedia()
+    public async Task PublishPostAsync_SetsIsDraftFalse_AndRetainsUploadedMedia()
     {
         // Arrange
         var post = AddPost(false);
-        
+        var poll = post.Polls[0];
+        var candidate = poll.Candidates[0];
+        poll.MediaKeys = [$"posts/{post.Id}/{poll.Id}/poll.png"];
+        candidate.MediaKeys = [$"posts/{post.Id}/{poll.Id}/{candidate.Id}/cand.png"];
+        await Context.SaveChangesAsync();
+
         var mediaServiceMock = new Mock<IMediaService>();
         mediaServiceMock.Setup(m => m.ListObjectsAsync(It.IsAny<string>()))
             .ReturnsAsync([
-                $"posts/{post.Id}/{post.Polls[0].Id}/asdf.png",
-                $"posts/{post.Id}/{post.Polls[0].Id}/{post.Polls[0].Candidates[0].Id}/asdf.png"
+                $"posts/{post.Id}/{poll.Id}/poll.png",
+                $"posts/{post.Id}/{poll.Id}/{candidate.Id}/cand.png"
             ]);
 
         var service = new PostService(Context,
@@ -210,8 +216,8 @@ public class PostServiceTests : IntegrationTest
 
         // Assert
         Assert.False(dbPost!.IsDraft);
-        Assert.Contains(dbPost.Polls[0].Candidates[0].MediaKeys, k => k.EndsWith("asdf.png"));
-        Assert.Contains(dbPost.Polls[0].MediaKeys, k => k.EndsWith("asdf.png"));
+        Assert.Contains(dbPost.Polls[0].Candidates[0].MediaKeys, k => k.EndsWith("cand.png"));
+        Assert.Contains(dbPost.Polls[0].MediaKeys, k => k.EndsWith("poll.png"));
     }
 
     [Fact]
@@ -301,8 +307,14 @@ public class PostServiceTests : IntegrationTest
     public async Task BrowsePosts_OrderByHotness_ReturnsOrdered()
     {
         // Arrange
-        await AddVotesToCandidate(_defaultPost2!.Polls[0].Candidates[0].Id, _defaultPost2.Id, [ 1, 1, 1 ]);
-        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1 ]);
+        await AddVotesToCandidate(_defaultPost2!.Polls[0].Candidates[0].Id, _defaultPost2.Id, [
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 }
+        ]);
+        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, [
+            new CandidateScoreVote(){ Score = 1 }
+        ]);
         
         _defaultPost2.Comments = [new() { Content = "c1", User = _defaultUser }, new() { Content = "c2", User = _defaultUser }];
         _defaultPost.Comments = [new() { Content = "c1", User = _defaultUser2 }];
@@ -316,7 +328,14 @@ public class PostServiceTests : IntegrationTest
         Assert.True(Algorithms.HotnessFunction(result.Items[0].Adapt<Post>()) > Algorithms.HotnessFunction(result.Items[1].Adapt<Post>()));
 
         // Arrange 2
-        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [ 1, 1, 1, 1, 1, 1 ]);
+        await AddVotesToCandidate(_defaultPost.Polls[0].Candidates[0].Id, _defaultPost.Id, [
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 },
+            new CandidateScoreVote(){ Score = 1 }
+        ]);
         await Context.SaveChangesAsync();
         await Context.GetService<HybridCache>().RemoveAsync(
             CacheHelper.GetCacheKey([_defaultUser.Id, null, null, new PostPaginationDto() { OrderBy = PostOrderBy.Hot }, ApprovalStatus.Approved],
@@ -362,7 +381,9 @@ public class PostServiceTests : IntegrationTest
     public async Task CreatePost_UpdatesVoteCount()
     {
         // Act
-        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, new[] { 1, 1 });
+        await AddVotesToCandidate(_defaultPost!.Polls[0].Candidates[0].Id, _defaultPost.Id, [
+            new CandidateChoiceVote(),
+            new CandidateChoiceVote()]);
         var updated = await _service.GetPostAsync(_defaultPost.Id);
 
         // Assert
@@ -384,114 +405,226 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task GetPollSumResult_ReturnsExpectedSumsPerCandidate()
+    public async Task CreatePostAsync_DrawPoll_ValidRowsAndColumns_Persists()
     {
         // Arrange
-        var post = AddPost();
-        var poll = post.Polls[0];
-        var candidate1 = poll.Candidates[0];
-        var candidate2 = poll.Candidates[1];
-
-        await AddVotesToCandidate(candidate1.Id, post.Id, [1, 2, 3]);
-        await AddVotesToCandidate(candidate2.Id, post.Id, [4, 5]);
-
-        // Act
-        var result = await _service.GetPollSumResult(poll.Id, string.Empty);
-
-        // Assert
-        Assert.Equal(2, result.Candidates.Count);
-
-        var candidate1Result = Assert.Single(result.Candidates.Where(c => c.Id == candidate1.Id));
-        var candidate2Result = Assert.Single(result.Candidates.Where(c => c.Id == candidate2.Id));
-
-        Assert.Equal(6, candidate1Result.Sum);
-        Assert.Equal(3, candidate1Result.VoteCount);
-
-        Assert.Equal(9, candidate2Result.Sum);
-        Assert.Equal(2, candidate2Result.VoteCount);
-    }
-
-    [Fact]
-    public async Task GetPollStatisticsResult_ReturnsExpectedPercentilesAndAverage()
-    {
-        // Arrange
-        var post = AddPost();
-        var poll = post.Polls[0];
-        var candidate = poll.Candidates[0];
-
-        await AddVotesToCandidate(candidate.Id, post.Id, [1, 2, 3, 4]);
-
-        // Act
-        var result = await _service.GetPollStatisticsResult(poll.Id, string.Empty);
-
-        // Assert
-        var candidateResult = Assert.Single(result.Candidates);
-        Assert.Equal(candidate.Id, candidateResult.Id);
-        Assert.Equal(4, candidateResult.VoteCount);
-        Assert.Equal(1d, candidateResult.Min, 6);
-        Assert.Equal(1.75d, candidateResult.Q1, 6);
-        Assert.Equal(2.5d, candidateResult.Median, 6);
-        Assert.Equal(3.25d, candidateResult.Q3, 6);
-        Assert.Equal(4d, candidateResult.Max, 6);
-        Assert.Equal(2.5d, candidateResult.Average, 6);
-    }
-
-    [Fact]
-    public async Task GetPollDistributionResult_ReturnsExpectedValueFrequencies()
-    {
-        // Arrange
-        var post = AddPost();
-        var poll = post.Polls[0];
-        var candidate = poll.Candidates[0];
-
-        await AddVotesToCandidate(candidate.Id, post.Id, [1, 1, 2, 3, 3, 3]);
-
-        // Act
-        var result = await _service.GetPollDistributionResult(poll.Id, string.Empty);
-
-        // Assert
-        var candidateResult = Assert.Single(result.Candidates);
-        Assert.Equal(candidate.Id, candidateResult.Id);
-        Assert.Equal(6, candidateResult.VoteCount);
-
-        var distribution = candidateResult.Distribution.ToDictionary(d => d.Value, d => d.VoteCount);
-        Assert.Equal(3, distribution.Count);
-        Assert.Equal(2, distribution[1]);
-        Assert.Equal(1, distribution[2]);
-        Assert.Equal(3, distribution[3]);
-    }
-
-    private async Task AddVotesToCandidate(Guid candidateId, Guid postId, int[] values)
-    {
-        // Create separate users for each vote to simulate different users voting
-        for (int i = 0; i < values.Length; i++)
+        var postDto = new CreatePostDto
         {
-            var user = new User 
-            { 
-                Username = $"testuser_{candidateId}_{i}_{DateTime.Now.Ticks}", 
-                Settings = new() 
-            };
-            Context.Users.Add(user);
-            await Context.SaveChangesAsync(); // Save to get user ID
-            
-            var postVote = new PostVote
-            {
-                UserId = user.Id,
-                PostId = postId,
-                Votes = new List<CandidateVote>
+            Polls =
+            [
+                new CreatePollDto
                 {
-                    new CandidateVote 
-                    { 
-                        CandidateId = candidateId, 
-                        Value = values[i]
-                    }
+                    Title = "Draw Poll",
+                    Description = "d",
+                    PollType = PollType.Draw,
+                    Rows = 2,
+                    Columns = 3,
+                    Candidates = [ new CreateCandidateDto { Name = "A" } ],
+                    Categories = []
                 }
-            };
-            
-            Context.PostVotes.Add(postVote);
-        }
-        
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var poll = await Context.Polls.SingleAsync(p => p.PostId == post.Id);
+
+        // Assert
+        Assert.Equal(2, poll.Rows);
+        Assert.Equal(3, poll.Columns);
+        Assert.Equal(0d, poll.MinValue);
+        Assert.Equal(1d, poll.MaxValue);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_DrawPoll_MissingRows_Throws()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Draw Poll",
+                    PollType = PollType.Draw,
+                    Rows = null,
+                    Columns = 2,
+                    Candidates = [ new CreateCandidateDto { Name = "A" } ],
+                    Categories = []
+                }
+            ]
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _service.CreatePostAsync(_defaultUser!.Id, postDto));
+        Assert.Contains("Rows and Columns must be set for draw polls", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(101, 2)]
+    [InlineData(2, 101)]
+    [InlineData(0, 2)]
+    [InlineData(2, -1)]
+    public async Task CreatePostAsync_DrawPoll_InvalidDimensions_YieldsError(int rows, int columns)
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Draw Poll",
+                    PollType = PollType.Draw,
+                    Rows = rows,
+                    Columns = columns,
+                    Candidates = [ new CreateCandidateDto { Name = "A" } ],
+                    Categories = []
+                }
+            ]
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _service.CreatePostAsync(_defaultUser!.Id, postDto));
+        Assert.Contains("Rows and Columns", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_DrawPoll_ClampsMaxVotesPerCandidate()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Draw Poll",
+                    PollType = PollType.Draw,
+                    Rows = 2,
+                    Columns = 2,
+                    MaxVotesPerCandidate = 50,
+                    Candidates = [ new CreateCandidateDto { Name = "A" } ],
+                    Categories = []
+                }
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var poll = await Context.Polls.SingleAsync(p => p.PostId == post.Id);
+
+        // Assert
+        Assert.Equal(4, poll.MaxVotesPerCandidate);
+        Assert.Equal(4d, poll.MaxValue);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_CategoryPoll_ClampsVotesPerCandidate_AndSetsMaxValue()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Category Poll",
+                    PollType = PollType.Category,
+                    MaxVotesPerCandidate = 10,
+                    Candidates = [ new CreateCandidateDto { Name = "A" } ],
+                    Categories = [ new CreateCategoryDto { Name = "Cat1" }, new CreateCategoryDto { Name = "Cat2" } ]
+                }
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var poll = await Context.Polls.SingleAsync(p => p.PostId == post.Id);
+
+        // Assert
+        Assert.Equal(2, poll.MaxVotesPerCandidate);
+        Assert.Equal(2d, poll.MaxValue);
+        Assert.Equal(1d, poll.MinValue);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_ScorePoll_ThrowsWithoutStepValue()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Score Poll",
+                    PollType = PollType.Score,
+                    MinValue = 1,
+                    MaxValue = 5,
+                    Candidates = [ new CreateCandidateDto { Name = "A" } ],
+                    Categories = []
+                }
+            ]
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _service.CreatePostAsync(_defaultUser!.Id, postDto));
+        Assert.Contains("StepValue must be set for scoring polls", ex.Message);
+    }
+
+    [Fact]
+    public async Task PublishPostAsync_RemovesOrphanedMediaKeys()
+    {
+        // Arrange
+        var post = AddPost(false);
+        var candidate = post.Polls[0].Candidates[0];
+        post.Polls[0].MediaKeys = [ $"posts/{post.Id}/{post.Polls[0].Id}/existing.png" ];
+        candidate.MediaKeys = [ $"posts/{post.Id}/{post.Polls[0].Id}/{candidate.Id}/orphan.png" ];
         await Context.SaveChangesAsync();
+
+        var mediaServiceMock = new Mock<IMediaService>();
+        mediaServiceMock.Setup(m => m.ListObjectsAsync(It.IsAny<string>()))
+            .ReturnsAsync([$"posts/{post.Id}/{post.Polls[0].Id}/existing.png"]);
+
+        var service = new PostService(Context,
+            Context.GetService<HotnessUpdateQueue>(),
+            Context.GetService<HoneyDeltaCalculator>(),
+            mediaServiceMock.Object,
+            Context.GetService<AuthorizationService>(),
+            Context.GetService<HybridCache>());
+
+        // Act
+        await service.PublishPostAsync(_defaultUser!.Id, post.Id);
+        var dbPost = await Context.Posts
+            .Include(p => p.Polls).ThenInclude(p => p.Candidates)
+            .SingleAsync(p => p.Id == post.Id);
+
+        // Assert
+        Assert.Contains(dbPost.Polls[0].MediaKeys, k => k.EndsWith("existing.png"));
+        Assert.DoesNotContain(dbPost.Polls[0].Candidates[0].MediaKeys, k => k.EndsWith("orphan.png"));
+    }
+
+    [Fact]
+    public async Task PublishPostAsync_NoMedia_DoesNotCallListObjects()
+    {
+        // Arrange
+        var post = AddPost(false);
+
+        var mediaServiceMock = new Mock<IMediaService>();
+        var service = new PostService(Context,
+            Context.GetService<HotnessUpdateQueue>(),
+            Context.GetService<HoneyDeltaCalculator>(),
+            mediaServiceMock.Object,
+            Context.GetService<AuthorizationService>(),
+            Context.GetService<HybridCache>());
+
+        // Act
+        await service.PublishPostAsync(_defaultUser!.Id, post.Id);
+
+        // Assert
+        mediaServiceMock.Verify(m => m.ListObjectsAsync(It.IsAny<string>()), Times.Never);
     }
 
     protected override void SeedDatabase()
@@ -613,6 +746,34 @@ public class PostServiceTests : IntegrationTest
         Context.Posts.Add(_defaultPost2);
         Context.Posts.Add(_scorePost);
         Context.Posts.Add(_categoryPost);
+    }
+
+    private async Task AddVotesToCandidate(Guid candidateId, Guid postId, CandidateVote[] values)
+    {
+        // Create separate users for each vote to simulate different users voting
+        for (int i = 0; i < values.Length; i++)
+        {
+            values[i].CandidateId = candidateId;
+
+            var user = new User 
+            { 
+                Username = $"testuser_{candidateId}_{i}_{DateTime.Now.Ticks}", 
+                Settings = new() 
+            };
+            Context.Users.Add(user);
+            await Context.SaveChangesAsync(); // Save to get user ID
+            
+            var postVote = new PostVote
+            {
+                UserId = user.Id,
+                PostId = postId,
+                Votes = [values[i]]
+            };
+            
+            Context.PostVotes.Add(postVote);
+        }
+        
+        await Context.SaveChangesAsync();
     }
 
     private Post AddPost(bool isPublished = true)

@@ -9,10 +9,16 @@ public class PollDto
 
     public int MinValue { get; set; }
     public int MaxValue { get; set; }
-    public double? StepValue { get; set; }
 
     public int MinVotes { get; set; }
     public int MaxVotes { get; set; }
+    public int MinVotesPerCandidate { get; set; }
+    public int MaxVotesPerCandidate { get; set; }
+
+    public int? Rows { get; set; }
+    public int? Columns { get; set; }
+
+    public double? StepValue { get; set; }
 
     public PollType PollType { get; set; }
     public List<CandidateDto> Candidates { get; set; }

@@ -3,6 +3,8 @@ using Amazon.S3.Model;
 using Microsoft.Extensions.Configuration;
 using Moq;
 
+namespace HiveMime.Tests;
+
 public class CloudflareR2ServiceTests
 {
     private readonly Mock<IConfiguration> _mockConfig;
@@ -42,20 +44,21 @@ public class CloudflareR2ServiceTests
     public void GetPreSignedURL_InvalidInput_Throws()
     {
         // Act & Assert.
-        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL(null, 100, "image/png"));
-        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL("key", 0, "image/png"));
-        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL("key", CloudflareR2Service.MaxFileSize + 1, "image/png"));
-        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL("key", 100, null));
+        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL(null, 100, "image/png", out _));
+        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL("key", 0, "image/png", out _));
+        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL("key", CloudflareR2Service.MaxFileSize + 1, "image/png", out _));
+        Assert.Throws<ValidationException>(() => _service.GetPreSignedURL("key", 100, null, out _));
     }
 
     [Fact]
-    public void GetPreSignedURL_ValidInput_ReturnsUrl()
+    public void GetPreSignedURL_ValidInput_ReturnsUrlAndFinalKey()
     {
         // Act.
-        var url = _service.GetPreSignedURL("key", 100, "image/png");
+        var url = _service.GetPreSignedURL("key", 100, "image/png", out string finalKey);
 
         // Assert.
         Assert.StartsWith("https://localhost/key.png", url);
+        Assert.Equal("key.png", finalKey);
     }
 
     [Theory]

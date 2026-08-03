@@ -1,7 +1,3 @@
-using System.Linq.Expressions;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -119,31 +115,7 @@ public class PostService(HiveMimeContext context,
             throw new ValidationException("Post is already published.");
 
         post.IsDraft = false;
-
-        var uploadedFiles = await mediaService.ListObjectsAsync($"posts/{post.Id}/");
-
-        foreach (var uploadedFile in uploadedFiles)
-        {
-            string[] keyParts = uploadedFile.Split('/');
-
-            if (keyParts.Length == 4)
-            {
-                Guid pollId = Guid.Parse(keyParts[2]);
-                Poll poll = post.Polls.First(p => p.Id == pollId);
-
-                poll.MediaKeys.Add(uploadedFile);
-            }
-
-            else if (keyParts.Length == 5)
-            {
-                Guid pollId = Guid.Parse(keyParts[2]);
-                Guid candidateId = Guid.Parse(keyParts[3]);
-                Poll poll = post.Polls.First(p => p.Id == pollId);
-                Candidate candidate = poll.Candidates.FirstOrDefault(c => c.Id == candidateId);
-
-                candidate.MediaKeys.Add(uploadedFile);
-            }
-        }
+        await CheckForMediaAsync(post);
 
         if (post.HiveId is null || !post.Hive!.Settings.PostRequiresApproval)
             post.ApprovalStatus = ApprovalStatus.Approved;
@@ -192,13 +164,6 @@ public class PostService(HiveMimeContext context,
                 newPost.Polls[i].Categories[j].Order = j;
         }
 
-        // Each category requires a value for easier evaluation and filtering.
-        foreach (Poll poll in newPost.Polls.Where(p => p.PollType == PollType.Category))
-        {
-            for (int i = 0; i < poll.Categories.Count; i++)
-                poll.Categories[i].Value = i + 1;
-        }
-
         newPost.Creator = await context.Users.FindAsync(userId);
         newPost.Hive = hive;
 
@@ -229,192 +194,6 @@ public class PostService(HiveMimeContext context,
     }
 
     /// <summary>
-    /// Fetches and returns the sum result of a poll, which is the sum of the values of all votes for each candidate.
-    /// </summary>
-    /// <param name="pollId">The ID of the poll to fetch results for.</param>
-    /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateSumResultDto>> GetPollSumResult(Guid pollId, string filter)
-    {
-        var sumResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
-        {
-            IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
-
-            return await candidateVotes
-                .GroupBy(v => new { v.CandidateId, v.CandidateName, v.IsCustom })
-                .Select(g => new CandidateSumResultDto
-                {
-                    Id = g.Key.CandidateId,
-                    Name = g.Key.CandidateName,
-                    IsCustom = g.Key.IsCustom,
-                    Sum = g.Sum(v => v.Value),
-                    VoteCount = g.Count()
-                })
-                .ToListAsync();
-        });
-        
-
-        return ToPollResultDto(sumResults);
-    }
-
-    /// <summary>
-    /// Fetches and returns a box-plot result of a poll, which includes minimum, first quartile, median, third quartile and maximum of the values of all votes for each candidate.
-    /// </summary>
-    /// <param name="pollId">The ID of the poll to fetch results for.</param>
-    /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateStatisticsResultDto>> GetPollStatisticsResult(Guid pollId, string filter)
-    {
-        var statisticsResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
-        {
-            IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
-
-            string sql = candidateVotes.AsSingleQuery().ToQueryString();
-
-            Dictionary<string, string> parameters = Regex.Matches(sql, @"-- (@\w+)=(.+)")
-                .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.TrimEnd());
-
-            foreach (var param in parameters)
-                sql = sql.Replace(param.Key, param.Value);
-
-            return await context.Database.SqlQueryRaw<CandidateStatisticsResultDto>($"""
-                SELECT 
-                    "CandidateId" AS "Id",
-                    "CandidateName" AS "Name",
-                    "IsCustom" AS "IsCustom",
-                    MIN("Value") AS "Min",
-                    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "Value") AS "Q1",
-                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "Value") AS "Median",
-                    PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY "Value") AS "Q3",
-                    MAX("Value") AS "Max",
-                    AVG("Value") AS "Average",
-                    Count(*) AS "VoteCount"
-                FROM ({sql}) AS "CandidateVotes"
-                GROUP BY "CandidateId", "CandidateName", "IsCustom"
-                """)
-                .ToListAsync();
-        });
-
-        return ToPollResultDto(statisticsResults);
-    }
-
-    /// <summary>
-    /// Fetches and returns a distribution result of a poll, which includes the frequency of each value for each candidate.
-    /// </summary>
-    /// <param name="pollId">The ID of the poll to fetch results for.</param>
-    /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateDistributionResultDto>> GetPollDistributionResult(Guid pollId, string filter)
-    {
-        var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
-        {
-            IQueryable<CandidateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter);
-
-            var distributionResults = await candidateVotes
-                .GroupBy(v => new { v.CandidateId, v.Value, v.CandidateName, v.IsCustom })
-                .Select(g => new
-                {
-                    g.Key.CandidateId,
-                    g.Key.Value,
-                    g.Key.CandidateName,
-                    g.Key.IsCustom,
-                    Count = g.Count()
-                })
-                .ToListAsync();
-
-            var groupedResults = distributionResults
-                .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
-                .Select(g => new CandidateDistributionResultDto
-                {
-                    Id = g.Key.CandidateId,
-                    Name = g.Key.CandidateName,
-                    IsCustom = g.Key.IsCustom,
-                    VoteCount = g.Sum(r => r.Count),
-                    Distribution = g.Select(r => new CandidationDistributionResultValueDto
-                    {
-                        Value = r.Value,
-                        VoteCount = r.Count
-                    }).ToList()
-                })
-                .ToList();
-
-            return groupedResults;
-        });
-
-        return ToPollResultDto(distributionResults);
-    }
-
-    /// <summary>
-    /// Inserts or updates a user's votes on a post.
-    /// </summary>
-    /// <param name="userId">The ID of the user voting.</param>
-    /// <param name="vote">The vote to insert or update.</param>
-    public async Task<HoneyDeltaDto<bool>> VoteOnPostAsync(Guid userId, PostVoteDto vote)
-    {
-        await authorizationService.VerifyVoteOnPostAsync(userId, vote.Id);
-        
-        Post post = await context.Posts
-            .AsNoTracking()
-            .Include(p => p.Polls)
-            .FirstOrExceptionAsync(p => p.Id == vote.Id);
-
-        IEnumerable<string> validationErrors = ValidatePostVotes(post, vote);
-
-        if (validationErrors.Any())
-            throw new ValidationException("Vote validation failed: " + string.Join("; ", validationErrors));
-        
-        var customCandidateIds = await GetOrCreateCustomCandidates(vote);
-
-        HoneyDeltaDto<bool> honeyDelta = new() { Dto = true };
-
-        PostVote postVote = await context.PostVotes
-            .Include(pv => pv.Votes)
-            .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.Id);
-        
-        if (postVote is not null)
-            context.PostVotes.Remove(postVote);
-        else
-            honeyDelta = await honeyDeltaCalculator.FromPostVoteAsync(userId, vote);
-            
-        postVote = new PostVote
-        {
-            UserId = userId,
-            PostId = post.Id,
-            Votes = new List<CandidateVote>()
-        };
-
-        context.PostVotes.Add(postVote);
-        HashSet<Guid> votedCandidateIds = new();
-
-        foreach (PollVoteDto pollVote in vote.Polls)
-        {
-            foreach (CandidateVoteDto candidateVote in pollVote.Candidates)
-            {
-                if (!candidateVote.Value.HasValue)
-                    continue;
-                
-                if (candidateVote.Id is null)
-                    candidateVote.Id = customCandidateIds[(pollVote.Id, candidateVote.Name.Normalize(false))].Id;
-
-                if (votedCandidateIds.Contains(candidateVote.Id.Value))
-                    continue;
-
-                var dbVote = new CandidateVote
-                {
-                    CandidateId = candidateVote.Id.Value,
-                    PostVote = postVote
-                };
-
-                postVote.Votes.Add(dbVote);
-
-                dbVote.Value = candidateVote.Value ?? 0;
-                votedCandidateIds.Add(candidateVote.Id.Value);
-            }
-        }
-
-        await context.SaveChangesAsync();
-
-        return honeyDelta;
-    }
-
-    /// <summary>
     /// Modifies the approval status of a post.
     /// </summary>
     /// <param name="userId">The ID of the user attempting to modify the post.</param>
@@ -430,132 +209,32 @@ public class PostService(HiveMimeContext context,
         await context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Returns a list of custom candidate suggestions for a poll based on a query string.
-    /// Only candidates that start with the query string and are marked as custom will be returned.
-    /// </summary>
-    /// <param name="pollId">The ID of the poll for which to retrieve custom candidate suggestions.</param>
-    /// <param name="query">The query string to filter custom candidates.</param>
-    /// <returns>A list of <see cref="CandidateDto"/> representing the custom candidate suggestions.</returns>
-    /// <exception cref="ValidationException">Thrown if the query is invalid or the poll does not allow custom answers.</exception>
-    public async Task<List<CandidateDto>> GetCustomCandidateSuggestionsAsync(Guid pollId, string query)
+    private async Task CheckForMediaAsync(Post post)
     {
-        string trimmedQuery = query.Normalize(false);
+        bool hasMedia = post.Polls.Any(p => p.MediaKeys.Any() || p.Candidates.Any(c => c.MediaKeys.Any()));
 
-        if (string.IsNullOrWhiteSpace(trimmedQuery) || trimmedQuery.Length < 3)
-            return [];
+        if (!hasMedia)
+            return;
 
-        return await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, trimmedQuery]), async entry =>
+        HashSet<string> uploadedFiles = [..await mediaService.ListObjectsAsync($"posts/{post.Id}/")];
+
+        foreach (var poll in post.Polls)
         {
-            bool? allowCustomCandidate = await context.Polls
-            .AsNoTracking()
-            .Where(p => p.Id == pollId)
-            .Select(p => p.AllowedCustomCandidateCount > 0)
-            .FirstOrDefaultAsync();
-
-            if (allowCustomCandidate == null)
-                throw new ValidationException("Poll not found.");
-
-            if (!allowCustomCandidate.Value)
-                throw new ValidationException("This poll does not allow custom candidates.");
-
-            return await context.Candidates
-                .Where(c => c.PollId == pollId)
-                .Where(c => c.NormalizedName.StartsWith(trimmedQuery) && c.IsCustom)
-                .OrderBy(c => c.Name)
-                .Take(10)
-                .ProjectToType<CandidateDto>()
-                .ToListAsync();
-        });
-    }
-
-    private async Task<Dictionary<(Guid, string), Candidate>> GetOrCreateCustomCandidates(PostVoteDto postVoteDto, int retryCount = 0)
-    {
-        HashSet<(Guid, string, string)> customCandidates = postVoteDto.Polls
-            .SelectMany(p => p.Candidates.Where(c => !c.Id.HasValue && c.Value.HasValue)
-                .Select(candidate => (p.Id, candidate.Name.Normalize(false), candidate.Name)))
-            .ToHashSet();
-
-        if (!customCandidates.Any())
-            return [];
-
-        IEnumerable<string> customCandidateNames = customCandidates.Select(c => c.Item2).Distinct();
-        Dictionary<(Guid, string), Candidate> existingCandidates = 
-            context.Candidates.Where(c => c.Poll.PostId == postVoteDto.Id)
-                .AsNoTracking()
-                .Where(c => c.IsCustom && customCandidateNames.Contains(c.NormalizedName))
-                .ToDictionary(c => (c.PollId, c.NormalizedName), c => c);
-
-        foreach (var customCandidate in customCandidates)
-        {
-            if (!existingCandidates.ContainsKey((customCandidate.Item1, customCandidate.Item2)))
+            foreach (var mediaKey in poll.MediaKeys.ToList())
             {
-                Candidate newCandidate = new()
-                {
-                    PollId = customCandidate.Item1,
-                    Name = customCandidate.Item3,
-                    NormalizedName = customCandidate.Item2,
-                    IsCustom = true
-                };
+                if (!uploadedFiles.Contains(mediaKey))
+                    poll.MediaKeys.Remove(mediaKey);
+            }
 
-                context.Candidates.Add(newCandidate);
-                existingCandidates[(customCandidate.Item1, customCandidate.Item2)] = newCandidate;
+            foreach (var candidate in poll.Candidates)
+            {
+                foreach (var mediaKey in candidate.MediaKeys.ToList())
+                {
+                    if (!uploadedFiles.Contains(mediaKey))
+                        candidate.MediaKeys.Remove(mediaKey);
+                }
             }
         }
-
-        try
-        {
-            await context.SaveChangesAsync();
-        }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("duplicate key value violates unique constraint") == true)
-        {
-            if (retryCount >= 3)
-                throw new ValidationException("Failed to create custom candidates after multiple attempts due to concurrent modifications. Please try again later.");
-
-            context.ChangeTracker.Clear();
-
-            return await GetOrCreateCustomCandidates(postVoteDto, retryCount + 1);
-        }
-
-        return existingCandidates;
-    }
-
-    private IQueryable<CandidateVoteWithMetaData> GetApplicableVotes(Guid pollId, string filter)
-    {
-        IQueryable<PostVote> votes = context.PostVotes
-            .Where(v => v.Post.Polls.Any(p => p.Id == pollId));
-
-        if (!string.IsNullOrWhiteSpace(filter))
-        {
-            VoteQueryBase voteQuery = filter.ToVoteQuery();
-            Expression<Func<PostVote, bool>> voteExpression = voteQuery.ToExpression();
-            votes = votes.Where(v => !v.User.Settings.ProtectVoteOnFilter)
-                .Where(voteExpression);
-        }
-
-        return votes.SelectMany(v => v.Votes)
-            .Where(cv => cv.Candidate.PollId == pollId)
-            .Select(cv => new CandidateVoteWithMetaData
-            {
-                CandidateId = cv.CandidateId,
-                Value = cv.Value,
-                CandidateName = cv.Candidate.Name,
-                IsCustom = cv.Candidate.IsCustom
-            });
-    }
-
-    private PollResultDto<T> ToPollResultDto<T>(List<T> candidateResults, int customCount = 50) where T : CandidateResultDto
-    {
-        var customResults = candidateResults.Where(c => c.IsCustom)
-            .OrderByDescending(c => c.VoteCount)
-            .Take(customCount);
-
-        var nonCustomResults = candidateResults.Where(c => !c.IsCustom);
-
-        return new PollResultDto<T>
-        {
-            Candidates = nonCustomResults.Concat(customResults).ToList()
-        };
     }
 
     /// <summary>
@@ -574,40 +253,62 @@ public class PostService(HiveMimeContext context,
 
         for (int i = 0; i < postDto.Polls.Count; i++)
         {
-            var poll = postDto.Polls[i];
+            var poll = post.Polls[i];
+            var pollDto = postDto.Polls[i];
             var uploadPoll = uploadPost.Polls[i];
             
-            if (poll.Media is not null)
+            if (pollDto.Media is not null)
             {
                 string objectKey = $"posts/{uploadPost.Id}/{uploadPoll.Id}/{Guid.NewGuid()}";
-                string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, poll.Media.ContentLength, poll.Media.ContentType);
-                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb", poll.Media.ThumbnailContentLength, poll.Media.ContentType);
+                string signedUploadUrl = mediaService.GetPreSignedURL(objectKey,
+                    pollDto.Media.ContentLength,
+                    pollDto.Media.ContentType,
+                    out string finalKey);
+                string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumb",
+                    pollDto.Media.ThumbnailContentLength,
+                    pollDto.Media.ContentType,
+                    out string finalThumbnailKey);
+
+                poll.MediaKeys.Add(finalKey);
+                poll.MediaKeys.Add(finalThumbnailKey);
 
                 uploadPoll.MediaUploadUrls = [signedUploadUrl, signedThumbnailUploadUrl];
-                totalContentLength += poll.Media.ContentLength;
-                totalContentLength += poll.Media.ThumbnailContentLength;
+                totalContentLength += pollDto.Media.ContentLength;
+                totalContentLength += pollDto.Media.ThumbnailContentLength;
             }
 
-            for (int j = 0; j < poll.Candidates.Count; j++)
+            for (int j = 0; j < pollDto.Candidates.Count; j++)
             {
                 var candidate = poll.Candidates[j];
+                var candidateDto = pollDto.Candidates[j];
                 var uploadCandidate = uploadPoll.Candidates[j];
 
-                if (candidate.Media is not null)
+                if (candidateDto.Media is not null)
                 {
                     string objectKey = $"posts/{uploadPost.Id}/{uploadPoll.Id}/{uploadCandidate.Id}/{Guid.NewGuid()}";
-                    string signedUploadUrl = mediaService.GetPreSignedURL(objectKey, candidate.Media.ContentLength, candidate.Media.ContentType);
-                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail", candidate.Media.ThumbnailContentLength, candidate.Media.ContentType);
+                    string signedUploadUrl = mediaService.GetPreSignedURL(objectKey,
+                        candidateDto.Media.ContentLength,
+                        candidateDto.Media.ContentType,
+                        out string finalKey);
+                    string signedThumbnailUploadUrl = mediaService.GetPreSignedURL(objectKey + "_thumbnail",
+                        candidateDto.Media.ThumbnailContentLength,
+                        candidateDto.Media.ContentType,
+                        out string finalThumbnailKey);
+
+                    candidate.MediaKeys.Add(finalKey);
+                    candidate.MediaKeys.Add(finalThumbnailKey);
 
                     uploadCandidate.MediaUploadUrls = new List<string> { signedUploadUrl, signedThumbnailUploadUrl };
-                    totalContentLength += candidate.Media.ContentLength;
-                    totalContentLength += candidate.Media.ThumbnailContentLength;
+                    totalContentLength += candidateDto.Media.ContentLength;
+                    totalContentLength += candidateDto.Media.ThumbnailContentLength;
                 }
             }
         }
 
         if (totalContentLength > CloudflareR2Service.MaxTotalSize)
             throw new ValidationException($"Total content length cannot exceed {CloudflareR2Service.MaxTotalSize} bytes.");
+
+        await context.SaveChangesAsync();
 
         return uploadPost;
     }
@@ -630,13 +331,21 @@ public class PostService(HiveMimeContext context,
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
         int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
-        
-        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
+        int maxCandidateOptionCount = dto.PollType switch
+        {
+            PollType.Choice => 1,
+            PollType.Score => 1,
+            PollType.Rank => 1,
+            PollType.Category => dto.Categories.Count,
+            PollType.Draw => Math.Max(0, (dto.Rows ?? 0) * (dto.Columns ?? 0)),
+            _ => throw new ValidationException("Invalid poll type.")
+        };
 
-        if (dto.MaxVotes == -1)
-            dto.MaxVotes = effectiveCandidateCount;
-        else
-            dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
+
+        dto.MinVotesPerCandidate = Math.Clamp(dto.MinVotesPerCandidate, 0, maxCandidateOptionCount);
+        dto.MaxVotesPerCandidate = Math.Clamp(dto.MaxVotesPerCandidate, dto.MinVotesPerCandidate, maxCandidateOptionCount);
 
         if (dto.PollType == PollType.Score)
         {
@@ -651,11 +360,31 @@ public class PostService(HiveMimeContext context,
         }
         else
         {
-            dto.MinValue = 1;
+            if (dto.PollType == PollType.Draw)
+            {
+                if (dto.Rows is null || dto.Columns is null)
+                    throw new ValidationException("Rows and Columns must be set for draw polls.");
+
+                if (dto.Rows <= 0 || dto.Columns <= 0)
+                    yield return "Rows and Columns must be greater than 0.";
+
+                if (dto.Rows > 100 || dto.Columns > 100)
+                    yield return "Rows and Columns must be less than or equal to 100.";
+            }
+
+            dto.MinValue = dto.PollType switch
+            {
+                PollType.Draw => 0,
+                _ => 1
+            };
+
             dto.MaxValue = dto.PollType switch
             {
                 PollType.Rank => dto.MaxVotes,
                 PollType.Category => dto.Categories.Count,
+                PollType.Draw => maxCandidateOptionCount > 0
+                    ? Math.Clamp(dto.MaxVotesPerCandidate, 1, maxCandidateOptionCount)
+                    : 0,
                 _ => 1
             };
         }
@@ -674,82 +403,5 @@ public class PostService(HiveMimeContext context,
             if (dto.Categories is null || !dto.Categories.Any())
                 yield return "A categorization poll must contain at least one category.";
         }
-    }
-
-    private IEnumerable<string> ValidatePostVotes(Post post, PostVoteDto postVote)
-    {
-        if (post.Polls.Count != postVote.Polls.Count)
-        {
-            yield return "The number of polls voted on does not match the number of polls in the post.";
-            yield break;
-        }
-
-        foreach (Poll poll in post.Polls)
-        {
-            PollVoteDto? pollVote = postVote.Polls.First(pv => pv.Id == poll.Id);
-
-            foreach (string error in ValidateVote(poll, pollVote!))
-                yield return error;
-        }
-    }
-
-    private IEnumerable<string> ValidateVote(Poll poll, PollVoteDto pollVote)
-    {
-        int votesCount = pollVote.Candidates.Count(v => v.Value.HasValue && (poll.PollType != PollType.Choice || v.Value.Value != 0));
-
-        // General validation.
-        if (votesCount < poll.MinVotes)
-            yield return $"Poll requires at least {poll.MinVotes} votes.";
-
-        if (votesCount > poll.MaxVotes)
-            yield return $"Poll allows a maximum of {poll.MaxVotes} votes.";
-
-        if (pollVote.Candidates.Any(v => v.Value.HasValue && v.Value < poll.MinValue))
-            yield return $"Poll has a minimum value of {poll.MinValue}.";
-
-        if (pollVote.Candidates.Any(v => v.Value.HasValue && v.Value > poll.MaxValue))
-            yield return $"Poll has a maximum value of {poll.MaxValue}.";
-
-        if (pollVote.Candidates.Count(c => c.Id is null && c.Value.HasValue) > poll.AllowedCustomCandidateCount)
-            yield return $"Poll allows a maximum of {poll.AllowedCustomCandidateCount} custom candidates.";
-
-        // Poll type specific validation.
-        switch (poll.PollType)
-        {
-            case PollType.Rank:
-                foreach (string error in ValidateRankingPoll(poll, pollVote))
-                    yield return error;
-                break;
-            default:
-                break;
-        }
-    }
-
-    private IEnumerable<string> ValidateRankingPoll(Poll poll, PollVoteDto pollVote)
-    {
-        List<int> assignedRanks = pollVote.Candidates
-            .Where(v => v.Value.HasValue)
-            .Select(v => v.Value!.Value)
-            .ToList();
-
-        int expectedRankCount = assignedRanks.Count;
-        HashSet<int> uniqueRanks = new(assignedRanks);
-
-        if (uniqueRanks.Count != expectedRankCount)
-            yield return "Duplicate values are not allowed in ranking polls.";
-
-        for (int rank = 1; rank <= expectedRankCount; rank++)
-        {
-            if (!uniqueRanks.Contains(rank))
-                yield return $"Ranking poll is missing rank {rank}.";
-        }
-    }
-
-    private class CandidateVoteWithMetaData
-    {
-        public Guid CandidateId { get; set; }
-        public int Value { get; set; }
-        public string CandidateName { get; set; }
-        public bool IsCustom { get; set; }
     }
 }
