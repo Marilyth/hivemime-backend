@@ -41,29 +41,29 @@ public class PostController(PostService postService,
     public async Task ModifyPost(Guid postId, ApprovalStatus approvalStatus)
         => await postService.ModifyPostAsync(await User.GetUserIdAsync(context), postId, approvalStatus);
 
-    [HttpGet("choiceResult")]
+    [HttpPost("choiceResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateChoiceResultDto>> GetChoicePollResult(Guid pollId, string? filter)
+    public async Task<PollResultDto<CandidateChoiceResultDto>> GetChoicePollResult(Guid pollId, VoteQueryBase? filter)
         => await postResultService.GetChoicePollResult(pollId, filter);
 
-    [HttpGet("scoreResult")]
+    [HttpPost("scoreResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateScoreResultDto>> GetScorePollResult(Guid pollId, string? filter)
+    public async Task<PollResultDto<CandidateScoreResultDto>> GetScorePollResult(Guid pollId, VoteQueryBase? filter)
         => await postResultService.GetScorePollResult(pollId, filter);
 
-    [HttpGet("rankResult")]
+    [HttpPost("rankResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateRankResultDto>> GetRankPollResult(Guid pollId, string? filter)
+    public async Task<PollResultDto<CandidateRankResultDto>> GetRankPollResult(Guid pollId, VoteQueryBase? filter)
         => await postResultService.GetRankPollResult(pollId, filter);
 
-    [HttpGet("categoryResult")]
+    [HttpPost("categoryResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, string? filter)
+    public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, VoteQueryBase? filter)
         => await postResultService.GetCategoryPollResult(pollId, filter);
 
-    [HttpGet("drawResult")]
+    [HttpPost("drawResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, string? filter)
+    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, VoteQueryBase? filter)
         => await postResultService.GetDrawPollResult(pollId, filter);
 
     [HttpGet("customCandidateSuggestions")]

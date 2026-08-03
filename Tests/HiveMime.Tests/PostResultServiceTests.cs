@@ -37,7 +37,7 @@ public class PostResultServiceTests : IntegrationTest
             new CandidateCategoryVote { CategoryId = cat2 }
         ]);
 
-        var result = await _postResultService.GetCategoryPollResult(_categoryPoll.Id, string.Empty);
+        var result = await _postResultService.GetCategoryPollResult(_categoryPoll.Id, null);
 
         var candidateResult = Assert.Single(result.Candidates);
         Assert.Equal(candidate.Id, candidateResult.Id);
@@ -59,7 +59,7 @@ public class PostResultServiceTests : IntegrationTest
             new CandidateDrawVote { CellIndex = 1, Value = 1 }
         ]);
 
-        var result = await _postResultService.GetDrawPollResult(_drawPoll.Id, string.Empty);
+        var result = await _postResultService.GetDrawPollResult(_drawPoll.Id, null);
 
         var candidateResult = Assert.Single(result.Candidates);
         Assert.Equal(candidate.Id, candidateResult.Id);
@@ -91,7 +91,7 @@ public class PostResultServiceTests : IntegrationTest
         await Context.SaveChangesAsync();
 
         // No filter => all votes counted.
-        var unfiltered = await _postResultService.GetChoicePollResult(_choicePoll.Id, string.Empty);
+        var unfiltered = await _postResultService.GetChoicePollResult(_choicePoll.Id, null);
         Assert.Equal(2, Assert.Single(unfiltered.Candidates).VoteCount);
     }
 
@@ -120,7 +120,7 @@ public class PostResultServiceTests : IntegrationTest
         Context.PostVotes.Add(new PostVote { UserId = _voter!.Id, PostId = _choicePost!.Id, Votes = votes });
         await Context.SaveChangesAsync();
 
-        var result = await _postResultService.GetChoicePollResult(_choicePoll.Id, string.Empty);
+        var result = await _postResultService.GetChoicePollResult(_choicePoll.Id, null);
 
         Assert.False(result.Candidates[0].IsCustom);
         Assert.Equal(51, result.Candidates.Count);
@@ -141,7 +141,7 @@ public class PostResultServiceTests : IntegrationTest
             new CandidateChoiceVote(),
             new CandidateChoiceVote()]);
 
-        var result = await _postResultService.GetChoicePollResult(_choicePoll.Id, string.Empty);
+        var result = await _postResultService.GetChoicePollResult(_choicePoll.Id, null);
 
         Assert.Equal(2, result.Candidates.Count);
         Assert.Equal(3, Assert.Single(result.Candidates, c => c.Id == candidate1.Id).VoteCount);
@@ -160,7 +160,7 @@ public class PostResultServiceTests : IntegrationTest
             new CandidateScoreVote { Score = 4 }
         ]);
 
-        var result = await _postResultService.GetScorePollResult(_scorePoll.Id, string.Empty);
+        var result = await _postResultService.GetScorePollResult(_scorePoll.Id, null);
 
         var candidateResult = Assert.Single(result.Candidates);
         Assert.Equal(candidate.Id, candidateResult.Id);
@@ -187,7 +187,7 @@ public class PostResultServiceTests : IntegrationTest
             new CandidateRankVote { Rank = 3 }
         ]);
 
-        var result = await _postResultService.GetRankPollResult(_rankPoll.Id, string.Empty);
+        var result = await _postResultService.GetRankPollResult(_rankPoll.Id, null);
 
         var candidateResult = Assert.Single(result.Candidates);
         Assert.Equal(candidate.Id, candidateResult.Id);
@@ -207,15 +207,15 @@ public class PostResultServiceTests : IntegrationTest
 
         await AddVotesAsync(candidate.Id, _choicePost!.Id, [new CandidateChoiceVote(), new CandidateChoiceVote()]);
 
-        var before = await _postResultService.GetChoicePollResult(_choicePoll.Id, string.Empty);
+        var before = await _postResultService.GetChoicePollResult(_choicePoll.Id, null);
         Assert.Equal(2, Assert.Single(before.Candidates).VoteCount);
 
         // Add a vote and evict the cached result so the next call reflects it.
         await AddVotesAsync(candidate.Id, _choicePost!.Id, [new CandidateChoiceVote()]);
         await Context.GetService<HybridCache>().RemoveAsync(
-            CacheHelper.GetCacheKey([_choicePoll.Id, string.Empty], nameof(PostResultService.GetChoicePollResult)));
+            CacheHelper.GetCacheKey([_choicePoll.Id, null], nameof(PostResultService.GetChoicePollResult)));
 
-        var after = await _postResultService.GetChoicePollResult(_choicePoll.Id, string.Empty);
+        var after = await _postResultService.GetChoicePollResult(_choicePoll.Id, null);
         Assert.Equal(3, Assert.Single(after.Candidates).VoteCount);
     }
 

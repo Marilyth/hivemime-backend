@@ -12,15 +12,15 @@ public class VoteQueryTests
     {
         Children =
         [
-            new VoteQuery() { CandidateId = 0, ValueOperator = ValueOperator.Equals, Value = 0 },
-            new VoteQuery() { CandidateId = 1, ValueOperator = ValueOperator.Greater, Value = 1 },
-            new VoteQuery() { CandidateId = 2, ValueOperator = ValueOperator.GreaterEquals, Value = 2 },
+            new VoteQuery() { CandidateId = "0", ValueOperator = ValueOperator.Equals, Value = "0" },
+            new VoteQuery() { CandidateId = "1", ValueOperator = ValueOperator.Greater, Value = "1" },
+            new VoteQuery() { CandidateId = "2", ValueOperator = ValueOperator.GreaterEquals, Value = "2" },
             new VoteQueryGroup() { LeftOperator = BooleanOperator.Or, IsNegated = true,
                 Children =
                 [
-                    new VoteQuery() { CandidateId = 3, IsNegated = true, ValueOperator = ValueOperator.Less, Value = 3 },
-                    new VoteQuery() { CandidateId = 4, IsNegated = true, ValueOperator = ValueOperator.LessEquals, Value = 4 },
-                    new VoteQuery() { CandidateId = 5, ValueOperator = ValueOperator.Equals, Value = 5 }
+                    new VoteQuery() { CandidateId = "3", IsNegated = true, ValueOperator = ValueOperator.Less, Value = "3" },
+                    new VoteQuery() { CandidateId = "4", IsNegated = true, ValueOperator = ValueOperator.LessEquals, Value = "4" },
+                    new VoteQuery() { CandidateId = "5", ValueOperator = ValueOperator.Equals, Value = "5" }
                 ] },
         ]
     };

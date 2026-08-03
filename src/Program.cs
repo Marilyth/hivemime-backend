@@ -45,6 +45,7 @@ public class Program
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
                 options.JsonSerializerOptions.Converters.Add(new CandidateVoteDtoConverter());
+                options.JsonSerializerOptions.Converters.Add(new VoteQueryConverter());
             });
 
         services.AddDbContextFactory<HiveMimeContext>(options =>
