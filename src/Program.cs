@@ -276,8 +276,6 @@ public class Program
         using (var scope = _app.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<HiveMimeContext>();
-            // Temporarily.
-            db.Database.EnsureDeleted();
             db.Database.Migrate();
         }
     }
