@@ -46,6 +46,16 @@ public class CandidateVoteDtoConverterTests
     }
 
     [Fact]
+    public void Read_WithTimestamp_ReturnsCandidateDateVoteDto()
+    {
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var result = Deserialize<CandidateVoteDto>($"{{\"id\":\"{_id}\",\"name\":\"A\",\"timestamp\":\"{timestamp:o}\"}}");
+
+        var date = Assert.IsType<CandidateDateVoteDto>(result);
+        Assert.Equal(timestamp, date.Timestamp);
+    }
+
+    [Fact]
     public void Read_WithoutTypeSpecificKeys_FallsBackToChoice()
     {
         var result = Deserialize<CandidateVoteDto>($"{{\"id\":\"{_id}\",\"name\":\"A\"}}");

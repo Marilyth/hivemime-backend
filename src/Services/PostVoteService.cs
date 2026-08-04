@@ -95,6 +95,13 @@ public class PostVoteService(HiveMimeContext context,
                             Value = 1.0 / pollVote.Candidates.Count
                         };
                         break;
+                    case PollType.Date:
+                        dbVote = new CandidateDateVote
+                        {
+                            CandidateId = candidateVote.Id.Value,
+                            Timestamp = ((CandidateDateVoteDto)candidateVote).Timestamp
+                        };
+                        break;
                     default:
                         throw new ValidationException("Unknown vote type.");
                 }

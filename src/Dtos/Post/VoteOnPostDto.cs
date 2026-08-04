@@ -37,3 +37,8 @@ public class CandidateDrawVoteDto : CandidateVoteDto
 {
     public int CellIndex { get; set; }
 }
+
+public class CandidateDateVoteDto : CandidateVoteDto
+{
+    public long Timestamp { get; set; }
+}

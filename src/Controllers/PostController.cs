@@ -66,6 +66,11 @@ public class PostController(PostService postService,
     public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, VoteQueryBase? filter)
         => await postResultService.GetDrawPollResult(pollId, filter);
 
+    [HttpPost("dateResult")]
+    [EnableRateLimiting("5/5s")]
+    public async Task<PollResultDto<CandidateDateResultDto>> GetDatePollResult(Guid pollId, VoteQueryBase? filter)
+        => await postResultService.GetDatePollResult(pollId, filter);
+
     [HttpGet("customCandidateSuggestions")]
     [EnableRateLimiting("5/1s")]
     public async Task<List<CandidateDto>> GetCustomCandidateSuggestions(Guid pollId, string query)

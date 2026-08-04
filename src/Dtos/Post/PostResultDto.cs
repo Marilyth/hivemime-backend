@@ -56,3 +56,14 @@ public class CandidateDrawDistributionResultDto
     public double Value { get; set; }
     public int VoteCount { get; set; }
 }
+
+public class CandidateDateResultDto : CandidateResultDto
+{
+    public List<CandidateDateDistributionResultDto> Distribution { get; set; }
+}
+
+public class CandidateDateDistributionResultDto
+{
+    public long Timestamp { get; set; }
+    public int VoteCount { get; set; }
+}

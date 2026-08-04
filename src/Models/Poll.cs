@@ -51,5 +51,6 @@ public enum PollType
     Score,
     Rank,
     Category,
-    Draw
+    Draw,
+    Date
 }

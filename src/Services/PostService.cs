@@ -331,6 +331,9 @@ public class PostService(HiveMimeContext context,
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
         int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
+
         int maxCandidateOptionCount = dto.PollType switch
         {
             PollType.Choice => 1,
@@ -338,12 +341,9 @@ public class PostService(HiveMimeContext context,
             PollType.Rank => 1,
             PollType.Category => dto.Categories.Count,
             PollType.Draw => Math.Max(0, (dto.Rows ?? 0) * (dto.Columns ?? 0)),
+            PollType.Date => Math.Min(20, (int)((dto.MaxValue - dto.MinValue) / (dto.StepValue > 0 ? dto.StepValue : 1))),
             _ => throw new ValidationException("Invalid poll type.")
         };
-
-        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
-        dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
-
         dto.MinVotesPerCandidate = Math.Clamp(dto.MinVotesPerCandidate, 0, maxCandidateOptionCount);
         dto.MaxVotesPerCandidate = Math.Clamp(dto.MaxVotesPerCandidate, dto.MinVotesPerCandidate, maxCandidateOptionCount);
 
@@ -358,35 +358,41 @@ public class PostService(HiveMimeContext context,
             if (dto.MinValue >= dto.MaxValue)
                 yield return "MinValue must be less than MaxValue.";
         }
-        else
+        else if (dto.PollType == PollType.Date)
         {
-            if (dto.PollType == PollType.Draw)
-            {
-                if (dto.Rows is null || dto.Columns is null)
-                    throw new ValidationException("Rows and Columns must be set for draw polls.");
+            if (dto.StepValue is null)
+                throw new ValidationException("StepValue must be set for date polls.");
 
-                if (dto.Rows <= 0 || dto.Columns <= 0)
-                    yield return "Rows and Columns must be greater than 0.";
+            int[] validStepValues = [60, 3600, 86400];
+            if (!validStepValues.Contains((int)dto.StepValue))
+                yield return "StepValue must be 60, 3600, or 86400 for date polls.";
 
-                if (dto.Rows > 100 || dto.Columns > 100)
-                    yield return "Rows and Columns must be less than or equal to 100.";
-            }
+            if (dto.MinValue >= dto.MaxValue)
+                yield return "MinValue must be less than MaxValue.";
+        }
+        else if (dto.PollType == PollType.Draw)
+        {
+            if (dto.Rows is null || dto.Columns is null)
+                throw new ValidationException("Rows and Columns must be set for draw polls.");
 
-            dto.MinValue = dto.PollType switch
-            {
-                PollType.Draw => 0,
-                _ => 1
-            };
+            if (dto.Rows <= 0 || dto.Columns <= 0)
+                yield return "Rows and Columns must be greater than 0.";
 
-            dto.MaxValue = dto.PollType switch
-            {
-                PollType.Rank => dto.MaxVotes,
-                PollType.Category => dto.Categories.Count,
-                PollType.Draw => maxCandidateOptionCount > 0
-                    ? Math.Clamp(dto.MaxVotesPerCandidate, 1, maxCandidateOptionCount)
-                    : 0,
-                _ => 1
-            };
+            if (dto.Rows > 100 || dto.Columns > 100)
+                yield return "Rows and Columns must be less than or equal to 100.";
+
+            dto.MinValue = 0;
+            dto.MaxValue = Math.Clamp(dto.MaxVotesPerCandidate, 1, maxCandidateOptionCount);
+        }
+        else if (dto.PollType == PollType.Rank)
+        {
+            dto.MinValue = 1;
+            dto.MaxValue = dto.MaxVotes;
+        }
+        else if (dto.PollType == PollType.Category)
+        {
+            dto.MinValue = 1;
+            dto.MaxValue = dto.Categories.Count;
         }
 
         if (string.IsNullOrWhiteSpace(dto.Title))

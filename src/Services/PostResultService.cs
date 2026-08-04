@@ -239,7 +239,55 @@ public class PostResultService(HiveMimeContext context,
 
         return ToPollResultDto(distributionResults);
     }
-    
+
+    public async Task<PollResultDto<CandidateDateResultDto>> GetDatePollResult(Guid pollId, VoteQueryBase? filter)
+    {
+        var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
+        {
+            IQueryable<CandidateDateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter)
+                .OfType<CandidateDateVote>()
+                .Select(cv => new CandidateDateVoteWithMetaData
+                {
+                    CandidateId = cv.CandidateId,
+                    CandidateName = cv.Candidate.Name,
+                    IsCustom = cv.Candidate.IsCustom,
+                    Timestamp = cv.Timestamp
+                });
+
+            var distributionResults = await candidateVotes
+                .GroupBy(v => new { v.CandidateId, v.Timestamp, v.CandidateName, v.IsCustom })
+                .Select(g => new
+                {
+                    g.Key.CandidateId,
+                    g.Key.Timestamp,
+                    g.Key.CandidateName,
+                    g.Key.IsCustom,
+                    Count = g.Count()
+                })
+                .ToListAsync();
+
+            var groupedResults = distributionResults
+                .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
+                .Select(g => new CandidateDateResultDto
+                {
+                    Id = g.Key.CandidateId,
+                    Name = g.Key.CandidateName,
+                    IsCustom = g.Key.IsCustom,
+                    VoteCount = g.Sum(r => r.Count),
+                    Distribution = g.Select(r => new CandidateDateDistributionResultDto
+                    {
+                        Timestamp = r.Timestamp,
+                        VoteCount = r.Count
+                    }).ToList()
+                })
+                .ToList();
+
+            return groupedResults;
+        });
+
+        return ToPollResultDto(distributionResults);
+    }
+
     private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, VoteQueryBase? filter)
     {
         IQueryable<PostVote> votes = context.PostVotes
@@ -298,5 +346,10 @@ public class PostResultService(HiveMimeContext context,
     {
         public int CellIndex { get; set; }
         public double Value { get; set; }
+    }
+
+    private class CandidateDateVoteWithMetaData : CandidateVoteWithMetaData
+    {
+        public long Timestamp { get; set; }
     }
 }
