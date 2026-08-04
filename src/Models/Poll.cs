@@ -35,10 +35,12 @@ public class Poll : Entity
     public double? StepValue { get; set; }
     
     // For date polls.
-    public string? DateFilterQueryExpression { get; set; }
+    [Column(TypeName = "jsonb")]
+    public FilterQueryBase? DateFilterQuery { get; set; }
 
     // For conditional polls.
-    public string? ConditionQueryExpression { get; set; }
+    [Column(TypeName = "jsonb")]
+    public FilterQueryBase? ConditionQuery { get; set; }
 
     public PollType PollType { get; set; }
     public List<Candidate> Candidates { get; set; } = [];
