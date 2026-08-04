@@ -19,6 +19,8 @@ public class PollDto
     public int? Columns { get; set; }
 
     public double? StepValue { get; set; }
+    public string? DateFilterQuery { get; set; }
+    public string? ConditionQuery { get; set; }
 
     public PollType PollType { get; set; }
     public List<CandidateDto> Candidates { get; set; }

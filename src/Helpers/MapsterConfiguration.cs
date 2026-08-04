@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Mapster;
 
 public static class MapsterConfiguration
@@ -41,6 +42,10 @@ public static class MapsterConfiguration
             .Map(dest => dest.MediaKeys, src => src.Candidates.SelectMany(c => c.MediaKeys).Select(m => "https://media.mayiscoding.com/" + m))
             .Map(dest => dest.Candidates, src => src.Candidates.Where(c => !c.IsCustom).OrderBy(c => c.Order))
             .Map(dest => dest.Categories, src => src.Categories.OrderBy(c => c.Order));
+
+        _config.NewConfig<CreatePollDto, Poll>()
+            .Map(dest => dest.ConditionQueryExpression, src => JsonSerializer.Serialize(src.ConditionQuery))
+            .Map(dest => dest.DateFilterQueryExpression, src => JsonSerializer.Serialize(src.DateFilterQuery));
     }
 
     private static void ConfigurePost()

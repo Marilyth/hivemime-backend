@@ -11,7 +11,7 @@ public class PostResultService(HiveMimeContext context,
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch results for.</param>
     /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateChoiceResultDto>> GetChoicePollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateChoiceResultDto>> GetChoicePollResult(Guid pollId, FilterQueryBase? filter)
     {
         var sumResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -45,7 +45,7 @@ public class PostResultService(HiveMimeContext context,
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch results for.</param>
     /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateScoreResultDto>> GetScorePollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateScoreResultDto>> GetScorePollResult(Guid pollId, FilterQueryBase? filter)
     {
         var statisticsResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -93,7 +93,7 @@ public class PostResultService(HiveMimeContext context,
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch results for.</param>
     /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateRankResultDto>> GetRankPollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateRankResultDto>> GetRankPollResult(Guid pollId, FilterQueryBase? filter)
     {
         var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -141,7 +141,7 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, FilterQueryBase? filter)
     {
         var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -189,7 +189,7 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, FilterQueryBase? filter)
     {
         var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -240,7 +240,7 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    public async Task<PollResultDto<CandidateDateResultDto>> GetDatePollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateDateResultDto>> GetDatePollResult(Guid pollId, FilterQueryBase? filter)
     {
         var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -288,7 +288,7 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, VoteQueryBase? filter)
+    private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, FilterQueryBase? filter)
     {
         IQueryable<PostVote> votes = context.PostVotes
             .Where(v => v.Post.Polls.Any(p => p.Id == pollId));

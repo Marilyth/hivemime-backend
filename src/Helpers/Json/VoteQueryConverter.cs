@@ -1,9 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-public sealed class VoteQueryConverter : JsonConverter<VoteQueryBase>
+public sealed class VoteQueryConverter : JsonConverter<FilterQueryBase>
 {
-    public override VoteQueryBase Read(
+    public override FilterQueryBase Read(
         ref Utf8JsonReader reader,
         Type typeToConvert,
         JsonSerializerOptions options)
@@ -13,12 +13,12 @@ public sealed class VoteQueryConverter : JsonConverter<VoteQueryBase>
 
         Type type = root switch
         {
-            _ when root.TryGetProperty("children", out _) => typeof(VoteQueryGroup),
-            _ when root.TryGetProperty("candidateId", out _) => typeof(VoteQuery),
+            _ when root.TryGetProperty("children", out _) => typeof(FilterQueryGroup),
+            _ when root.TryGetProperty("candidateId", out _) => typeof(FilterQuery),
             _ => throw new JsonException("Unknown VoteQueryBase type.")
         };
 
-        return (VoteQueryBase)JsonSerializer.Deserialize(
+        return (FilterQueryBase)JsonSerializer.Deserialize(
             root.GetRawText(),
             type,
             options)!;
@@ -26,7 +26,7 @@ public sealed class VoteQueryConverter : JsonConverter<VoteQueryBase>
 
     public override void Write(
         Utf8JsonWriter writer,
-        VoteQueryBase value,
+        FilterQueryBase value,
         JsonSerializerOptions options)
     {
         JsonSerializer.Serialize(writer, value, value.GetType(), options);

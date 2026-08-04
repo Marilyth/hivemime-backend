@@ -1,7 +1,7 @@
 /// <summary>
-/// Base class for all vote queries, representing either a single query or a group of queries.
+/// Base class for all queries, representing either a single query or a group of queries.
 /// </summary>
-public abstract class VoteQueryBase
+public abstract class FilterQueryBase
 {
     public bool IsNegated { get; set; }
     public BooleanOperator LeftOperator { get; set; }

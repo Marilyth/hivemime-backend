@@ -33,6 +33,12 @@ public class Poll : Entity
     
     // For score polls.
     public double? StepValue { get; set; }
+    
+    // For date polls.
+    public string? DateFilterQueryExpression { get; set; }
+
+    // For conditional polls.
+    public string? ConditionQueryExpression { get; set; }
 
     public PollType PollType { get; set; }
     public List<Candidate> Candidates { get; set; } = [];

@@ -3,9 +3,9 @@ using System.Text;
 /// <summary>
 /// Represents a group of queries.
 /// </summary>
-public class VoteQueryGroup : VoteQueryBase
+public class FilterQueryGroup : FilterQueryBase
 {
-    public List<VoteQueryBase> Children { get; set; }
+    public List<FilterQueryBase> Children { get; set; }
 
     protected override string GetQueryExpression()
     {

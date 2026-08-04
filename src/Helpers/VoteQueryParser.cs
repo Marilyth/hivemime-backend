@@ -7,7 +7,7 @@ public static class VoteQueryParser
     /// </summary>
     /// <param name="queryExpression">The query expression string to parse.</param>
     /// <returns>The root of the query tree represented by the query expression string.</returns>
-    public static VoteQueryBase ToVoteQuery(this string queryExpression)
+    public static FilterQueryBase ToVoteQuery(this string queryExpression)
     {
         // TODO 9: Implement a parser that converts the query expression string into a VoteQueryBase object.
 
@@ -19,7 +19,7 @@ public static class VoteQueryParser
     /// </summary>
     /// <param name="query">The query to convert.</param>
     /// <returns>The expression representing the query.</returns>
-    public static Expression<Func<PostVote, bool>> ToExpression(this VoteQueryBase query)
+    public static Expression<Func<PostVote, bool>> ToExpression(this FilterQueryBase query)
     {
         // This method can be used if the query already has identifiers instead of indices.
         // It can be used for testing purposes or if the caller has already converted indices to identifiers.

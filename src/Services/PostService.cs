@@ -341,7 +341,7 @@ public class PostService(HiveMimeContext context,
             PollType.Rank => 1,
             PollType.Category => dto.Categories.Count,
             PollType.Draw => Math.Max(0, (dto.Rows ?? 0) * (dto.Columns ?? 0)),
-            PollType.Date => Math.Min(20, (int)((dto.MaxValue - dto.MinValue) / (dto.StepValue > 0 ? dto.StepValue : 1))),
+            PollType.Date => 20,
             _ => throw new ValidationException("Invalid poll type.")
         };
         dto.MinVotesPerCandidate = Math.Clamp(dto.MinVotesPerCandidate, 0, maxCandidateOptionCount);
@@ -360,14 +360,8 @@ public class PostService(HiveMimeContext context,
         }
         else if (dto.PollType == PollType.Date)
         {
-            if (dto.StepValue is null)
-                throw new ValidationException("StepValue must be set for date polls.");
-
-            if (dto.StepValue < 0 || dto.StepValue > 6)
-                yield return "StepValue must be between 0 and 6 for date polls.";
-
-            if (dto.MinValue >= dto.MaxValue)
-                yield return "MinValue must be less than MaxValue.";
+            dto.MinValue = 0;
+            dto.MaxValue = int.MaxValue;
         }
         else if (dto.PollType == PollType.Draw)
         {
