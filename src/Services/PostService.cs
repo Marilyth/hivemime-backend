@@ -363,9 +363,8 @@ public class PostService(HiveMimeContext context,
             if (dto.StepValue is null)
                 throw new ValidationException("StepValue must be set for date polls.");
 
-            int[] validStepValues = [60, 3600, 86400];
-            if (!validStepValues.Contains((int)dto.StepValue))
-                yield return "StepValue must be 60, 3600, or 86400 for date polls.";
+            if (dto.StepValue < 0 || dto.StepValue > 6)
+                yield return "StepValue must be between 0 and 6 for date polls.";
 
             if (dto.MinValue >= dto.MaxValue)
                 yield return "MinValue must be less than MaxValue.";
