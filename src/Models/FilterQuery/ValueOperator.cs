@@ -16,9 +16,5 @@ public enum ValueOperator
     [Description("in")]
     Inside,
     [Description("out")]
-    Outside,
-    [Description("xin")]
-    ExclusiveInside,
-    [Description("xout")]
-    ExclusiveOutside
+    Outside
 }

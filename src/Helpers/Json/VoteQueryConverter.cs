@@ -14,7 +14,7 @@ public sealed class VoteQueryConverter : JsonConverter<FilterQueryBase>
         Type type = root switch
         {
             _ when root.TryGetProperty("children", out _) => typeof(FilterQueryGroup),
-            _ when root.TryGetProperty("candidateId", out _) => typeof(FilterQuery),
+            _ when root.TryGetProperty("property", out _) => typeof(FilterQuery),
             _ => throw new JsonException("Unknown VoteQueryBase type.")
         };
 
