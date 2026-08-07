@@ -30,35 +30,50 @@ public static class VoteQueryParser
     }
 
     /// <summary>
-    /// Converts a query to a greedy balanced abstract syntax tree representation.
+    /// Cleans up a query by removing redundant groups and negations in-place.
+    /// </summary>
+    /// <param name="query">The query to clean up.</param>
+    public static FilterQueryBase? CleanUp(this FilterQueryBase query)
+    {
+        if (query is FilterQuery || query is null)
+            return query;
+
+        FilterQueryGroup group = query as FilterQueryGroup;
+
+        for(int i = group.Children!.Count - 1; i >= 0; i--)
+        {
+            group.Children[i] = group.Children[i].CleanUp();
+
+            if (group.Children[i] is null)
+                group.Children.RemoveAt(i);
+        }
+
+        if (group.Children.Count == 1)
+        {
+            group.Children[0].IsNegated = group.IsNegated != group.Children[0].IsNegated;
+            return group.Children[0];
+        }
+        else if (group.Children.Count == 0)
+            return null;
+
+        return group;
+    }
+
+    /// <summary>
+    /// Converts a query to a greedy balanced abstract syntax tree representation in-place.
     /// </summary>
     /// <param name="query">The query to convert.</param>
     public static FilterQueryBase ToAST(this FilterQueryBase query)
     {
+        query = query.CleanUp();
+
         return query switch
         {
-            null => throw new ValidationException("A query cannot be null."),
-            FilterQueryGroup group when group.Children!.Count == 0 => throw new ValidationException("A query without children is invalid."),
-            FilterQuery leaf => new FilterQuery()
-            {
-                IsNegated = leaf.IsNegated,
-                LeftOperator = leaf.LeftOperator,
-                Property = leaf.Property,
-                Value = leaf.Value,
-                ValueOperator = leaf.ValueOperator
-            },
-            FilterQueryGroup group when group.Children!.Count == 1 => Collapse(group.Children[0], group.IsNegated),
+            null => null,
+            FilterQuery leaf => leaf,
             FilterQueryGroup group => Split(group),
             _ => throw new ValidationException("Invalid query type.")
         };
-    }
-
-    private static FilterQueryBase Collapse(FilterQueryBase child, bool negate)
-    {
-        var result = child.ToAST();
-        result.IsNegated = negate != result.IsNegated;
-        
-        return result;
     }
 
     private static FilterQueryBase Split(FilterQueryGroup group)
@@ -85,11 +100,8 @@ public static class VoteQueryParser
             rightGroup.ToAST()
         };
 
-        return new FilterQueryGroup()
-        {
-            Children = resultChildren,
-            LeftOperator = group.LeftOperator,
-            IsNegated = group.IsNegated
-        };
+        group.Children = resultChildren;
+
+        return group;
     }
 }

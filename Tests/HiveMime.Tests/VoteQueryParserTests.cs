@@ -22,32 +22,117 @@ public class VoteQueryParserTests
         Children = [.. children]
     };
 
+    #region CleanUp
+
     [Fact]
-    public void ToAST_NullQuery_ThrowsValidationException()
+    public void CleanUp_NullQuery_ReturnsNull()
     {
-        Assert.Throws<ValidationException>(() => ((FilterQueryBase)null!).ToAST());
+        Assert.Null(((FilterQueryBase)null!).CleanUp());
     }
 
     [Fact]
-    public void ToAST_SingleLeaf_ReturnsEquivalentCopy()
+    public void CleanUp_SingleLeaf_ReturnsSameInstance()
+    {
+        var leaf = Leaf();
+
+        var result = leaf.CleanUp();
+
+        Assert.Same(leaf, result);
+    }
+
+    [Fact]
+    public void CleanUp_EmptyGroup_ReturnsNull()
+    {
+        Assert.Null(Group().CleanUp());
+    }
+
+    [Fact]
+    public void CleanUp_SingleChildGroup_CollapsesIntoChild()
+    {
+        var group = Group(Leaf());
+
+        var result = group.CleanUp();
+
+        var leaf = Assert.IsType<FilterQuery>(result);
+        Assert.False(leaf.IsNegated);
+        Assert.Equal(":Country=US", leaf.ToString());
+    }
+
+    [Fact]
+    public void CleanUp_NegatedSingleChildGroup_PropagatesNegation()
+    {
+        var group = Group(Leaf());
+        group.IsNegated = true;
+
+        var result = group.CleanUp();
+
+        var leaf = Assert.IsType<FilterQuery>(result);
+        Assert.True(leaf.IsNegated);
+        Assert.Equal("NOT :Country=US", leaf.ToString());
+    }
+
+    [Fact]
+    public void CleanUp_DoubleNegatedSingleChildGroup_ProducesPositiveLeaf()
+    {
+        var group = Group(Leaf(negated: true));
+        group.IsNegated = true;
+
+        var result = group.CleanUp();
+
+        var leaf = Assert.IsType<FilterQuery>(result);
+        Assert.False(leaf.IsNegated);
+        Assert.Equal(":Country=US", leaf.ToString());
+    }
+
+    [Fact]
+    public void CleanUp_RemovesEmptyGroups()
+    {
+        var group = Group(Leaf(":Country", "US"), Group());
+
+        var result = group.CleanUp();
+
+        var leaf = Assert.IsType<FilterQuery>(result);
+        Assert.Equal(":Country=US", leaf.ToString());
+    }
+
+    [Fact]
+    public void CleanUp_KeepsGroupWithMultipleChildren()
+    {
+        var group = Group(
+            Leaf(":Country", "US"),
+            Leaf(":Age", "18", ValueOperator.Greater));
+
+        var result = Assert.IsType<FilterQueryGroup>(group.CleanUp());
+
+        Assert.Equal(2, result.Children.Count);
+        Assert.Equal("(:Country=US AND :Age>18)", result.ToString());
+    }
+
+    #endregion
+
+    #region ToAST
+
+    [Fact]
+    public void ToAST_NullQuery_ReturnsNull()
+    {
+        Assert.Null(((FilterQueryBase)null!).ToAST());
+    }
+
+    [Fact]
+    public void ToAST_SingleLeaf_ReturnsSameInstance()
     {
         var leaf = Leaf(":Age", "18", ValueOperator.Greater);
 
         var result = leaf.ToAST();
 
-        var copy = Assert.IsType<FilterQuery>(result);
-        Assert.NotSame(leaf, copy);
-        Assert.Equal(leaf.IsNegated, copy.IsNegated);
-        Assert.Equal(leaf.LeftOperator, copy.LeftOperator);
-        Assert.Equal(leaf.Property, copy.Property);
-        Assert.Equal(leaf.Value, copy.Value);
-        Assert.Equal(leaf.ValueOperator, copy.ValueOperator);
+        Assert.Same(leaf, result);
+        Assert.Equal(":Age>18", result.ToString());
     }
 
     [Fact]
-    public void ToAST_EmptyGroup_ThrowsValidationException()
+    public void ToAST_EmptyGroup_ReturnsNull()
     {
-        Assert.Throws<ValidationException>(() => Group().ToAST());
+        Assert.Null(Group().ToAST());
     }
 
     [Fact]
@@ -142,6 +227,24 @@ public class VoteQueryParserTests
     }
 
     [Fact]
+    public void ToAST_CleansUpTreeBeforeBalancing()
+    {
+        var group = Group(
+            Leaf(":Country", "US"),
+            new FilterQueryGroup()
+            {
+                Children = [Leaf(":Age", "18", ValueOperator.Greater)]
+            },
+            Leaf(":Date", "2024", ValueOperator.Less));
+
+        var result = Assert.IsType<FilterQueryGroup>(group.ToAST());
+
+        Assert.Equal(2, result.Children.Count);
+        Assert.IsType<FilterQuery>(result.Children[0]);
+        Assert.Equal("(:Country=US AND (:Age>18 AND :Date<2024))", result.ToString());
+    }
+
+    [Fact]
     public void ToAST_DeepQuery_ProducesBalancedTree()
     {
         var group = new FilterQueryGroup()
@@ -164,4 +267,6 @@ public class VoteQueryParserTests
         Assert.All(result.Children, c => Assert.IsType<FilterQueryGroup>(c));
         Assert.Equal("((:Country=US AND :Age>18) OR (:Date<2024 AND :Country=CA))", result.ToString());
     }
+
+    #endregion
 }
