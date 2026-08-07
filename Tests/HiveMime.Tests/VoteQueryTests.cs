@@ -12,15 +12,15 @@ public class VoteQueryTests
     {
         Children =
         [
-            new FilterQuery() { CandidateId = "0", ValueOperator = ValueOperator.Equals, Value = "0" },
-            new FilterQuery() { CandidateId = "1", ValueOperator = ValueOperator.Greater, Value = "1" },
-            new FilterQuery() { CandidateId = "2", ValueOperator = ValueOperator.GreaterEquals, Value = "2" },
+            new FilterQuery() { Property = "0", ValueOperator = ValueOperator.Equals, Value = "0" },
+            new FilterQuery() { Property = "1", ValueOperator = ValueOperator.Greater, Value = "1" },
+            new FilterQuery() { Property = "2", ValueOperator = ValueOperator.GreaterEquals, Value = "2" },
             new FilterQueryGroup() { LeftOperator = BooleanOperator.Or, IsNegated = true,
                 Children =
                 [
-                    new FilterQuery() { CandidateId = "3", IsNegated = true, ValueOperator = ValueOperator.Less, Value = "3" },
-                    new FilterQuery() { CandidateId = "4", IsNegated = true, ValueOperator = ValueOperator.LessEquals, Value = "4" },
-                    new FilterQuery() { CandidateId = "5", ValueOperator = ValueOperator.Equals, Value = "5" }
+                    new FilterQuery() { Property = "3", IsNegated = true, ValueOperator = ValueOperator.Less, Value = "3" },
+                    new FilterQuery() { Property = "4", IsNegated = true, ValueOperator = ValueOperator.LessEquals, Value = "4" },
+                    new FilterQuery() { Property = "5", ValueOperator = ValueOperator.Equals, Value = "5" }
                 ] },
         ]
     };
@@ -74,7 +74,7 @@ public class VoteQueryTests
     //     int[] values = new int[] { value1, value2, value3, value4, value5, value6 };
     //     PostVote testPostVote = new PostVote()
     //     {
-    //         Votes = values.Select((v, i) => new CandidateVote() { CandidateId = _candidateIds[i], Value = v }).ToList()
+    //         Votes = values.Select((v, i) => new CandidateVote() { Property = _candidateIds[i], Value = v }).ToList()
     //     };
 
     //     // Act

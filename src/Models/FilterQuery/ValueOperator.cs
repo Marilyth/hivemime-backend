@@ -14,7 +14,5 @@ public enum ValueOperator
     LessEquals,
 
     [Description("in")]
-    Inside,
-    [Description("out")]
-    Outside
+    Inside
 }

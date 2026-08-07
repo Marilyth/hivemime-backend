@@ -28,4 +28,68 @@ public static class VoteQueryParser
 
         return p => true;
     }
+
+    /// <summary>
+    /// Converts a query to a greedy balanced abstract syntax tree representation.
+    /// </summary>
+    /// <param name="query">The query to convert.</param>
+    public static FilterQueryBase ToAST(this FilterQueryBase query)
+    {
+        return query switch
+        {
+            null => throw new ValidationException("A query cannot be null."),
+            FilterQueryGroup group when group.Children!.Count == 0 => throw new ValidationException("A query without children is invalid."),
+            FilterQuery leaf => new FilterQuery()
+            {
+                IsNegated = leaf.IsNegated,
+                LeftOperator = leaf.LeftOperator,
+                Property = leaf.Property,
+                Value = leaf.Value,
+                ValueOperator = leaf.ValueOperator
+            },
+            FilterQueryGroup group when group.Children!.Count == 1 => Collapse(group.Children[0], group.IsNegated),
+            FilterQueryGroup group => Split(group),
+            _ => throw new ValidationException("Invalid query type.")
+        };
+    }
+
+    private static FilterQueryBase Collapse(FilterQueryBase child, bool negate)
+    {
+        var result = child.ToAST();
+        result.IsNegated = negate != result.IsNegated;
+        
+        return result;
+    }
+
+    private static FilterQueryBase Split(FilterQueryGroup group)
+    {
+        var children = group.Children!;
+        var middleIndex = children.Count / 2;
+        var splitIndex = -1;
+
+        for (var i = 1; i < children.Count && Math.Abs(i - middleIndex) <= Math.Abs(splitIndex - middleIndex); i++)
+        {
+            if (children[i].LeftOperator == BooleanOperator.Or)
+                splitIndex = i;
+        }
+
+        if (splitIndex == -1)
+            splitIndex = middleIndex;
+
+        var leftGroup = new FilterQueryGroup() { Children = children[..splitIndex] };
+        var rightGroup = new FilterQueryGroup() { Children = children[splitIndex..], LeftOperator = children[splitIndex].LeftOperator };
+
+        var resultChildren = new List<FilterQueryBase>()
+        {
+            leftGroup.ToAST(),
+            rightGroup.ToAST()
+        };
+
+        return new FilterQueryGroup()
+        {
+            Children = resultChildren,
+            LeftOperator = group.LeftOperator,
+            IsNegated = group.IsNegated
+        };
+    }
 }
