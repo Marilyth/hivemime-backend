@@ -99,6 +99,29 @@ public class PostVoteServiceTests : IntegrationTest
     }
 
     [Fact]
+    public async Task VoteOnPostAsync_DatePoll_PersistsDateVote()
+    {
+        var (post, poll, candidates) = await AddPostAsync(p => { p.PollType = PollType.Date; p.MinVotes = 1; p.MaxVotes = 1; p.MaxVotesPerCandidate = 1; });
+        var dto = VoteDto(post, (poll.Id, [Date(candidates[0].Id, 1720000000)]));
+
+        await _postVoteService.VoteOnPostAsync(_voter!.Id, dto);
+
+        var vote = await Context.PostVotes.SelectMany(pv => pv.Votes).OfType<CandidateDateVote>().SingleAsync();
+        Assert.Equal(candidates[0].Id, vote.CandidateId);
+        Assert.Equal(1720000000, vote.Timestamp);
+    }
+
+    [Fact]
+    public async Task VoteOnPostAsync_DatePoll_NegativeTimestamp_Throws()
+    {
+        var (post, poll, candidates) = await AddPostAsync(p => { p.PollType = PollType.Date; p.MinVotes = 1; p.MaxVotes = 1; });
+        var dto = VoteDto(post, (poll.Id, [Date(candidates[0].Id, -1)]));
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _postVoteService.VoteOnPostAsync(_voter!.Id, dto));
+        Assert.Contains("Date can't be lower than 0", ex.Message);
+    }
+
+    [Fact]
     public async Task VoteOnPostAsync_SecondVote_ReplacesExisting()
     {
         var (post, poll, candidates) = await AddPostAsync(p => { p.MinVotes = 1; p.MaxVotes = 1; p.MaxVotesPerCandidate = 1; });
@@ -319,6 +342,8 @@ public class PostVoteServiceTests : IntegrationTest
     private static CandidateVoteDto Category(Guid? id, Guid categoryId) => new CandidateCategoryVoteDto { Id = id, Name = "A", CategoryId = categoryId };
 
     private static CandidateVoteDto Draw(Guid? id, int cellIndex) => new CandidateDrawVoteDto { Id = id, Name = "A", CellIndex = cellIndex };
+
+    private static CandidateVoteDto Date(Guid? id, long timestamp) => new CandidateDateVoteDto { Id = id, Name = "A", Timestamp = timestamp };
 
     private PostVoteDto VoteDto(Post post, params (Guid pollId, CandidateVoteDto[] candidates)[] polls)
         => new PostVoteDto

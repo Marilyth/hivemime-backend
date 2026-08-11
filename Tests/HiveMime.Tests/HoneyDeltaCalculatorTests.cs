@@ -12,7 +12,7 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
     }
 
     [Fact]
-    public async Task FromCommentDtoAsync_CalculatesHoneyDelta()
+    public async Task FromCommentDto_CalculatesHoneyDelta()
     {
         // Arrange
         var user = new User { Username = "testuser", Honey = 0, Settings = new() };
@@ -21,7 +21,8 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         var dto = new CommentDto { Content = new string('a', 256), User = new UserDto { Id = user.Id } };
 
         // Act
-        var result = await _calculator.FromCommentDtoAsync(user.Id, dto);
+        var result = _calculator.FromCommentDto(dto);
+        await _calculator.AwardScoreAsync(result, user.Id);
 
         // Assert
         Context.ChangeTracker.Clear();
@@ -32,9 +33,8 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         Assert.True(updatedUser.Honey > 0);
     }
 
-
     [Fact]
-    public async Task FromPostDtoAsync_CalculatesHoneyDelta()
+    public async Task FromPostDto_CalculatesHoneyDelta()
     {
         // Arrange
         var user = new User { Username = "testuser2", Honey = 0, Settings = new() };
@@ -44,7 +44,8 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         var dto = new PostDto { Polls = [ poll ] };
 
         // Act
-        var result = await _calculator.FromPostDtoAsync(user.Id, dto);
+        var result = _calculator.FromPostDto(dto);
+        await _calculator.AwardScoreAsync(result, user.Id);
 
         // Assert
         Context.ChangeTracker.Clear();
@@ -56,7 +57,7 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
     }
 
     [Fact]
-    public async Task FromPostVoteAsync_CalculatesHoneyDelta()
+    public async Task FromPostVote_CalculatesHoneyDelta()
     {
         // Arrange
         var user = new User { Username = "testuser3", Honey = 0, Settings = new() };
@@ -66,7 +67,8 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         var dto = new PostVoteDto { Polls = [ pollVote ] };
 
         // Act
-        var result = await _calculator.FromPostVoteAsync(user.Id, dto);
+        var result = _calculator.FromPostVote(dto);
+        await _calculator.AwardScoreAsync(result, user.Id);
 
         // Assert
         Context.ChangeTracker.Clear();
@@ -78,7 +80,7 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
     }
 
     [Fact]
-    public async Task FromPostVoteAsync_MultipleCandidates_IncreasesDelta()
+    public async Task FromPostVote_MultipleCandidates_IncreasesDelta()
     {
         // Arrange
         var user = new User { Username = "testuser5", Honey = 0, Settings = new() };
@@ -92,8 +94,8 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         };
 
         // Act
-        var singleDelta = await _calculator.FromPostVoteAsync(user.Id, single);
-        var multipleDelta = await _calculator.FromPostVoteAsync(user.Id, multiple);
+        var singleDelta = _calculator.FromPostVote(single);
+        var multipleDelta = _calculator.FromPostVote(multiple);
 
         // Assert
         Assert.True(multipleDelta.HoneyDelta > singleDelta.HoneyDelta);
@@ -112,7 +114,8 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         // Act
         for (int i = 0; i < 5; i++)
         {
-            var result = await _calculator.FromCommentDtoAsync(user.Id, dto);
+            var result = _calculator.FromCommentDto(dto);
+            await _calculator.AwardScoreAsync(result, user.Id);
             if (i > 0)
                 Assert.True(result.HoneyDelta < lastDelta);
             lastDelta = result.HoneyDelta;
@@ -123,5 +126,24 @@ public class HoneyDeltaCalculatorTests : IntegrationTest
         var updatedUser = await Context.Users.FindAsync(user.Id);
         
         Assert.True(updatedUser.Honey > 0);
+    }
+
+    [Fact]
+    public async Task AwardScoreAsync_ZeroDelta_ReturnsZeroWithoutAwarding()
+    {
+        // Arrange
+        var user = new User { Username = "testuser6", Honey = 0, Settings = new() };
+        Context.Users.Add(user);
+        await Context.SaveChangesAsync();
+        var delta = new HoneyDeltaDto<CommentDto> { HoneyDelta = 0, Dto = new CommentDto { Content = "x" } };
+
+        // Act
+        var score = await _calculator.AwardScoreAsync(delta, user.Id);
+
+        // Assert
+        Assert.Equal(0, score);
+        Context.ChangeTracker.Clear();
+        var updatedUser = await Context.Users.FindAsync(user.Id);
+        Assert.Equal(0, updatedUser.Honey);
     }
 }

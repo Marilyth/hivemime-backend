@@ -4,6 +4,7 @@
 public class FilterQuery : FilterQueryBase
 {
     public string Property { get; set; }
+    public SubProperty? SubProperty { get; set; }
     public ValueOperator ValueOperator { get; set; }
     public string Value { get; set; }
 

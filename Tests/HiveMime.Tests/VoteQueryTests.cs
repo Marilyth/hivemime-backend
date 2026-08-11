@@ -35,16 +35,6 @@ public class VoteQueryTests
         Assert.Equal(_testQueryString, result);
     }
 
-    [Fact(Skip = "Deferred")]
-    public async Task ToVoteQuery_WithDeepQuery_ReturnsExpected()
-    {
-        // Act
-        FilterQueryBase result = _testQueryString.ToVoteQuery();
-
-        // Assert
-        Assert.Equal(_testQueryString, result.ToString());
-    }
-
     // [Theory]
     // [InlineData(0, 2, 3, 4, 5, 5)]
     // [InlineData(1, 2, 3, 4, 5, 5)]

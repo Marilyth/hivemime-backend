@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using System.Text.Json.Serialization;
+using Npgsql;
 
 namespace HiveMime.Tests;
 
@@ -24,8 +26,20 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
             var descriptor = services.RemoveAll<DbContextOptions<HiveMimeContext>>();
 
             // Register DbContext with Testcontainers connection string
+            var npgsqlBuilder = new NpgsqlDataSourceBuilder(_connectionString);
+            npgsqlBuilder.EnableDynamicJson();
+            npgsqlBuilder.ConfigureJsonOptions(new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                Converters =
+                {
+                    new JsonStringEnumConverter(),
+                    new VoteQueryConverter()
+                }
+            });
+
             services.AddDbContextFactory<HiveMimeContext>(options =>
-                options.UseNpgsql(_connectionString), ServiceLifetime.Scoped);
+                options.UseNpgsql(npgsqlBuilder.Build()), ServiceLifetime.Scoped);
 
             // Add a mock IConfiguration with dummy values.
             var builder = new ConfigurationBuilder();

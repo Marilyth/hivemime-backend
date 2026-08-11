@@ -3,15 +3,19 @@ using System.Linq.Expressions;
 public static class VoteQueryParser
 {
     /// <summary>
-    /// Parses a query expression string into a VoteQueryBase object.
+    /// Returns all leaf nodes of a VoteQueryBase object.
     /// </summary>
-    /// <param name="queryExpression">The query expression string to parse.</param>
-    /// <returns>The root of the query tree represented by the query expression string.</returns>
-    public static FilterQueryBase ToVoteQuery(this string queryExpression)
+    /// <param name="query">The query to get the leaves from.</param>
+    /// <returns>An enumerable of all leaf nodes.</returns>
+    public static IEnumerable<FilterQuery> GetLeaves(this FilterQueryBase query)
     {
-        // TODO 9: Implement a parser that converts the query expression string into a VoteQueryBase object.
+        if (query is FilterQuery leaf)
+            yield return leaf;
 
-        return null;
+        else if (query is FilterQueryGroup group)
+            foreach (FilterQueryBase child in group.Children)
+                foreach (FilterQuery childLeaf in child.GetLeaves())
+                    yield return childLeaf;
     }
 
     /// <summary>
@@ -21,11 +25,45 @@ public static class VoteQueryParser
     /// <returns>The expression representing the query.</returns>
     public static Expression<Func<PostVote, bool>> ToExpression(this FilterQueryBase query)
     {
-        // This method can be used if the query already has identifiers instead of indices.
-        // It can be used for testing purposes or if the caller has already converted indices to identifiers.
+        if (query is null)
+            return null;
 
-        // TODO 9: Convert the query to an expression for EFCore.
+        Expression<Func<PostVote, bool>> currentExpression;
 
+        switch (query)
+        {
+            case FilterQuery leaf:
+                currentExpression = ToExpression(leaf.Property, leaf.SubProperty, leaf.ValueOperator, leaf.Value);
+                break;
+            case FilterQueryGroup group:
+                FilterQueryBase left = group.Children[0];
+                FilterQueryBase right = group.Children[1];
+
+                Expression<Func<PostVote, bool>> leftExpression = left.ToExpression();
+                Expression<Func<PostVote, bool>> rightExpression = right.ToExpression();
+
+                Expression body = right.LeftOperator switch
+                {
+                    BooleanOperator.And => Expression.AndAlso(leftExpression.Body, rightExpression.Body),
+                    BooleanOperator.Or => Expression.OrElse(leftExpression.Body, rightExpression.Body),
+                    _ => throw new ArgumentException("Invalid boolean operator.")
+                };
+
+                currentExpression = Expression.Lambda<Func<PostVote, bool>>(body, leftExpression.Parameters);
+                break;
+            default:
+                throw new ArgumentException("Invalid query type.");
+        }
+
+        if (query.IsNegated)
+            currentExpression = Expression.Lambda<Func<PostVote, bool>>(Expression.Not(currentExpression.Body), currentExpression.Parameters);
+
+        return currentExpression;
+    }
+
+    private static Expression<Func<PostVote, bool>> ToExpression(string property, SubProperty? subProperty, ValueOperator op, string value)
+    {
+        // ToDo 9: Implement query leaf to expression.
         return p => true;
     }
 

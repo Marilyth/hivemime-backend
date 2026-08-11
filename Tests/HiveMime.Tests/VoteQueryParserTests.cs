@@ -110,6 +110,152 @@ public class VoteQueryParserTests
 
     #endregion
 
+    #region GetLeaves
+
+    [Fact]
+    public void GetLeaves_NullQuery_ReturnsEmpty()
+    {
+        Assert.Empty(((FilterQueryBase)null!).GetLeaves());
+    }
+
+    [Fact]
+    public void GetLeaves_SingleLeaf_ReturnsThatLeaf()
+    {
+        var leaf = Leaf();
+
+        var result = leaf.GetLeaves().ToList();
+
+        var single = Assert.Single(result);
+        Assert.Same(leaf, single);
+    }
+
+    [Fact]
+    public void GetLeaves_GroupWithLeaves_ReturnsAllLeavesInOrder()
+    {
+        var group = Group(
+            Leaf(":Country", "US"),
+            Leaf(":Age", "18", ValueOperator.Greater));
+
+        var result = group.GetLeaves().ToList();
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(":Country=US", result[0].ToString());
+        Assert.Equal(":Age>18", result[1].ToString());
+    }
+
+    [Fact]
+    public void GetLeaves_NestedGroups_ReturnsAllLeavesDepthFirst()
+    {
+        var group = new FilterQueryGroup
+        {
+            Children =
+            [
+                Leaf(":Country", "US"),
+                Group(
+                    Leaf(":Age", "18", ValueOperator.Greater),
+                    Leaf(":Date", "2024", ValueOperator.Less)),
+                Leaf(":Country", "CA")
+            ]
+        };
+
+        var result = group.GetLeaves().ToList();
+
+        Assert.Equal(4, result.Count);
+        Assert.Equal(":Country=US", result[0].ToString());
+        Assert.Equal(":Age>18", result[1].ToString());
+        Assert.Equal(":Date<2024", result[2].ToString());
+        Assert.Equal(":Country=CA", result[3].ToString());
+    }
+
+    #endregion
+
+    #region ToExpression
+
+    [Fact]
+    public void ToExpression_NullQuery_ReturnsNull()
+    {
+        Assert.Null(((FilterQueryBase)null!).ToExpression());
+    }
+
+    [Fact]
+    public void ToExpression_SingleLeaf_ReturnsExpression()
+    {
+        var leaf = Leaf(":Country", "US");
+
+        var expression = leaf.ToExpression();
+
+        Assert.NotNull(expression);
+        Assert.True(expression.Compile()(new PostVote()));
+    }
+
+    [Fact]
+    public void ToExpression_AndGroup_Compiles()
+    {
+        var group = Group(
+            Leaf(":Country", "US"),
+            Leaf(":Age", "18", ValueOperator.Greater));
+
+        var predicate = group.ToExpression().Compile();
+
+        Assert.True(predicate(new PostVote()));
+    }
+
+    [Fact]
+    public void ToExpression_OrGroup_Compiles()
+    {
+        var group = new FilterQueryGroup
+        {
+            Children =
+            [
+                Leaf(":Country", "US"),
+                new FilterQuery
+                {
+                    LeftOperator = BooleanOperator.Or,
+                    Property = ":Age",
+                    Value = "18",
+                    ValueOperator = ValueOperator.Greater
+                }
+            ]
+        };
+
+        var predicate = group.ToExpression().Compile();
+
+        Assert.True(predicate(new PostVote()));
+    }
+
+    [Fact]
+    public void ToExpression_NegatedLeaf_ReturnsFalse()
+    {
+        var leaf = Leaf(negated: true);
+
+        var predicate = leaf.ToExpression().Compile();
+
+        Assert.False(predicate(new PostVote()));
+    }
+
+    [Fact]
+    public void ToExpression_InvalidBooleanOperator_Throws()
+    {
+        var group = new FilterQueryGroup
+        {
+            Children =
+            [
+                Leaf(":Country", "US"),
+                new FilterQuery
+                {
+                    LeftOperator = (BooleanOperator)999,
+                    Property = ":Age",
+                    Value = "18",
+                    ValueOperator = ValueOperator.Greater
+                }
+            ]
+        };
+
+        Assert.Throws<ArgumentException>(() => group.ToExpression());
+    }
+
+    #endregion
+
     #region ToAST
 
     [Fact]

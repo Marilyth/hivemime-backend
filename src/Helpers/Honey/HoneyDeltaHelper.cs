@@ -4,7 +4,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 public class HoneyDeltaCalculator(HiveMimeContext context, IMemoryCache cache)
 {
-    public async Task<HoneyDeltaDto<PostDto>> FromPostDtoAsync(Guid userId, PostDto dto)
+    public HoneyDeltaDto<PostDto> FromPostDto(PostDto dto)
     {
         int candidatesScore = dto.Polls.Sum(p => p.Candidates.Count);
         int categoriesScore = dto.Polls.Sum(p => p.Categories?.Count ?? 0);
@@ -12,7 +12,6 @@ public class HoneyDeltaCalculator(HiveMimeContext context, IMemoryCache cache)
         int pollScore = dto.Polls.Count * 5;
 
         double finalScore = Math.Sqrt(candidatesScore + categoriesScore + descriptionScore + pollScore + 1);
-        finalScore = await AwardScoreAsync(userId, finalScore);
 
         return new HoneyDeltaDto<PostDto>
         {
@@ -21,12 +20,10 @@ public class HoneyDeltaCalculator(HiveMimeContext context, IMemoryCache cache)
         };
     }
 
-    public async Task<HoneyDeltaDto<CommentDto>> FromCommentDtoAsync(Guid userId, CommentDto dto)
+    public HoneyDeltaDto<CommentDto> FromCommentDto(CommentDto dto)
     {
         double commentLength = dto.Content.Length / 128.0;
-
         double finalScore = Math.Sqrt(commentLength + 1);
-        finalScore = await AwardScoreAsync(userId, finalScore);
         
         return new HoneyDeltaDto<CommentDto>
         {
@@ -35,12 +32,10 @@ public class HoneyDeltaCalculator(HiveMimeContext context, IMemoryCache cache)
         };
     }
 
-    public async Task<HoneyDeltaDto<bool>> FromPostVoteAsync(Guid userId, PostVoteDto dto)
+    public HoneyDeltaDto<bool> FromPostVote(PostVoteDto dto)
     {
         int totalVotes = dto.Polls.Sum(p => p.Candidates.Count());
-
         double finalScore = Math.Sqrt(totalVotes + 1);
-        finalScore = await AwardScoreAsync(userId, finalScore);
 
         return new HoneyDeltaDto<bool>
         {
@@ -49,8 +44,11 @@ public class HoneyDeltaCalculator(HiveMimeContext context, IMemoryCache cache)
         };
     }
 
-    private async Task<double> AwardScoreAsync(Guid userId, double score, [CallerMemberName] string key = null)
+    public async Task<double> AwardScoreAsync<T>(HoneyDeltaDto<T> delta, Guid userId, [CallerMemberName] string key = null)
     {
+        if (delta.HoneyDelta == 0)
+            return 0;
+
         key = $"{key}_{userId}";
         double currentCount = cache.GetOrCreate(key, entry =>
         {
@@ -60,7 +58,8 @@ public class HoneyDeltaCalculator(HiveMimeContext context, IMemoryCache cache)
         });
 
         cache.Set(key, currentCount + 1);
-        score *= Math.Pow(0.9, Math.Min(currentCount, 20));
+        double score = delta.HoneyDelta * Math.Pow(0.9, Math.Min(currentCount, 20));
+        delta.HoneyDelta = score;
 
         await context.Users.QueryableFind(userId)
             .ExecuteUpdateAsync(u => u.SetProperty(user => user.Honey, user => user.Honey + score));

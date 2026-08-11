@@ -433,7 +433,7 @@ public class PostServiceTests : IntegrationTest
         Assert.Equal(2, poll.Rows);
         Assert.Equal(3, poll.Columns);
         Assert.Equal(0d, poll.MinValue);
-        Assert.Equal(1d, poll.MaxValue);
+        Assert.Equal(5d, poll.MaxValue);
     }
 
     [Fact]
@@ -516,8 +516,8 @@ public class PostServiceTests : IntegrationTest
         var poll = await Context.Polls.SingleAsync(p => p.PostId == post.Id);
 
         // Assert
-        Assert.Equal(4, poll.MaxVotesPerCandidate);
-        Assert.Equal(4d, poll.MaxValue);
+        Assert.Equal(20, poll.MaxVotesPerCandidate);
+        Assert.Equal(3d, poll.MaxValue);
     }
 
     [Fact]
@@ -572,6 +572,190 @@ public class PostServiceTests : IntegrationTest
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _service.CreatePostAsync(_defaultUser!.Id, postDto));
         Assert.Contains("StepValue must be set for scoring polls", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_DatePoll_SetsValuesAndPersists()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Date Poll",
+                    PollType = PollType.Date,
+                    AllowedCustomCandidateCount = 5,
+                    MinVotes = 5,
+                    MaxVotes = 5,
+                    Candidates = [ new CreateCandidateDto { Name = "A" } ],
+                    Categories = []
+                }
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var poll = await Context.Polls.SingleAsync(p => p.PostId == post.Id);
+
+        // Assert
+        Assert.Equal(1, poll.MinVotes);
+        Assert.Equal(1, poll.MaxVotes);
+        Assert.Equal(0, poll.AllowedCustomCandidateCount);
+        Assert.Equal(0d, poll.MinValue);
+        Assert.Equal(int.MaxValue, poll.MaxValue);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_ChoicePoll_ForcesVotesPerCandidateToOne()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Choice Poll",
+                    PollType = PollType.Choice,
+                    MinVotesPerCandidate = 3,
+                    MaxVotesPerCandidate = 5,
+                    Candidates = [ new CreateCandidateDto { Name = "A" }, new CreateCandidateDto { Name = "B" } ],
+                    Categories = []
+                }
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var poll = await Context.Polls.SingleAsync(p => p.PostId == post.Id);
+
+        // Assert
+        Assert.Equal(1, poll.MinVotesPerCandidate);
+        Assert.Equal(1, poll.MaxVotesPerCandidate);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_ClampsAllowedCustomCandidateCount()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Choice Poll",
+                    PollType = PollType.Choice,
+                    AllowedCustomCandidateCount = 50,
+                    Candidates = [ new CreateCandidateDto { Name = "A" }, new CreateCandidateDto { Name = "B" } ],
+                    Categories = []
+                }
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var poll = await Context.Polls.SingleAsync(p => p.PostId == post.Id);
+
+        // Assert
+        Assert.Equal(10, poll.AllowedCustomCandidateCount);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_DatePoll_ValidDateFilter_Persists()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Date Poll",
+                    PollType = PollType.Date,
+                    Candidates = [ new CreateCandidateDto { Name = "A" } ],
+                    Categories = [],
+                    DateFilterQuery = new FilterQuery
+                    {
+                        Property = "0",
+                        SubProperty = SubProperty.Minute,
+                        ValueOperator = ValueOperator.Greater,
+                        Value = "0"
+                    }
+                }
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var poll = await Context.Polls.Include(p => p.Candidates).SingleAsync(p => p.PostId == post.Id);
+
+        // Assert
+        var leaf = Assert.IsType<FilterQuery>(poll.DateFilterQuery);
+        Assert.Equal(poll.Candidates.First().Id.ToString(), leaf.Property);
+        Assert.Equal(SubProperty.Minute, leaf.SubProperty);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_DatePoll_MalformedDateFilter_Throws()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Date Poll",
+                    PollType = PollType.Date,
+                    Candidates = [ new CreateCandidateDto { Name = "A" }, new CreateCandidateDto { Name = "B" } ],
+                    Categories = [],
+                    DateFilterQuery = new FilterQuery
+                    {
+                        Property = "1",
+                        SubProperty = SubProperty.Minute,
+                        ValueOperator = ValueOperator.Greater,
+                        Value = "0"
+                    }
+                }
+            ]
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _service.CreatePostAsync(_defaultUser!.Id, postDto));
+        Assert.Contains("Date filter is malformed", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_DatePoll_NullSubPropertyDateFilter_Throws()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Date Poll",
+                    PollType = PollType.Date,
+                    Candidates = [ new CreateCandidateDto { Name = "A" } ],
+                    Categories = [],
+                    DateFilterQuery = new FilterQuery
+                    {
+                        Property = "0",
+                        SubProperty = null,
+                        ValueOperator = ValueOperator.Greater,
+                        Value = "0"
+                    }
+                }
+            ]
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _service.CreatePostAsync(_defaultUser!.Id, postDto));
+        Assert.Contains("Date filter is malformed", ex.Message);
     }
 
     [Fact]

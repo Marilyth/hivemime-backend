@@ -126,7 +126,10 @@ public class PostService(HiveMimeContext context,
             .ProjectToType<PostDto>()
             .FirstAsync();
 
-        return await honeyDeltaCalculator.FromPostDtoAsync(userId, postDto);
+        var delta = honeyDeltaCalculator.FromPostDto(postDto);
+        await honeyDeltaCalculator.AwardScoreAsync(delta, userId);
+
+        return delta;
     }
 
     /// <summary>
@@ -176,6 +179,13 @@ public class PostService(HiveMimeContext context,
         {
             ReplaceQueryProperties(poll, poll.ConditionQuery);
             ReplaceQueryProperties(poll, poll.DateFilterQuery);
+
+            // Save as AST for future performance.
+            poll.ConditionQuery = poll.ConditionQuery.ToAST();
+            poll.DateFilterQuery = poll.DateFilterQuery.ToAST();
+
+            if (!poll.DateFilterQuery.GetLeaves().All(l => l.Property == poll.Candidates.First().Id.ToString() && l.SubProperty <= SubProperty.Minute))
+                throw new ValidationException("Date filter is malformed.");
         }
 
         UploadPostDto uploadPostDto = await CreateUploadPostDto(postDto, newPost);
@@ -338,78 +348,150 @@ public class PostService(HiveMimeContext context,
 
     private IEnumerable<string> ValidateCreatePoll(CreatePollDto dto)
     {
-        int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
-        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
-        dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
-
-        int maxCandidateOptionCount = dto.PollType switch
+        return dto.PollType switch
         {
-            PollType.Choice => 1,
-            PollType.Score => 1,
-            PollType.Rank => 1,
-            PollType.Category => dto.Categories.Count,
-            PollType.Draw => Math.Max(0, (dto.Rows ?? 0) * (dto.Columns ?? 0)),
-            PollType.Date => 20,
+            PollType.Choice => ValidateChoicePoll(dto),
+            PollType.Score => ValidateScorePoll(dto),
+            PollType.Rank => ValidateRankPoll(dto),
+            PollType.Category => ValidateCategoryPoll(dto),
+            PollType.Draw => ValidateDrawPoll(dto),
+            PollType.Date => ValidateDatePoll(dto),
             _ => throw new ValidationException("Invalid poll type.")
         };
+    }
+
+    private IEnumerable<string> ValidateChoicePoll(CreatePollDto dto)
+    {
+        dto.AllowedCustomCandidateCount = Math.Clamp(dto.AllowedCustomCandidateCount, 0, 10);
+        int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
+
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
+        dto.MinVotesPerCandidate = 1;
+        dto.MaxVotesPerCandidate = 1;
+
+        return ValidatePollBasics(dto, effectiveCandidateCount);
+    }
+
+    private IEnumerable<string> ValidateScorePoll(CreatePollDto dto)
+    {
+        dto.AllowedCustomCandidateCount = Math.Clamp(dto.AllowedCustomCandidateCount, 0, 10);
+        int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
+
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
+        dto.MinVotesPerCandidate = 1;
+        dto.MaxVotesPerCandidate = 1;
+
+        if (dto.StepValue is null)
+            throw new ValidationException("StepValue must be set for scoring polls.");
+
+        if (dto.StepValue <= 0)
+            yield return "StepValue must be greater than 0.";
+
+        if (dto.MinValue >= dto.MaxValue)
+            yield return "MinValue must be less than MaxValue.";
+
+        foreach (string error in ValidatePollBasics(dto, effectiveCandidateCount))
+            yield return error;
+    }
+
+    private IEnumerable<string> ValidateRankPoll(CreatePollDto dto)
+    {
+        dto.AllowedCustomCandidateCount = Math.Clamp(dto.AllowedCustomCandidateCount, 0, 10);
+        int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
+
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
+        dto.MinVotesPerCandidate = 1;
+        dto.MaxVotesPerCandidate = 1;
+
+        dto.MinValue = 1;
+        dto.MaxValue = dto.MaxVotes;
+
+        foreach (string error in ValidatePollBasics(dto, effectiveCandidateCount))
+            yield return error;
+    }
+
+    private IEnumerable<string> ValidateCategoryPoll(CreatePollDto dto)
+    {
+        dto.AllowedCustomCandidateCount = Math.Clamp(dto.AllowedCustomCandidateCount, 0, 10);
+        int effectiveCandidateCount = dto.Candidates.Count + dto.AllowedCustomCandidateCount;
+        int categoryCount = dto.Categories.Count;
+
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, effectiveCandidateCount);
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
+        dto.MinVotesPerCandidate = Math.Clamp(dto.MinVotesPerCandidate, 1, categoryCount);
+        dto.MaxVotesPerCandidate = Math.Clamp(dto.MaxVotesPerCandidate, dto.MinVotesPerCandidate, categoryCount);
+
+        dto.MinValue = 1;
+        dto.MaxValue = categoryCount;
+
+        if (dto.Categories is null || !dto.Categories.Any())
+            yield return "A categorization poll must contain at least one category.";
+
+        foreach (string error in ValidatePollBasics(dto, effectiveCandidateCount))
+            yield return error;
+    }
+
+    private IEnumerable<string> ValidateDrawPoll(CreatePollDto dto)
+    {
+        if (dto.Rows is null || dto.Columns is null)
+            throw new ValidationException("Rows and Columns must be set for draw polls.");
+
+        if (dto.Rows <= 0 || dto.Columns <= 0)
+            yield return "Rows and Columns must be greater than 0.";
+
+        if (dto.Rows > 100 || dto.Columns > 100)
+            yield return "Rows and Columns must be less than or equal to 100.";
+
+        dto.AllowedCustomCandidateCount = 0;
+
+        dto.MinValue = 0;
+        dto.MaxValue = (dto.Rows.Value * dto.Columns.Value) - 1;
+        
+        int effectiveCandidateCount = dto.Candidates.Count;
+        int maxCandidateOptionCount = Math.Clamp(dto.MaxVotesPerCandidate, 1, 20);
+
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, 1);
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes, 0, 1);
         dto.MinVotesPerCandidate = Math.Clamp(dto.MinVotesPerCandidate, 0, maxCandidateOptionCount);
         dto.MaxVotesPerCandidate = Math.Clamp(dto.MaxVotesPerCandidate, dto.MinVotesPerCandidate, maxCandidateOptionCount);
 
-        if (dto.PollType == PollType.Score)
-        {
-            if (dto.StepValue is null)
-                throw new ValidationException("StepValue must be set for scoring polls.");
+        foreach (string error in ValidatePollBasics(dto, effectiveCandidateCount))
+            yield return error;
+    }
 
-            if (dto.StepValue <= 0)
-                yield return "StepValue must be greater than 0.";
+    private IEnumerable<string> ValidateDatePoll(CreatePollDto dto)
+    {
+        dto.AllowedCustomCandidateCount = 0;
+        int effectiveCandidateCount = dto.Candidates.Count;
 
-            if (dto.MinValue >= dto.MaxValue)
-                yield return "MinValue must be less than MaxValue.";
-        }
-        else if (dto.PollType == PollType.Date)
-        {
-            dto.MinValue = 0;
-            dto.MaxValue = int.MaxValue;
-        }
-        else if (dto.PollType == PollType.Draw)
-        {
-            if (dto.Rows is null || dto.Columns is null)
-                throw new ValidationException("Rows and Columns must be set for draw polls.");
+        dto.MinVotes = Math.Clamp(dto.MinVotes, 0, 1);
+        dto.MaxVotes = Math.Clamp(dto.MaxVotes, 0, 1);
+        dto.MinVotesPerCandidate = Math.Clamp(dto.MinVotesPerCandidate, 0, 20);
+        dto.MaxVotesPerCandidate = Math.Clamp(dto.MaxVotesPerCandidate, dto.MinVotesPerCandidate, 20);
 
-            if (dto.Rows <= 0 || dto.Columns <= 0)
-                yield return "Rows and Columns must be greater than 0.";
+        dto.MinValue = 0;
+        dto.MaxValue = int.MaxValue;
 
-            if (dto.Rows > 100 || dto.Columns > 100)
-                yield return "Rows and Columns must be less than or equal to 100.";
+        foreach (string error in ValidatePollBasics(dto, effectiveCandidateCount))
+            yield return error;
+    }
 
-            dto.MinValue = 0;
-            dto.MaxValue = Math.Clamp(dto.MaxVotesPerCandidate, 1, maxCandidateOptionCount);
-        }
-        else if (dto.PollType == PollType.Rank)
-        {
-            dto.MinValue = 1;
-            dto.MaxValue = dto.MaxVotes;
-        }
-        else if (dto.PollType == PollType.Category)
-        {
-            dto.MinValue = 1;
-            dto.MaxValue = dto.Categories.Count;
-        }
-
+    private IEnumerable<string> ValidatePollBasics(CreatePollDto dto, int effectiveCandidateCount)
+    {
         if (string.IsNullOrWhiteSpace(dto.Title))
+        {
             yield return "Poll title is required.";
-
+        }
         else if (dto.Title.Trim().Length < 3)
+        {
             yield return "Poll title must be at least 3 characters long.";
+        }
 
         if (effectiveCandidateCount == 0)
             yield return "A poll must contain at least one candidate.";
-
-        if (dto.PollType == PollType.Category)
-        {
-            if (dto.Categories is null || !dto.Categories.Any())
-                yield return "A categorization poll must contain at least one category.";
-        }
     }
 
     private void ReplaceQueryProperties(Poll poll, FilterQueryBase? query)

@@ -11,8 +11,5 @@ public enum ValueOperator
     [Description("<")]
     Less,
     [Description("<=")]
-    LessEquals,
-
-    [Description("in")]
-    Inside
+    LessEquals
 }
