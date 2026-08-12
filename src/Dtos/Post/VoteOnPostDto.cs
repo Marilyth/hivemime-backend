@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 public class PostVoteDto
 {
     public Guid Id { get; set; }
@@ -10,6 +12,7 @@ public class PollVoteDto
     public List<CandidateVoteDto> Candidates { get; set; }
 }
 
+[JsonConverter(typeof(CandidateVoteDtoConverter))]
 public abstract class CandidateVoteDto
 {
     public Guid? Id { get; set; }

@@ -45,20 +45,14 @@ public class Program
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-                options.JsonSerializerOptions.Converters.Add(new CandidateVoteDtoConverter());
-                options.JsonSerializerOptions.Converters.Add(new VoteQueryConverter());
             });
 
         var npgsqlBuilder = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("Default"));
         npgsqlBuilder.EnableDynamicJson();
         npgsqlBuilder.ConfigureJsonOptions(new System.Text.Json.JsonSerializerOptions
         {
-            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-            Converters =
-            {
-                new JsonStringEnumConverter(),
-                new VoteQueryConverter()
-            }
+            PropertyNameCaseInsensitive = true,
+            Converters = { new JsonStringEnumConverter() }
         });
 
         services.AddDbContextFactory<HiveMimeContext>(options =>

@@ -30,12 +30,8 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
             npgsqlBuilder.EnableDynamicJson();
             npgsqlBuilder.ConfigureJsonOptions(new System.Text.Json.JsonSerializerOptions
             {
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-                Converters =
-                {
-                    new JsonStringEnumConverter(),
-                    new VoteQueryConverter()
-                }
+                PropertyNameCaseInsensitive = true,
+                Converters = { new JsonStringEnumConverter() }
             });
 
             services.AddDbContextFactory<HiveMimeContext>(options =>

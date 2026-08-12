@@ -1,6 +1,9 @@
+using System.Text.Json.Serialization;
+
 /// <summary>
 /// Base class for all queries, representing either a single query or a group of queries.
 /// </summary>
+[JsonConverter(typeof(VoteQueryConverter))]
 public abstract class FilterQueryBase
 {
     public bool IsNegated { get; set; }

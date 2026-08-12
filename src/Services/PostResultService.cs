@@ -293,6 +293,7 @@ public class PostResultService(HiveMimeContext context,
         IQueryable<PostVote> votes = context.PostVotes
             .Where(v => v.Post.Polls.Any(p => p.Id == pollId));
 
+        filter = filter.ToAST();
         if (filter != null)
         {
             Expression<Func<PostVote, bool>> voteExpression = filter.ToExpression();
