@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Linq.Expressions;
 
 public static class VoteQueryParser
@@ -64,6 +65,7 @@ public static class VoteQueryParser
     private static Expression<Func<PostVote, bool>> ToExpression(string property, SubProperty? subProperty, ValueOperator op, string value)
     {
         // ToDo 9: Implement query leaf to expression.
+        // Keep in mind this must use .Any across all candidates matching the property, since multiple votes can be cast for a single candidate.
         return p => true;
     }
 

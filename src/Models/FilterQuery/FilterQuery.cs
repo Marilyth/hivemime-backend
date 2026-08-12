@@ -1,5 +1,5 @@
 /// <summary>
-/// Represents a single vote query, e.g. 1:1=4.
+/// Represents a single vote query, e.g. CandidateGuid = 4.
 /// </summary>
 public class FilterQuery : FilterQueryBase
 {
@@ -9,7 +9,7 @@ public class FilterQuery : FilterQueryBase
     public string Value { get; set; }
 
     protected override string GetQueryExpression()
-        => $"{Property}{ValueOperator.OperatorToSymbol()}{Value}";
+        => $"{Property}.{SubProperty} {ValueOperator.OperatorToSymbol()} {Value}";
 
     public CandidateType GetCandidateType()
     {
@@ -17,7 +17,6 @@ public class FilterQuery : FilterQueryBase
         {
             ":Country" => CandidateType.Country,
             ":Age" => CandidateType.Age,
-            ":Date" => CandidateType.Date,
             _ => CandidateType.Regular
         };
     }
@@ -27,7 +26,6 @@ public class FilterQuery : FilterQueryBase
     {
         Regular,
         Country,
-        Date,
         Age
     }
 }
