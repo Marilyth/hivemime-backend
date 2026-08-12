@@ -170,9 +170,6 @@ public class PostService(HiveMimeContext context,
         newPost.Creator = await context.Users.FindAsync(userId);
         newPost.Hive = hive;
 
-        context.Posts.Add(newPost);
-        await context.SaveChangesAsync();
-
         // Poll filters so far have used index ordering since no Id is available before creation.
         // Replace their property accordingly.
         foreach (var poll in newPost.Polls)
@@ -188,6 +185,8 @@ public class PostService(HiveMimeContext context,
                 throw new ValidationException("Date filter is malformed.");
         }
 
+        context.Posts.Add(newPost);
+        await context.SaveChangesAsync();
         UploadPostDto uploadPostDto = await CreateUploadPostDto(postDto, newPost);
 
         return uploadPostDto;
@@ -508,10 +507,8 @@ public class PostService(HiveMimeContext context,
 
             if (node is FilterQuery leaf)
             {
-                string indexSegment = leaf.Property.Split('.').First();
-                int candidateIndex = int.Parse(indexSegment.Split(":").Last());
-
-                leaf.Property = leaf.Property.Replace(indexSegment, poll.Candidates[candidateIndex].Id.ToString());
+                int candidateIndex = int.Parse(leaf.Property.Split(":").Last());
+                leaf.Property = poll.Candidates[candidateIndex].Id.ToString();
             }
             else if (node is FilterQueryGroup group)
                 queue.AddRange(group.Children);

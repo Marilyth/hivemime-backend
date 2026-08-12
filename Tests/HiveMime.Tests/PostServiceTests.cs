@@ -699,6 +699,88 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
+    public async Task CreatePostAsync_ConditionQuery_ReplacesIndexesWithCandidateIds()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Condition Poll",
+                    PollType = PollType.Choice,
+                    Candidates = [ new CreateCandidateDto { Name = "A" }, new CreateCandidateDto { Name = "B" }, new CreateCandidateDto { Name = "C" } ],
+                    Categories = [],
+                    ConditionQuery = new FilterQueryGroup
+                    {
+                        Children =
+                        [
+                            new FilterQuery
+                            {
+                                Property = "1",
+                                SubProperty = null,
+                                ValueOperator = ValueOperator.Greater,
+                                Value = "2"
+                            },
+                            new FilterQuery
+                            {
+                                Property = "0",
+                                SubProperty = null,
+                                ValueOperator = ValueOperator.Less,
+                                Value = "1"
+                            }
+                        ]
+                    }
+                }
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var poll = await Context.Polls.Include(p => p.Candidates).SingleAsync(p => p.PostId == post.Id);
+
+        // Assert
+        Assert.NotNull(poll.ConditionQuery);
+        Assert.Equal(poll.Candidates[1].Id.ToString(), ((FilterQuery)((FilterQueryGroup)poll.ConditionQuery).Children[0]).Property);
+        Assert.Equal(poll.Candidates[0].Id.ToString(), ((FilterQuery)((FilterQueryGroup)poll.ConditionQuery).Children[1]).Property);
+    }
+
+    [Fact]
+    public async Task CreatePostAsync_ConditionQuery_SingleLeaf_ReplacesIndexWithCandidateId()
+    {
+        // Arrange
+        var postDto = new CreatePostDto
+        {
+            Polls =
+            [
+                new CreatePollDto
+                {
+                    Title = "Condition Poll",
+                    PollType = PollType.Choice,
+                    Candidates = [ new CreateCandidateDto { Name = "A" }, new CreateCandidateDto { Name = "B" } ],
+                    Categories = [],
+                    ConditionQuery = new FilterQuery
+                    {
+                        Property = "0",
+                        SubProperty = null,
+                        ValueOperator = ValueOperator.Equals,
+                        Value = "3"
+                    }
+                }
+            ]
+        };
+
+        // Act
+        var post = await _service.CreatePostAsync(_defaultUser!.Id, postDto);
+        var poll = await Context.Polls.Include(p => p.Candidates).SingleAsync(p => p.PostId == post.Id);
+
+        // Assert
+        var leaf = Assert.IsType<FilterQuery>(poll.ConditionQuery);
+        Assert.Equal(poll.Candidates[0].Id.ToString(), leaf.Property);
+    }
+
+    [Fact]
     public async Task CreatePostAsync_DatePoll_MalformedDateFilter_Throws()
     {
         // Arrange
