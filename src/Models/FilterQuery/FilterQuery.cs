@@ -9,7 +9,9 @@ public class FilterQuery : FilterQueryBase
     public string Value { get; set; }
 
     protected override string GetQueryExpression()
-        => $"{Property}.{SubProperty} {ValueOperator.OperatorToSymbol()} {Value}";
+        => SubProperty is null
+            ? $"{Property}{ValueOperator.OperatorToSymbol()}{Value}"
+            : $"{Property}.{SubProperty}{ValueOperator.OperatorToSymbol()}{Value}";
 
     public CandidateType GetCandidateType()
     {
