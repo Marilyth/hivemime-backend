@@ -43,28 +43,33 @@ public class PostController(PostService postService,
 
     [HttpPost("choiceResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateChoiceResultDto>> GetChoicePollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateChoiceResultDto>> GetChoicePollResult(Guid pollId, FilterQueryBase? filter)
         => await postResultService.GetChoicePollResult(pollId, filter);
 
     [HttpPost("scoreResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateScoreResultDto>> GetScorePollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateScoreResultDto>> GetScorePollResult(Guid pollId, FilterQueryBase? filter)
         => await postResultService.GetScorePollResult(pollId, filter);
 
     [HttpPost("rankResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateRankResultDto>> GetRankPollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateRankResultDto>> GetRankPollResult(Guid pollId, FilterQueryBase? filter)
         => await postResultService.GetRankPollResult(pollId, filter);
 
     [HttpPost("categoryResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, FilterQueryBase? filter)
         => await postResultService.GetCategoryPollResult(pollId, filter);
 
     [HttpPost("drawResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, FilterQueryBase? filter)
         => await postResultService.GetDrawPollResult(pollId, filter);
+
+    [HttpPost("dateResult")]
+    [EnableRateLimiting("5/5s")]
+    public async Task<PollResultDto<CandidateDateResultDto>> GetDatePollResult(Guid pollId, FilterQueryBase? filter)
+        => await postResultService.GetDatePollResult(pollId, filter);
 
     [HttpGet("customCandidateSuggestions")]
     [EnableRateLimiting("5/1s")]

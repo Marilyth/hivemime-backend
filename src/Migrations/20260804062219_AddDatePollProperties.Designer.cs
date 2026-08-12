@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using NpgsqlTypes;
@@ -12,9 +13,11 @@ using NpgsqlTypes;
 namespace HiveMime.Migrations
 {
     [DbContext(typeof(HiveMimeContext))]
-    partial class HiveMimeContextModelSnapshot : ModelSnapshot
+    [Migration("20260804062219_AddDatePollProperties")]
+    partial class AddDatePollProperties
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -277,12 +280,6 @@ namespace HiveMime.Migrations
 
                     b.Property<int?>("Columns")
                         .HasColumnType("integer");
-
-                    b.Property<FilterQueryBase>("ConditionQuery")
-                        .HasColumnType("jsonb");
-
-                    b.Property<FilterQueryBase>("DateFilterQuery")
-                        .HasColumnType("jsonb");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1000)

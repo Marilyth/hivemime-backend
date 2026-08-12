@@ -11,6 +11,9 @@ public static class MapsterConfiguration
         ConfigureCandidate();
         ConfigurePoll();
         ConfigurePost();
+
+        _config.NewConfig<FilterQueryBase, FilterQueryBase>()
+            .ConstructUsing(src => src);
     }
 
     private static void ConfigureComment()

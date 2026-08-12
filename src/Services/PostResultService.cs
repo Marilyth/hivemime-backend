@@ -11,7 +11,7 @@ public class PostResultService(HiveMimeContext context,
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch results for.</param>
     /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateChoiceResultDto>> GetChoicePollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateChoiceResultDto>> GetChoicePollResult(Guid pollId, FilterQueryBase? filter)
     {
         var sumResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -45,7 +45,7 @@ public class PostResultService(HiveMimeContext context,
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch results for.</param>
     /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateScoreResultDto>> GetScorePollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateScoreResultDto>> GetScorePollResult(Guid pollId, FilterQueryBase? filter)
     {
         var statisticsResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -93,7 +93,7 @@ public class PostResultService(HiveMimeContext context,
     /// </summary>
     /// <param name="pollId">The ID of the poll to fetch results for.</param>
     /// <param name="filter">The filter to apply to the poll results.</param>
-    public async Task<PollResultDto<CandidateRankResultDto>> GetRankPollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateRankResultDto>> GetRankPollResult(Guid pollId, FilterQueryBase? filter)
     {
         var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -141,7 +141,7 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, FilterQueryBase? filter)
     {
         var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -189,7 +189,7 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, VoteQueryBase? filter)
+    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, FilterQueryBase? filter)
     {
         var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
@@ -239,12 +239,61 @@ public class PostResultService(HiveMimeContext context,
 
         return ToPollResultDto(distributionResults);
     }
-    
-    private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, VoteQueryBase? filter)
+
+    public async Task<PollResultDto<CandidateDateResultDto>> GetDatePollResult(Guid pollId, FilterQueryBase? filter)
+    {
+        var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
+        {
+            IQueryable<CandidateDateVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter)
+                .OfType<CandidateDateVote>()
+                .Select(cv => new CandidateDateVoteWithMetaData
+                {
+                    CandidateId = cv.CandidateId,
+                    CandidateName = cv.Candidate.Name,
+                    IsCustom = cv.Candidate.IsCustom,
+                    Timestamp = cv.Timestamp
+                });
+
+            var distributionResults = await candidateVotes
+                .GroupBy(v => new { v.CandidateId, v.Timestamp, v.CandidateName, v.IsCustom })
+                .Select(g => new
+                {
+                    g.Key.CandidateId,
+                    g.Key.Timestamp,
+                    g.Key.CandidateName,
+                    g.Key.IsCustom,
+                    Count = g.Count()
+                })
+                .ToListAsync();
+
+            var groupedResults = distributionResults
+                .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
+                .Select(g => new CandidateDateResultDto
+                {
+                    Id = g.Key.CandidateId,
+                    Name = g.Key.CandidateName,
+                    IsCustom = g.Key.IsCustom,
+                    VoteCount = g.Sum(r => r.Count),
+                    Distribution = g.Select(r => new CandidateDateDistributionResultDto
+                    {
+                        Timestamp = r.Timestamp,
+                        VoteCount = r.Count
+                    }).ToList()
+                })
+                .ToList();
+
+            return groupedResults;
+        });
+
+        return ToPollResultDto(distributionResults);
+    }
+
+    private IQueryable<CandidateVote> GetApplicableVotes(Guid pollId, FilterQueryBase? filter)
     {
         IQueryable<PostVote> votes = context.PostVotes
             .Where(v => v.Post.Polls.Any(p => p.Id == pollId));
 
+        filter = filter.ToAST();
         if (filter != null)
         {
             Expression<Func<PostVote, bool>> voteExpression = filter.ToExpression();
@@ -298,5 +347,10 @@ public class PostResultService(HiveMimeContext context,
     {
         public int CellIndex { get; set; }
         public double Value { get; set; }
+    }
+
+    private class CandidateDateVoteWithMetaData : CandidateVoteWithMetaData
+    {
+        public long Timestamp { get; set; }
     }
 }

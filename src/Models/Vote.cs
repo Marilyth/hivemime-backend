@@ -50,3 +50,8 @@ public class CandidateDrawVote : CandidateVote
     public double Value { get; set; }
     public int CellIndex { get; set; }
 }
+
+public class CandidateDateVote : CandidateVote
+{
+    public long Timestamp { get; set; }
+}

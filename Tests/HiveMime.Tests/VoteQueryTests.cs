@@ -8,19 +8,19 @@ public class VoteQueryTests
 
     private string _testQueryString = "(0=0 AND 1>1 AND 2>=2 OR NOT (NOT 3<3 AND NOT 4<=4 AND 5=5))";
 
-    private VoteQueryBase _testQuery = new VoteQueryGroup()
+    private FilterQueryBase _testQuery = new FilterQueryGroup()
     {
         Children =
         [
-            new VoteQuery() { CandidateId = "0", ValueOperator = ValueOperator.Equals, Value = "0" },
-            new VoteQuery() { CandidateId = "1", ValueOperator = ValueOperator.Greater, Value = "1" },
-            new VoteQuery() { CandidateId = "2", ValueOperator = ValueOperator.GreaterEquals, Value = "2" },
-            new VoteQueryGroup() { LeftOperator = BooleanOperator.Or, IsNegated = true,
+            new FilterQuery() { Property = "0", ValueOperator = ValueOperator.Equals, Value = "0" },
+            new FilterQuery() { Property = "1", ValueOperator = ValueOperator.Greater, Value = "1" },
+            new FilterQuery() { Property = "2", ValueOperator = ValueOperator.GreaterEquals, Value = "2" },
+            new FilterQueryGroup() { LeftOperator = BooleanOperator.Or, IsNegated = true,
                 Children =
                 [
-                    new VoteQuery() { CandidateId = "3", IsNegated = true, ValueOperator = ValueOperator.Less, Value = "3" },
-                    new VoteQuery() { CandidateId = "4", IsNegated = true, ValueOperator = ValueOperator.LessEquals, Value = "4" },
-                    new VoteQuery() { CandidateId = "5", ValueOperator = ValueOperator.Equals, Value = "5" }
+                    new FilterQuery() { Property = "3", IsNegated = true, ValueOperator = ValueOperator.Less, Value = "3" },
+                    new FilterQuery() { Property = "4", IsNegated = true, ValueOperator = ValueOperator.LessEquals, Value = "4" },
+                    new FilterQuery() { Property = "5", ValueOperator = ValueOperator.Equals, Value = "5" }
                 ] },
         ]
     };
@@ -33,16 +33,6 @@ public class VoteQueryTests
 
         // Assert
         Assert.Equal(_testQueryString, result);
-    }
-
-    [Fact(Skip = "Deferred")]
-    public async Task ToVoteQuery_WithDeepQuery_ReturnsExpected()
-    {
-        // Act
-        VoteQueryBase result = _testQueryString.ToVoteQuery();
-
-        // Assert
-        Assert.Equal(_testQueryString, result.ToString());
     }
 
     // [Theory]
@@ -74,7 +64,7 @@ public class VoteQueryTests
     //     int[] values = new int[] { value1, value2, value3, value4, value5, value6 };
     //     PostVote testPostVote = new PostVote()
     //     {
-    //         Votes = values.Select((v, i) => new CandidateVote() { CandidateId = _candidateIds[i], Value = v }).ToList()
+    //         Votes = values.Select((v, i) => new CandidateVote() { Property = _candidateIds[i], Value = v }).ToList()
     //     };
 
     //     // Act

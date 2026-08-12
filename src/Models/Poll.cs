@@ -33,6 +33,14 @@ public class Poll : Entity
     
     // For score polls.
     public double? StepValue { get; set; }
+    
+    // For date polls.
+    [Column(TypeName = "jsonb")]
+    public FilterQueryBase? DateFilterQuery { get; set; }
+
+    // For conditional polls.
+    [Column(TypeName = "jsonb")]
+    public FilterQueryBase? ConditionQuery { get; set; }
 
     public PollType PollType { get; set; }
     public List<Candidate> Candidates { get; set; } = [];
@@ -51,5 +59,6 @@ public enum PollType
     Score,
     Rank,
     Category,
-    Draw
+    Draw,
+    Date
 }

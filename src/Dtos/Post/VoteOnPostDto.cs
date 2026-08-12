@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 public class PostVoteDto
 {
     public Guid Id { get; set; }
@@ -10,6 +12,7 @@ public class PollVoteDto
     public List<CandidateVoteDto> Candidates { get; set; }
 }
 
+[JsonConverter(typeof(CandidateVoteDtoConverter))]
 public abstract class CandidateVoteDto
 {
     public Guid? Id { get; set; }
@@ -36,4 +39,9 @@ public class CandidateCategoryVoteDto : CandidateVoteDto
 public class CandidateDrawVoteDto : CandidateVoteDto
 {
     public int CellIndex { get; set; }
+}
+
+public class CandidateDateVoteDto : CandidateVoteDto
+{
+    public long Timestamp { get; set; }
 }

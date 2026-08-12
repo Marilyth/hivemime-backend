@@ -29,16 +29,18 @@ public class PostVoteService(HiveMimeContext context,
         
         var customCandidateIds = await GetOrCreateCustomCandidates(vote);
 
-        HoneyDeltaDto<bool> honeyDelta = new() { Dto = true };
-
         PostVote postVote = await context.PostVotes
             .Include(pv => pv.Votes)
             .FirstOrDefaultAsync(pv => pv.UserId == userId && pv.PostId == vote.Id);
         
+        HoneyDeltaDto<bool> delta = honeyDeltaCalculator.FromPostVote(vote);
+
+        // Don't award the user for updating their vote.
         if (postVote is not null)
+        {
             context.PostVotes.Remove(postVote);
-        else
-            honeyDelta = await honeyDeltaCalculator.FromPostVoteAsync(userId, vote);
+            delta.HoneyDelta = 0;
+        }
             
         postVote = new PostVote
         {
@@ -49,10 +51,12 @@ public class PostVoteService(HiveMimeContext context,
 
         context.PostVotes.Add(postVote);
         HashSet<string> candidateValues = new();
+        HashSet<Poll> pollsToCheck = [];
 
         foreach (PollVoteDto pollVote in vote.Polls.DistinctBy(p => p.Id))
         {
             Poll poll = post.Polls.First(p => p.Id == pollVote.Id);
+            pollsToCheck.Add(poll);
 
             foreach (CandidateVoteDto candidateVote in pollVote.Candidates)
             {
@@ -95,6 +99,13 @@ public class PostVoteService(HiveMimeContext context,
                             Value = 1.0 / pollVote.Candidates.Count
                         };
                         break;
+                    case PollType.Date:
+                        dbVote = new CandidateDateVote
+                        {
+                            CandidateId = candidateVote.Id.Value,
+                            Timestamp = ((CandidateDateVoteDto)candidateVote).Timestamp
+                        };
+                        break;
                     default:
                         throw new ValidationException("Unknown vote type.");
                 }
@@ -103,9 +114,29 @@ public class PostVoteService(HiveMimeContext context,
             }
         }
 
-        await context.SaveChangesAsync();
+        // Check if the vote satisfies the poll conditions.
+        foreach (Poll poll in pollsToCheck)
+        {
+            if (poll.ConditionQuery is not null)
+            {
+                Func<PostVote, bool> predicate = poll.ConditionQuery.ToExpression().Compile();
 
-        return honeyDelta;
+                if (!predicate(postVote))
+                    throw new ValidationException($"Vote does not satisfy poll condition: {poll.ConditionQuery}");
+            }
+            if (poll.DateFilterQuery is not null)
+            {
+                Func<PostVote, bool> predicate = poll.DateFilterQuery.ToExpression().Compile();
+
+                if (!predicate(postVote))
+                    throw new ValidationException($"Vote does not satisfy date condition: {poll.DateFilterQuery}");
+            }
+        }
+
+        await context.SaveChangesAsync();
+        await honeyDeltaCalculator.AwardScoreAsync(delta, userId);
+
+        return delta;
     }
 
     /// <summary>
@@ -250,6 +281,10 @@ public class PostVoteService(HiveMimeContext context,
                 foreach (string error in ValidateScorePoll(poll, pollVote))
                     yield return error;
                 break;
+            case PollType.Date:
+                foreach (string error in ValidateDatePoll(poll, pollVote))
+                    yield return error;
+                break;
             default:
                 break;
         }
@@ -292,6 +327,15 @@ public class PostVoteService(HiveMimeContext context,
         {
             if (!uniqueRanks.Contains(rank))
                 yield return $"Ranking poll is missing rank {rank}.";
+        }
+    }
+
+    private IEnumerable<string> ValidateDatePoll(Poll poll, PollVoteDto pollVote)
+    {
+        foreach (CandidateDateVoteDto dto in pollVote.Candidates.Cast<CandidateDateVoteDto>())
+        {
+            if (dto.Timestamp < 0)
+                yield return "Date can't be lower than 0.";
         }
     }
 }

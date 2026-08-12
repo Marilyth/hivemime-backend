@@ -1,5 +1,11 @@
 using System.ComponentModel;
 
+public enum BooleanOperator
+{
+    And,
+    Or
+}
+
 public enum ValueOperator
 {
     [Description("=")]
@@ -11,14 +17,15 @@ public enum ValueOperator
     [Description("<")]
     Less,
     [Description("<=")]
-    LessEquals,
+    LessEquals
+}
 
-    [Description("in")]
-    Inside,
-    [Description("out")]
-    Outside,
-    [Description("xin")]
-    ExclusiveInside,
-    [Description("xout")]
-    ExclusiveOutside
+public enum SubProperty
+{
+    Date,
+    Month,
+    DayOfMonth,
+    DayOfWeek,
+    Hour,
+    Minute
 }

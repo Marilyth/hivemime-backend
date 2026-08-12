@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Npgsql;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -44,12 +45,18 @@ public class Program
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-                options.JsonSerializerOptions.Converters.Add(new CandidateVoteDtoConverter());
-                options.JsonSerializerOptions.Converters.Add(new VoteQueryConverter());
             });
 
+        var npgsqlBuilder = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("Default"));
+        npgsqlBuilder.EnableDynamicJson();
+        npgsqlBuilder.ConfigureJsonOptions(new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            Converters = { new JsonStringEnumConverter() }
+        });
+
         services.AddDbContextFactory<HiveMimeContext>(options =>
-            options.UseNpgsql(builder.Configuration.GetConnectionString("Default"),
+            options.UseNpgsql(npgsqlBuilder.Build(),
             o => o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)), ServiceLifetime.Scoped);
         services.AddScoped(s => s.GetService<IDbContextFactory<HiveMimeContext>>().CreateDbContext());
 

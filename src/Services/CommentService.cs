@@ -24,7 +24,11 @@ public class CommentService(HiveMimeContext context, HoneyDeltaCalculator honeyD
         context.Comments.Add(comment);
 
         await context.SaveChangesAsync();
-        return await honeyDeltaCalculator.FromCommentDtoAsync(userId, comment.ToQueryable(context).ProjectToType<CommentDto>().FirstOrDefault());
+
+        var delta = honeyDeltaCalculator.FromCommentDto(comment.ToQueryable(context).ProjectToType<CommentDto>().FirstOrDefault());
+        await honeyDeltaCalculator.AwardScoreAsync(delta, userId);
+
+        return delta;
     }
 
     public async Task<CommentDto> EditCommentAsync(Guid userId, EditCommentDto dto)

@@ -20,6 +20,9 @@ public class CreatePollDto
     
     public double? StepValue { get; set; }
 
+    public FilterQueryBase? DateFilterQuery { get; set; }
+    public FilterQueryBase? ConditionQuery { get; set; }
+
     public PollType PollType { get; set; }
     public List<CreateCandidateDto> Candidates { get; set; }
     public List<CreateCategoryDto> Categories { get; set; }
