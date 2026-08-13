@@ -9,7 +9,7 @@ public interface IHasIdentifier
 public class Entity : IHasIdentifier
 {
     [Key]
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; }
 }
 
 [Index(nameof(CreatedAt))]

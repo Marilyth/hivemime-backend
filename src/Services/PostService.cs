@@ -381,7 +381,9 @@ public class PostService(HiveMimeContext context,
         dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
         dto.MinVotesPerCandidate = 1;
         dto.MaxVotesPerCandidate = 1;
-        dto.StepValue ??= 1;
+
+        if (dto.StepValue is null)
+            throw new ValidationException("StepValue must be set for scoring polls.");
 
         if (dto.StepValue <= 0)
             yield return "StepValue must be greater than 0.";
@@ -506,7 +508,10 @@ public class PostService(HiveMimeContext context,
             if (node is FilterQuery leaf)
             {
                 int candidateIndex = int.Parse(leaf.Property.Split(":").Last());
-                leaf.Property = poll.Candidates[candidateIndex].Id.ToString();
+                Candidate candidate = poll.Candidates[candidateIndex];
+                candidate.Id = Guid.NewGuid();
+
+                leaf.Property = candidate.Id.ToString();
             }
             else if (node is FilterQueryGroup group)
                 queue.AddRange(group.Children);

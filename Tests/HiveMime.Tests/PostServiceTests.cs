@@ -603,8 +603,8 @@ public class PostServiceTests : IntegrationTest
         Assert.Equal(1, poll.MinVotes);
         Assert.Equal(1, poll.MaxVotes);
         Assert.Equal(0, poll.AllowedCustomCandidateCount);
-        Assert.Equal(0d, poll.MinValue);
-        Assert.Equal(int.MaxValue, poll.MaxValue);
+        Assert.Equal(double.MinValue, poll.MinValue);
+        Assert.Equal(double.MaxValue, poll.MaxValue);
     }
 
     [Fact]
