@@ -9,6 +9,9 @@ public class GeoIPService(IHttpClientFactory httpClientFactory)
 
     public async Task<string?> GetCountryOfIPAsync(string ipAddress)
     {
+        if (ipAddress is null || ipAddress == "::1" || ipAddress == "127.0.0.1")
+            return null;
+
         await DownloadCountryDatabaseAsync();
         string? country = null;
 

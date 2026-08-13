@@ -5,8 +5,8 @@ public class CreatePollDto
     public UploadMediaRequestDto? Media { get; set; }
     public bool IsShuffled { get; set; }
 
-    public int MinValue { get; set; }
-    public int MaxValue { get; set; }
+    public double MinValue { get; set; }
+    public double MaxValue { get; set; }
     public int AllowedCustomCandidateCount { get; set; }
 
     // For polls where multiple answers are allowed.
@@ -21,6 +21,7 @@ public class CreatePollDto
     public double? StepValue { get; set; }
 
     public FilterQueryBase? DateFilterQuery { get; set; }
+    public bool? IgnoreTimeZone { get; set; }
     public FilterQueryBase? ConditionQuery { get; set; }
 
     public PollType PollType { get; set; }

@@ -7,8 +7,8 @@ public class PollDto
     public int AllowedCustomCandidateCount { get; set; }
     public bool IsShuffled { get; set; }
 
-    public int MinValue { get; set; }
-    public int MaxValue { get; set; }
+    public double MinValue { get; set; }
+    public double MaxValue { get; set; }
 
     public int MinVotes { get; set; }
     public int MaxVotes { get; set; }
@@ -20,6 +20,7 @@ public class PollDto
 
     public double? StepValue { get; set; }
     public FilterQueryBase? DateFilterQuery { get; set; }
+    public bool? IgnoreTimeZone { get; set; }
     public FilterQueryBase? ConditionQuery { get; set; }
 
     public PollType PollType { get; set; }
