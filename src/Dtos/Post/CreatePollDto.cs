@@ -5,8 +5,8 @@ public class CreatePollDto
     public UploadMediaRequestDto? Media { get; set; }
     public bool IsShuffled { get; set; }
 
-    public int MinValue { get; set; }
-    public int MaxValue { get; set; }
+    public double MinValue { get; set; }
+    public double MaxValue { get; set; }
     public int AllowedCustomCandidateCount { get; set; }
 
     // For polls where multiple answers are allowed.

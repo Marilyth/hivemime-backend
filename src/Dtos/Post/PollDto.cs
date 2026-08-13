@@ -7,8 +7,8 @@ public class PollDto
     public int AllowedCustomCandidateCount { get; set; }
     public bool IsShuffled { get; set; }
 
-    public int MinValue { get; set; }
-    public int MaxValue { get; set; }
+    public double MinValue { get; set; }
+    public double MaxValue { get; set; }
 
     public int MinVotes { get; set; }
     public int MaxVotes { get; set; }

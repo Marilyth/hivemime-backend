@@ -381,9 +381,7 @@ public class PostService(HiveMimeContext context,
         dto.MaxVotes = Math.Clamp(dto.MaxVotes, dto.MinVotes, effectiveCandidateCount);
         dto.MinVotesPerCandidate = 1;
         dto.MaxVotesPerCandidate = 1;
-
-        if (dto.StepValue is null)
-            throw new ValidationException("StepValue must be set for scoring polls.");
+        dto.StepValue ??= 1;
 
         if (dto.StepValue <= 0)
             yield return "StepValue must be greater than 0.";
@@ -465,14 +463,14 @@ public class PostService(HiveMimeContext context,
     {
         dto.AllowedCustomCandidateCount = 0;
         int effectiveCandidateCount = dto.Candidates.Count;
+        dto.IgnoreTimeZone ??= true;
 
+        dto.MinValue = double.MinValue;
+        dto.MaxValue = double.MaxValue;
         dto.MinVotes = Math.Clamp(dto.MinVotes, 0, 1);
         dto.MaxVotes = Math.Clamp(dto.MaxVotes, 0, 1);
         dto.MinVotesPerCandidate = Math.Clamp(dto.MinVotesPerCandidate, 0, 20);
         dto.MaxVotesPerCandidate = Math.Clamp(dto.MaxVotesPerCandidate, dto.MinVotesPerCandidate, 20);
-
-        dto.MinValue = 0;
-        dto.MaxValue = int.MaxValue;
 
         foreach (string error in ValidatePollBasics(dto, effectiveCandidateCount))
             yield return error;
