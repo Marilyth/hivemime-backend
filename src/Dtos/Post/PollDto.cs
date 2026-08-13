@@ -20,6 +20,7 @@ public class PollDto
 
     public double? StepValue { get; set; }
     public FilterQueryBase? DateFilterQuery { get; set; }
+    public bool? IgnoreTimeZone { get; set; }
     public FilterQueryBase? ConditionQuery { get; set; }
 
     public PollType PollType { get; set; }
