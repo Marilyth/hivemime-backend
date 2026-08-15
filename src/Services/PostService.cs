@@ -353,7 +353,7 @@ public class PostService(HiveMimeContext context,
             PollType.Score => ValidateScorePoll(dto),
             PollType.Rank => ValidateRankPoll(dto),
             PollType.Category => ValidateCategoryPoll(dto),
-            PollType.Draw => ValidateDrawPoll(dto),
+            PollType.Grid => ValidateGridPoll(dto),
             PollType.Date => ValidateDatePoll(dto),
             _ => throw new ValidationException("Invalid poll type.")
         };
@@ -433,10 +433,10 @@ public class PostService(HiveMimeContext context,
             yield return error;
     }
 
-    private IEnumerable<string> ValidateDrawPoll(CreatePollDto dto)
+    private IEnumerable<string> ValidateGridPoll(CreatePollDto dto)
     {
         if (dto.Rows is null || dto.Columns is null)
-            throw new ValidationException("Rows and Columns must be set for draw polls.");
+            throw new ValidationException("Rows and Columns must be set for grid polls.");
 
         if (dto.Rows <= 0 || dto.Columns <= 0)
             yield return "Rows and Columns must be greater than 0.";

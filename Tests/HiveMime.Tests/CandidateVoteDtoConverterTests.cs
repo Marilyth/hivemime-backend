@@ -37,12 +37,13 @@ public class CandidateVoteDtoConverterTests
     }
 
     [Fact]
-    public void Read_WithCellIndex_ReturnsCandidateDrawVoteDto()
+    public void Read_WithRowAndColumn_ReturnsCandidateGridVoteDto()
     {
-        var result = Deserialize<CandidateVoteDto>($"{{\"id\":\"{_id}\",\"name\":\"A\",\"cellIndex\":7}}");
+        var result = Deserialize<CandidateVoteDto>($"{{\"id\":\"{_id}\",\"name\":\"A\",\"row\":1,\"column\":2}}");
 
-        var draw = Assert.IsType<CandidateDrawVoteDto>(result);
-        Assert.Equal(7, draw.CellIndex);
+        var grid = Assert.IsType<CandidateGridVoteDto>(result);
+        Assert.Equal(1, grid.Row);
+        Assert.Equal(2, grid.Column);
     }
 
     [Fact]
@@ -70,6 +71,7 @@ public class CandidateVoteDtoConverterTests
     [InlineData("rank")]
     [InlineData("categoryId")]
     [InlineData("cellIndex")]
+    [InlineData("row")]
     public void Read_PropertyNames_AreCaseSensitive(string key)
     {
         // JSON keys are matched with default (case-sensitive) options. A wrong-case key must fall back to Choice.
@@ -106,15 +108,16 @@ public class CandidateVoteDtoConverterTests
     }
 
     [Fact]
-    public void RoundTrip_DrawPreservesCellIndex()
+    public void RoundTrip_GridPreservesRowAndColumn()
     {
-        var original = new CandidateDrawVoteDto { Id = _id, Name = "Cell", CellIndex = 3 };
+        var original = new CandidateGridVoteDto { Id = _id, Name = "Cell", Row = 1, Column = 2 };
         string json = Serialize(original);
 
         var result = Deserialize<CandidateVoteDto>(json);
 
-        var draw = Assert.IsType<CandidateDrawVoteDto>(result);
-        Assert.Equal(3, draw.CellIndex);
+        var grid = Assert.IsType<CandidateGridVoteDto>(result);
+        Assert.Equal(1, grid.Row);
+        Assert.Equal(2, grid.Column);
     }
 
     private static JsonSerializerOptions CreateOptions()

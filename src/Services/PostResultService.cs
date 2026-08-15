@@ -189,47 +189,47 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, FilterQueryBase? filter)
+    public async Task<PollResultDto<CandidateGridResultDto>> GetGridPollResult(Guid pollId, FilterQueryBase? filter)
     {
         var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
-            IQueryable<CandidateDrawVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter)
-                .OfType<CandidateDrawVote>()
-                .Select(cv => new CandidateDrawVoteWithMetaData
+            IQueryable<CandidateGridVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter)
+                .OfType<CandidateGridVote>()
+                .Select(cv => new CandidateGridVoteWithMetaData
                 {
                     CandidateId = cv.CandidateId,
                     CandidateName = cv.Candidate.Name,
                     IsCustom = cv.Candidate.IsCustom,
-                    CellIndex = cv.CellIndex,
-                    Value = cv.Value
+                    Row = cv.Row,
+                    Column = cv.Column
                 });
 
             var distributionResults = await candidateVotes
-                .GroupBy(v => new { v.CandidateId, v.CellIndex, v.CandidateName, v.IsCustom })
+                .GroupBy(v => new { v.CandidateId, v.Row, v.Column, v.CandidateName, v.IsCustom })
                 .Select(g => new
                 {
                     g.Key.CandidateId,
-                    g.Key.CellIndex,
+                    g.Key.Row,
+                    g.Key.Column,
                     g.Key.CandidateName,
                     g.Key.IsCustom,
-                    Count = g.Count(),
-                    Value = g.Sum(v => v.Value)
+                    Count = g.Count()
                 })
                 .ToListAsync();
 
             var groupedResults = distributionResults
                 .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
-                .Select(g => new CandidateDrawResultDto
+                .Select(g => new CandidateGridResultDto
                 {
                     Id = g.Key.CandidateId,
                     Name = g.Key.CandidateName,
                     IsCustom = g.Key.IsCustom,
                     VoteCount = g.Sum(r => r.Count),
-                    Distribution = g.Select(r => new CandidateDrawDistributionResultDto
+                    Distribution = g.Select(r => new CandidateGridDistributionResultDto
                     {
-                        CellIndex = r.CellIndex,
-                        VoteCount = r.Count,
-                        Value = r.Value
+                        Row = r.Row,
+                        Column = r.Column,
+                        VoteCount = r.Count
                     }).ToList()
                 })
                 .ToList();
@@ -343,10 +343,10 @@ public class PostResultService(HiveMimeContext context,
         public Guid CategoryId { get; set; }
     }
 
-    private class CandidateDrawVoteWithMetaData : CandidateVoteWithMetaData
+    private class CandidateGridVoteWithMetaData : CandidateVoteWithMetaData
     {
-        public int CellIndex { get; set; }
-        public double Value { get; set; }
+        public int Row { get; set; }
+        public int Column { get; set; }
     }
 
     private class CandidateDateVoteWithMetaData : CandidateVoteWithMetaData

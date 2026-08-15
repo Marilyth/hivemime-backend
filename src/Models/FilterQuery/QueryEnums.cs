@@ -22,6 +22,8 @@ public enum ValueOperator
 
 public enum SubProperty
 {
+    Row,
+    Column,
     Date,
     Month,
     DayOfMonth,

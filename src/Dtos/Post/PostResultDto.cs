@@ -45,15 +45,15 @@ public class CandidateCategoryDistributionResultDto
     public int VoteCount { get; set; }
 }
 
-public class CandidateDrawResultDto : CandidateResultDto
+public class CandidateGridResultDto : CandidateResultDto
 {
-    public List<CandidateDrawDistributionResultDto> Distribution { get; set; }
+    public List<CandidateGridDistributionResultDto> Distribution { get; set; }
 }
 
-public class CandidateDrawDistributionResultDto
+public class CandidateGridDistributionResultDto
 {
-    public int CellIndex { get; set; }
-    public double Value { get; set; }
+    public int Row { get; set; }
+    public int Column { get; set; }
     public int VoteCount { get; set; }
 }
 

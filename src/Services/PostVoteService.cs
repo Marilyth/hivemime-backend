@@ -90,13 +90,13 @@ public class PostVoteService(HiveMimeContext context,
                             CategoryId = ((CandidateCategoryVoteDto)candidateVote).CategoryId
                         };
                         break;
-                    case PollType.Draw:
-                        CandidateDrawVoteDto drawVoteDto = candidateVote as CandidateDrawVoteDto;
-                        dbVote = new CandidateDrawVote
+                    case PollType.Grid:
+                        CandidateGridVoteDto gridVoteDto = candidateVote as CandidateGridVoteDto;
+                        dbVote = new CandidateGridVote
                         {
                             CandidateId = candidateVote.Id.Value,
-                            CellIndex = drawVoteDto.CellIndex,
-                            Value = 1.0 / pollVote.Candidates.Count
+                            Row = gridVoteDto.Row,
+                            Column = gridVoteDto.Column
                         };
                         break;
                     case PollType.Date:

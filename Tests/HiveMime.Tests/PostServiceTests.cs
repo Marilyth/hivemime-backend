@@ -405,7 +405,7 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task CreatePostAsync_DrawPoll_ValidRowsAndColumns_Persists()
+    public async Task CreatePostAsync_GridPoll_ValidRowsAndColumns_Persists()
     {
         // Arrange
         var postDto = new CreatePostDto
@@ -414,9 +414,9 @@ public class PostServiceTests : IntegrationTest
             [
                 new CreatePollDto
                 {
-                    Title = "Draw Poll",
+                    Title = "Grid Poll",
                     Description = "d",
-                    PollType = PollType.Draw,
+                    PollType = PollType.Grid,
                     Rows = 2,
                     Columns = 3,
                     Candidates = [ new CreateCandidateDto { Name = "A" } ],
@@ -437,7 +437,7 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task CreatePostAsync_DrawPoll_MissingRows_Throws()
+    public async Task CreatePostAsync_GridPoll_MissingRows_Throws()
     {
         // Arrange
         var postDto = new CreatePostDto
@@ -446,8 +446,8 @@ public class PostServiceTests : IntegrationTest
             [
                 new CreatePollDto
                 {
-                    Title = "Draw Poll",
-                    PollType = PollType.Draw,
+                    Title = "Grid Poll",
+                    PollType = PollType.Grid,
                     Rows = null,
                     Columns = 2,
                     Candidates = [ new CreateCandidateDto { Name = "A" } ],
@@ -458,7 +458,7 @@ public class PostServiceTests : IntegrationTest
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _service.CreatePostAsync(_defaultUser!.Id, postDto));
-        Assert.Contains("Rows and Columns must be set for draw polls", ex.Message);
+        Assert.Contains("Rows and Columns must be set for grid polls", ex.Message);
     }
 
     [Theory]
@@ -466,7 +466,7 @@ public class PostServiceTests : IntegrationTest
     [InlineData(2, 101)]
     [InlineData(0, 2)]
     [InlineData(2, -1)]
-    public async Task CreatePostAsync_DrawPoll_InvalidDimensions_YieldsError(int rows, int columns)
+    public async Task CreatePostAsync_GridPoll_InvalidDimensions_YieldsError(int rows, int columns)
     {
         // Arrange
         var postDto = new CreatePostDto
@@ -475,8 +475,8 @@ public class PostServiceTests : IntegrationTest
             [
                 new CreatePollDto
                 {
-                    Title = "Draw Poll",
-                    PollType = PollType.Draw,
+                    Title = "Grid Poll",
+                    PollType = PollType.Grid,
                     Rows = rows,
                     Columns = columns,
                     Candidates = [ new CreateCandidateDto { Name = "A" } ],
@@ -491,7 +491,7 @@ public class PostServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task CreatePostAsync_DrawPoll_ClampsMaxVotesPerCandidate()
+    public async Task CreatePostAsync_GridPoll_ClampsMaxVotesPerCandidate()
     {
         // Arrange
         var postDto = new CreatePostDto
@@ -500,8 +500,8 @@ public class PostServiceTests : IntegrationTest
             [
                 new CreatePollDto
                 {
-                    Title = "Draw Poll",
-                    PollType = PollType.Draw,
+                    Title = "Grid Poll",
+                    PollType = PollType.Grid,
                     Rows = 2,
                     Columns = 2,
                     MaxVotesPerCandidate = 50,

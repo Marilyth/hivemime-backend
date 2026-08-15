@@ -27,7 +27,7 @@ public class Poll : Entity
     public int MinVotesPerCandidate { get; set; }
     public int MaxVotesPerCandidate { get; set; }
 
-    // For draw polls.
+    // For grid polls.
     public int? Rows { get; set; }
     public int? Columns { get; set; }
     
@@ -60,6 +60,6 @@ public enum PollType
     Score,
     Rank,
     Category,
-    Draw,
+    Grid,
     Date
 }
