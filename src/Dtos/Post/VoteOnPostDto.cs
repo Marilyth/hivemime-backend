@@ -36,7 +36,7 @@ public class CandidateCategoryVoteDto : CandidateVoteDto
     public Guid CategoryId { get; set; }
 }
 
-public class CandidateDrawVoteDto : CandidateVoteDto
+public class CandidateGridVoteDto : CandidateVoteDto
 {
     public int CellIndex { get; set; }
 }

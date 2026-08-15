@@ -10,8 +10,8 @@ public class PostResultServiceTests : IntegrationTest
     private User? _voter;
     private Post? _categoryPost;
     private Poll? _categoryPoll;
-    private Post? _drawPost;
-    private Poll? _drawPoll;
+    private Post? _gridPost;
+    private Poll? _gridPoll;
     private Post? _choicePost;
     private Poll? _choicePoll;
     private Post? _scorePost;
@@ -49,17 +49,17 @@ public class PostResultServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task GetDrawPollResult_ReturnsCellDistribution()
+    public async Task GetGridPollResult_ReturnsCellDistribution()
     {
-        var candidate = _drawPoll!.Candidates[0];
+        var candidate = _gridPoll!.Candidates[0];
 
-        await AddVotesAsync(candidate.Id, _drawPost!.Id, [
-            new CandidateDrawVote { CellIndex = 0, Value = 1 },
-            new CandidateDrawVote { CellIndex = 0, Value = 1 },
-            new CandidateDrawVote { CellIndex = 1, Value = 1 }
+        await AddVotesAsync(candidate.Id, _gridPost!.Id, [
+            new CandidateGridVote { CellIndex = 0, Value = 1 },
+            new CandidateGridVote { CellIndex = 0, Value = 1 },
+            new CandidateGridVote { CellIndex = 1, Value = 1 }
         ]);
 
-        var result = await _postResultService.GetDrawPollResult(_drawPoll.Id, null);
+        var result = await _postResultService.GetGridPollResult(_gridPoll.Id, null);
 
         var candidateResult = Assert.Single(result.Candidates);
         Assert.Equal(candidate.Id, candidateResult.Id);
@@ -236,16 +236,16 @@ public class PostResultServiceTests : IntegrationTest
             Creator = _voter, ApprovalStatus = ApprovalStatus.Approved, Polls = [_categoryPoll]
         };
 
-        _drawPoll = new Poll
+        _gridPoll = new Poll
         {
-            Title = "Draw", Description = "d", PollType = PollType.Draw,
+            Title = "Grid", Description = "d", PollType = PollType.Grid,
             Rows = 2, Columns = 2, MinVotes = 1, MaxVotes = 1,
             Candidates = [ new Candidate { NormalizedName = "d", Name = "D" } ],
             Categories = []
         };
-        _drawPost = new Post
+        _gridPost = new Post
         {
-            Creator = _voter, ApprovalStatus = ApprovalStatus.Approved, Polls = [_drawPoll]
+            Creator = _voter, ApprovalStatus = ApprovalStatus.Approved, Polls = [_gridPoll]
         };
 
         _choicePoll = new Poll
@@ -289,7 +289,7 @@ public class PostResultServiceTests : IntegrationTest
         };
 
         Context.Posts.Add(_categoryPost);
-        Context.Posts.Add(_drawPost);
+        Context.Posts.Add(_gridPost);
         Context.Posts.Add(_choicePost);
         Context.Posts.Add(_scorePost);
         Context.Posts.Add(_rankPost);

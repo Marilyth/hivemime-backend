@@ -189,13 +189,13 @@ public class PostResultService(HiveMimeContext context,
         return ToPollResultDto(distributionResults);
     }
 
-    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, FilterQueryBase? filter)
+    public async Task<PollResultDto<CandidateGridResultDto>> GetGridPollResult(Guid pollId, FilterQueryBase? filter)
     {
         var distributionResults = await cache.GetOrCreateAsync(CacheHelper.GetCacheKey([pollId, filter]), async entry =>
         {
-            IQueryable<CandidateDrawVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter)
-                .OfType<CandidateDrawVote>()
-                .Select(cv => new CandidateDrawVoteWithMetaData
+            IQueryable<CandidateGridVoteWithMetaData> candidateVotes = GetApplicableVotes(pollId, filter)
+                .OfType<CandidateGridVote>()
+                .Select(cv => new CandidateGridVoteWithMetaData
                 {
                     CandidateId = cv.CandidateId,
                     CandidateName = cv.Candidate.Name,
@@ -219,13 +219,13 @@ public class PostResultService(HiveMimeContext context,
 
             var groupedResults = distributionResults
                 .GroupBy(r => new { r.CandidateId, r.CandidateName, r.IsCustom })
-                .Select(g => new CandidateDrawResultDto
+                .Select(g => new CandidateGridResultDto
                 {
                     Id = g.Key.CandidateId,
                     Name = g.Key.CandidateName,
                     IsCustom = g.Key.IsCustom,
                     VoteCount = g.Sum(r => r.Count),
-                    Distribution = g.Select(r => new CandidateDrawDistributionResultDto
+                    Distribution = g.Select(r => new CandidateGridDistributionResultDto
                     {
                         CellIndex = r.CellIndex,
                         VoteCount = r.Count,
@@ -343,7 +343,7 @@ public class PostResultService(HiveMimeContext context,
         public Guid CategoryId { get; set; }
     }
 
-    private class CandidateDrawVoteWithMetaData : CandidateVoteWithMetaData
+    private class CandidateGridVoteWithMetaData : CandidateVoteWithMetaData
     {
         public int CellIndex { get; set; }
         public double Value { get; set; }

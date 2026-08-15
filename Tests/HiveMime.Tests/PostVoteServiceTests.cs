@@ -11,7 +11,7 @@ public class PostVoteServiceTests : IntegrationTest
     private Poll? _scorePoll;
     private Poll? _rankPoll;
     private Poll? _categoryPoll;
-    private Poll? _drawPoll;
+    private Poll? _gridPoll;
 
     public PostVoteServiceTests(DatabaseContainer fixture) : base(fixture)
     {
@@ -78,20 +78,20 @@ public class PostVoteServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task VoteOnPostAsync_DrawPoll_AssignsEqualWeight()
+    public async Task VoteOnPostAsync_GridPoll_AssignsEqualWeight()
     {
         var (post, poll, candidates) = await AddPostAsync(p =>
         {
-            p.PollType = PollType.Draw;
+            p.PollType = PollType.Grid;
             p.Rows = 2; p.Columns = 2;
             p.MinVotes = 1; p.MaxVotes = 2;
             p.MaxVotesPerCandidate = 2;
         });
-        var dto = VoteDto(post, (poll.Id, [Draw(candidates[0].Id, 0), Draw(candidates[1].Id, 3)]));
+        var dto = VoteDto(post, (poll.Id, [Grid(candidates[0].Id, 0), Grid(candidates[1].Id, 3)]));
 
         await _postVoteService.VoteOnPostAsync(_voter!.Id, dto);
 
-        var votes = await Context.PostVotes.SelectMany(pv => pv.Votes).OfType<CandidateDrawVote>().ToListAsync();
+        var votes = await Context.PostVotes.SelectMany(pv => pv.Votes).OfType<CandidateGridVote>().ToListAsync();
         Assert.Equal(2, votes.Count);
         Assert.All(votes, v => Assert.Equal(0.5, v.Value));
         Assert.Equal(0, votes.First(v => v.CandidateId == candidates[0].Id).CellIndex);
@@ -144,7 +144,7 @@ public class PostVoteServiceTests : IntegrationTest
             (_scorePoll!.Id, [Score(_scorePoll.Candidates[0].Id, 4)]),
             (_rankPoll!.Id, [Rank(_rankPoll.Candidates[0].Id, 1), Rank(_rankPoll.Candidates[1].Id, 2)]),
             (_categoryPoll!.Id, [Category(_categoryPoll.Candidates[0].Id, _categoryPoll.Categories[0].Id)]),
-            (_drawPoll!.Id, [Draw(_drawPoll.Candidates[0].Id, 1)]));
+            (_gridPoll!.Id, [Grid(_gridPoll.Candidates[0].Id, 1)]));
 
         await _postVoteService.VoteOnPostAsync(_voter!.Id, dto);
 
@@ -154,7 +154,7 @@ public class PostVoteServiceTests : IntegrationTest
         Assert.Single(saved.Votes.OfType<CandidateScoreVote>());
         Assert.Equal(2, saved.Votes.OfType<CandidateRankVote>().Count());
         Assert.Single(saved.Votes.OfType<CandidateCategoryVote>());
-        Assert.Single(saved.Votes.OfType<CandidateDrawVote>());
+        Assert.Single(saved.Votes.OfType<CandidateGridVote>());
     }
 
     [Fact]
@@ -341,7 +341,7 @@ public class PostVoteServiceTests : IntegrationTest
 
     private static CandidateVoteDto Category(Guid? id, Guid categoryId) => new CandidateCategoryVoteDto { Id = id, Name = "A", CategoryId = categoryId };
 
-    private static CandidateVoteDto Draw(Guid? id, int cellIndex) => new CandidateDrawVoteDto { Id = id, Name = "A", CellIndex = cellIndex };
+    private static CandidateVoteDto Grid(Guid? id, int cellIndex) => new CandidateGridVoteDto { Id = id, Name = "A", CellIndex = cellIndex };
 
     private static CandidateVoteDto Date(Guid? id, long timestamp) => new CandidateDateVoteDto { Id = id, Name = "A", Timestamp = timestamp };
 
@@ -411,9 +411,9 @@ public class PostVoteServiceTests : IntegrationTest
             Candidates = [ new Candidate { NormalizedName = "c", Name = "C" } ],
             Categories = [ new Category { Name = "Cat1" }, new Category { Name = "Cat2" } ]
         };
-        _drawPoll = new Poll
+        _gridPoll = new Poll
         {
-            Title = "Draw", Description = "d", PollType = PollType.Draw,
+            Title = "Grid", Description = "d", PollType = PollType.Grid,
             Rows = 2, Columns = 2, MinVotes = 1, MaxVotes = 1, MaxVotesPerCandidate = 1,
             Candidates = [ new Candidate { NormalizedName = "d1", Name = "D1" }, new Candidate { NormalizedName = "d2", Name = "D2" } ],
             Categories = []
@@ -423,7 +423,7 @@ public class PostVoteServiceTests : IntegrationTest
         {
             Creator = _voter!,
             ApprovalStatus = ApprovalStatus.Approved,
-            Polls = [ _choicePoll, _scorePoll, _rankPoll, _categoryPoll, _drawPoll ]
+            Polls = [ _choicePoll, _scorePoll, _rankPoll, _categoryPoll, _gridPoll ]
         };
 
         Context.Posts.Add(post);

@@ -37,12 +37,12 @@ public class CandidateVoteDtoConverterTests
     }
 
     [Fact]
-    public void Read_WithCellIndex_ReturnsCandidateDrawVoteDto()
+    public void Read_WithCellIndex_ReturnsCandidateGridVoteDto()
     {
         var result = Deserialize<CandidateVoteDto>($"{{\"id\":\"{_id}\",\"name\":\"A\",\"cellIndex\":7}}");
 
-        var draw = Assert.IsType<CandidateDrawVoteDto>(result);
-        Assert.Equal(7, draw.CellIndex);
+        var grid = Assert.IsType<CandidateGridVoteDto>(result);
+        Assert.Equal(7, grid.CellIndex);
     }
 
     [Fact]
@@ -106,15 +106,15 @@ public class CandidateVoteDtoConverterTests
     }
 
     [Fact]
-    public void RoundTrip_DrawPreservesCellIndex()
+    public void RoundTrip_GridPreservesCellIndex()
     {
-        var original = new CandidateDrawVoteDto { Id = _id, Name = "Cell", CellIndex = 3 };
+        var original = new CandidateGridVoteDto { Id = _id, Name = "Cell", CellIndex = 3 };
         string json = Serialize(original);
 
         var result = Deserialize<CandidateVoteDto>(json);
 
-        var draw = Assert.IsType<CandidateDrawVoteDto>(result);
-        Assert.Equal(3, draw.CellIndex);
+        var grid = Assert.IsType<CandidateGridVoteDto>(result);
+        Assert.Equal(3, grid.CellIndex);
     }
 
     private static JsonSerializerOptions CreateOptions()

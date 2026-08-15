@@ -45,7 +45,7 @@ public class CandidateCategoryVote : CandidateVote
 }
 
 [Index(nameof(CellIndex))]
-public class CandidateDrawVote : CandidateVote
+public class CandidateGridVote : CandidateVote
 {
     public double Value { get; set; }
     public int CellIndex { get; set; }

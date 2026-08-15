@@ -61,10 +61,10 @@ public class PostController(PostService postService,
     public async Task<PollResultDto<CandidateCategoryResultDto>> GetCategoryPollResult(Guid pollId, FilterQueryBase? filter)
         => await postResultService.GetCategoryPollResult(pollId, filter);
 
-    [HttpPost("drawResult")]
+    [HttpPost("gridResult")]
     [EnableRateLimiting("5/5s")]
-    public async Task<PollResultDto<CandidateDrawResultDto>> GetDrawPollResult(Guid pollId, FilterQueryBase? filter)
-        => await postResultService.GetDrawPollResult(pollId, filter);
+    public async Task<PollResultDto<CandidateGridResultDto>> GetGridPollResult(Guid pollId, FilterQueryBase? filter)
+        => await postResultService.GetGridPollResult(pollId, filter);
 
     [HttpPost("dateResult")]
     [EnableRateLimiting("5/5s")]
