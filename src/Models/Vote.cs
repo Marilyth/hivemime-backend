@@ -44,11 +44,11 @@ public class CandidateCategoryVote : CandidateVote
     public Category? Category { get; set; }
 }
 
-[Index(nameof(CellIndex))]
+[Index(nameof(Row), nameof(Column))]
 public class CandidateGridVote : CandidateVote
 {
-    public double Value { get; set; }
-    public int CellIndex { get; set; }
+    public int Row { get; set; }
+    public int Column { get; set; }
 }
 
 public class CandidateDateVote : CandidateVote

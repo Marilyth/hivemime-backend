@@ -78,7 +78,7 @@ public class PostVoteServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task VoteOnPostAsync_GridPoll_AssignsEqualWeight()
+    public async Task VoteOnPostAsync_GridPoll_PersistsRowAndColumn()
     {
         var (post, poll, candidates) = await AddPostAsync(p =>
         {
@@ -87,15 +87,16 @@ public class PostVoteServiceTests : IntegrationTest
             p.MinVotes = 1; p.MaxVotes = 2;
             p.MaxVotesPerCandidate = 2;
         });
-        var dto = VoteDto(post, (poll.Id, [Grid(candidates[0].Id, 0), Grid(candidates[1].Id, 3)]));
+        var dto = VoteDto(post, (poll.Id, [Grid(candidates[0].Id, 0, 0), Grid(candidates[1].Id, 1, 1)]));
 
         await _postVoteService.VoteOnPostAsync(_voter!.Id, dto);
 
         var votes = await Context.PostVotes.SelectMany(pv => pv.Votes).OfType<CandidateGridVote>().ToListAsync();
         Assert.Equal(2, votes.Count);
-        Assert.All(votes, v => Assert.Equal(0.5, v.Value));
-        Assert.Equal(0, votes.First(v => v.CandidateId == candidates[0].Id).CellIndex);
-        Assert.Equal(3, votes.First(v => v.CandidateId == candidates[1].Id).CellIndex);
+        Assert.Equal(0, votes.First(v => v.CandidateId == candidates[0].Id).Row);
+        Assert.Equal(0, votes.First(v => v.CandidateId == candidates[0].Id).Column);
+        Assert.Equal(1, votes.First(v => v.CandidateId == candidates[1].Id).Row);
+        Assert.Equal(1, votes.First(v => v.CandidateId == candidates[1].Id).Column);
     }
 
     [Fact]
@@ -144,7 +145,7 @@ public class PostVoteServiceTests : IntegrationTest
             (_scorePoll!.Id, [Score(_scorePoll.Candidates[0].Id, 4)]),
             (_rankPoll!.Id, [Rank(_rankPoll.Candidates[0].Id, 1), Rank(_rankPoll.Candidates[1].Id, 2)]),
             (_categoryPoll!.Id, [Category(_categoryPoll.Candidates[0].Id, _categoryPoll.Categories[0].Id)]),
-            (_gridPoll!.Id, [Grid(_gridPoll.Candidates[0].Id, 1)]));
+            (_gridPoll!.Id, [Grid(_gridPoll.Candidates[0].Id, 1, 1)]));
 
         await _postVoteService.VoteOnPostAsync(_voter!.Id, dto);
 
@@ -341,7 +342,7 @@ public class PostVoteServiceTests : IntegrationTest
 
     private static CandidateVoteDto Category(Guid? id, Guid categoryId) => new CandidateCategoryVoteDto { Id = id, Name = "A", CategoryId = categoryId };
 
-    private static CandidateVoteDto Grid(Guid? id, int cellIndex) => new CandidateGridVoteDto { Id = id, Name = "A", CellIndex = cellIndex };
+    private static CandidateVoteDto Grid(Guid? id, int row, int column) => new CandidateGridVoteDto { Id = id, Name = "A", Row = row, Column = column };
 
     private static CandidateVoteDto Date(Guid? id, long timestamp) => new CandidateDateVoteDto { Id = id, Name = "A", Timestamp = timestamp };
 

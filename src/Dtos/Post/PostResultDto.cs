@@ -52,8 +52,8 @@ public class CandidateGridResultDto : CandidateResultDto
 
 public class CandidateGridDistributionResultDto
 {
-    public int CellIndex { get; set; }
-    public double Value { get; set; }
+    public int Row { get; set; }
+    public int Column { get; set; }
     public int VoteCount { get; set; }
 }
 

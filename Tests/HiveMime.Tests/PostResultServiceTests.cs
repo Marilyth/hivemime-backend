@@ -49,14 +49,14 @@ public class PostResultServiceTests : IntegrationTest
     }
 
     [Fact]
-    public async Task GetGridPollResult_ReturnsCellDistribution()
+    public async Task GetGridPollResult_ReturnsRowColumnDistribution()
     {
         var candidate = _gridPoll!.Candidates[0];
 
         await AddVotesAsync(candidate.Id, _gridPost!.Id, [
-            new CandidateGridVote { CellIndex = 0, Value = 1 },
-            new CandidateGridVote { CellIndex = 0, Value = 1 },
-            new CandidateGridVote { CellIndex = 1, Value = 1 }
+            new CandidateGridVote { Row = 0, Column = 0 },
+            new CandidateGridVote { Row = 0, Column = 0 },
+            new CandidateGridVote { Row = 0, Column = 1 }
         ]);
 
         var result = await _postResultService.GetGridPollResult(_gridPoll.Id, null);
@@ -65,11 +65,9 @@ public class PostResultServiceTests : IntegrationTest
         Assert.Equal(candidate.Id, candidateResult.Id);
         Assert.Equal(3, candidateResult.VoteCount);
 
-        var distribution = candidateResult.Distribution.ToDictionary(d => d.CellIndex, d => d);
-        Assert.Equal(2, distribution[0].VoteCount);
-        Assert.Equal(2d, distribution[0].Value);
-        Assert.Equal(1, distribution[1].VoteCount);
-        Assert.Equal(1d, distribution[1].Value);
+        var distribution = candidateResult.Distribution.ToDictionary(d => (d.Row, d.Column), d => d);
+        Assert.Equal(2, distribution[(0, 0)].VoteCount);
+        Assert.Equal(1, distribution[(0, 1)].VoteCount);
     }
 
     [Fact]

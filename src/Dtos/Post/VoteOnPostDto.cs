@@ -38,7 +38,8 @@ public class CandidateCategoryVoteDto : CandidateVoteDto
 
 public class CandidateGridVoteDto : CandidateVoteDto
 {
-    public int CellIndex { get; set; }
+    public int Row { get; set; }
+    public int Column { get; set; }
 }
 
 public class CandidateDateVoteDto : CandidateVoteDto

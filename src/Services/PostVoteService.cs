@@ -95,8 +95,8 @@ public class PostVoteService(HiveMimeContext context,
                         dbVote = new CandidateGridVote
                         {
                             CandidateId = candidateVote.Id.Value,
-                            CellIndex = gridVoteDto.CellIndex,
-                            Value = 1.0 / pollVote.Candidates.Count
+                            Row = gridVoteDto.Row,
+                            Column = gridVoteDto.Column
                         };
                         break;
                     case PollType.Date:

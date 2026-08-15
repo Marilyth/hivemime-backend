@@ -200,20 +200,20 @@ public class PostResultService(HiveMimeContext context,
                     CandidateId = cv.CandidateId,
                     CandidateName = cv.Candidate.Name,
                     IsCustom = cv.Candidate.IsCustom,
-                    CellIndex = cv.CellIndex,
-                    Value = cv.Value
+                    Row = cv.Row,
+                    Column = cv.Column
                 });
 
             var distributionResults = await candidateVotes
-                .GroupBy(v => new { v.CandidateId, v.CellIndex, v.CandidateName, v.IsCustom })
+                .GroupBy(v => new { v.CandidateId, v.Row, v.Column, v.CandidateName, v.IsCustom })
                 .Select(g => new
                 {
                     g.Key.CandidateId,
-                    g.Key.CellIndex,
+                    g.Key.Row,
+                    g.Key.Column,
                     g.Key.CandidateName,
                     g.Key.IsCustom,
-                    Count = g.Count(),
-                    Value = g.Sum(v => v.Value)
+                    Count = g.Count()
                 })
                 .ToListAsync();
 
@@ -227,9 +227,9 @@ public class PostResultService(HiveMimeContext context,
                     VoteCount = g.Sum(r => r.Count),
                     Distribution = g.Select(r => new CandidateGridDistributionResultDto
                     {
-                        CellIndex = r.CellIndex,
-                        VoteCount = r.Count,
-                        Value = r.Value
+                        Row = r.Row,
+                        Column = r.Column,
+                        VoteCount = r.Count
                     }).ToList()
                 })
                 .ToList();
@@ -345,8 +345,8 @@ public class PostResultService(HiveMimeContext context,
 
     private class CandidateGridVoteWithMetaData : CandidateVoteWithMetaData
     {
-        public int CellIndex { get; set; }
-        public double Value { get; set; }
+        public int Row { get; set; }
+        public int Column { get; set; }
     }
 
     private class CandidateDateVoteWithMetaData : CandidateVoteWithMetaData
