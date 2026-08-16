@@ -205,6 +205,7 @@ public class Program
         services.AddScoped<HoneyDeltaCalculator>();
         services.AddScoped(s => s.GetService<IHttpContextAccessor>().HttpContext.User);
         services.AddSingleton<GeoIPService>();
+        services.AddSingleton<GeoService>();
         services.AddSingleton<HotnessUpdateQueue>();
         services.AddSingleton<IMediaService, CloudflareR2Service>();
         services.AddHttpClient();
