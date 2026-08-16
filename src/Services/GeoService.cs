@@ -11,7 +11,7 @@ public class GeoService(ILogger<GeoService> logger)
 
     public async Task<List<Division>> SearchDivisionAsync(string name)
     {
-        var command = await CreateCommandAsync($"./divisions/division/*.parquet");
+        var command = await CreateCommandAsync($"divisions/division/*.parquet");
         command.Select("*");
         command.AdditionalQuery($"WHERE names.primary ILIKE '%{name}%' OR names.common.en ILIKE '%{name}%'");
         command.AdditionalQuery($"ORDER BY names.common.en");
@@ -22,7 +22,7 @@ public class GeoService(ILogger<GeoService> logger)
 
     public async Task<string> GetDivisionAsync(string id)
     {
-        var command = await CreateCommandAsync($"./divisions/division_area/*.parquet");
+        var command = await CreateCommandAsync($"divisions/division_area/*.parquet");
         command.Select("localName", "englishName", "subtype");
         command.AdditionalQuery($"WHERE id = '{id}'");
 
@@ -37,7 +37,7 @@ public class GeoService(ILogger<GeoService> logger)
 
     private async Task DownloadDataAsync()
     {
-        var command = await CreateCommandAsync("./divisions/division/data.parquet");
+        var command = await CreateCommandAsync("divisions/division/data.parquet");
         command.Select("*");
 
         await command.DownloadAsync();
