@@ -18,6 +18,8 @@ public class HiveMimeContext : DbContext
     public DbSet<CandidateVote> CandidateVotes { get; set; }
     public DbSet<Candidate> Candidates { get; set; }
     public DbSet<Category> Categories { get; set; }
+    public DbSet<Division> Divisions { get; set; }
+    public DbSet<DivisionArea> DivisionAreas { get; set; }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -50,6 +52,8 @@ public class HiveMimeContext : DbContext
     private void SetTextIndices(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("citext");
+        modelBuilder.HasPostgresExtension("postgis");
+        modelBuilder.HasPostgresExtension("pg_trgm");
 
         modelBuilder.Entity<Hive>()
             .HasGeneratedTsVectorColumn(
@@ -85,6 +89,32 @@ public class HiveMimeContext : DbContext
         modelBuilder.Entity<User>()
             .Property(u => u.Username)
             .HasColumnType("citext");
+
+        modelBuilder.Entity<Division>()
+            .HasIndex(x => x.EnglishName)
+            .HasMethod("GIN")
+            .HasOperators("gin_trgm_ops");
+
+        modelBuilder.Entity<Division>()
+            .HasIndex(x => x.LocalName)
+            .HasMethod("GIN")
+            .HasOperators("gin_trgm_ops");
+
+        modelBuilder.Entity<Division>()
+            .HasIndex(x => x.Geometry)
+            .HasMethod("gist");
+
+        modelBuilder.Entity<DivisionArea>()
+            .HasIndex(x => x.Geometry)
+            .HasMethod("gist");
+
+        modelBuilder.Entity<Division>()
+            .HasOne(d => d.Parent)
+            .WithMany(d => d.Children);
+
+        modelBuilder.Entity<Division>()
+            .HasMany(d => d.CapitalOf)
+            .WithMany(d => d.Capitals);
     }
 
     private void SetEntityRules(IMutableEntityType entityType)

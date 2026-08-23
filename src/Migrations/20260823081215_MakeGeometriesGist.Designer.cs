@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -13,9 +14,11 @@ using NpgsqlTypes;
 namespace HiveMime.Migrations
 {
     [DbContext(typeof(HiveMimeContext))]
-    partial class HiveMimeContextModelSnapshot : ModelSnapshot
+    [Migration("20260823081215_MakeGeometriesGist")]
+    partial class MakeGeometriesGist
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -67,7 +70,7 @@ namespace HiveMime.Migrations
                     b.HasIndex("NormalizedName", "PollId")
                         .IsUnique();
 
-                    b.ToTable("Candidate", (string)null);
+                    b.ToTable("Candidate");
                 });
 
             modelBuilder.Entity("CandidateVote", b =>
@@ -93,7 +96,7 @@ namespace HiveMime.Migrations
 
                     b.HasIndex("PostVoteId");
 
-                    b.ToTable("CandidateVotes", (string)null);
+                    b.ToTable("CandidateVotes");
 
                     b.HasDiscriminator<string>("Discriminator").HasValue("CandidateVote");
 
@@ -128,7 +131,7 @@ namespace HiveMime.Migrations
 
                     b.HasIndex("PollId");
 
-                    b.ToTable("Categories", (string)null);
+                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("Comment", b =>
@@ -181,7 +184,7 @@ namespace HiveMime.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Comments", (string)null);
+                    b.ToTable("Comments");
                 });
 
             modelBuilder.Entity("Division", b =>
@@ -244,7 +247,7 @@ namespace HiveMime.Migrations
 
                     b.HasIndex("ParentId");
 
-                    b.ToTable("Divisions", (string)null);
+                    b.ToTable("Divisions");
                 });
 
             modelBuilder.Entity("DivisionArea", b =>
@@ -271,7 +274,7 @@ namespace HiveMime.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Geometry"), "gist");
 
-                    b.ToTable("DivisionAreas", (string)null);
+                    b.ToTable("DivisionAreas");
                 });
 
             modelBuilder.Entity("DivisionDivision", b =>
@@ -286,7 +289,7 @@ namespace HiveMime.Migrations
 
                     b.HasIndex("CapitalsId");
 
-                    b.ToTable("DivisionDivision", (string)null);
+                    b.ToTable("DivisionDivision");
                 });
 
             modelBuilder.Entity("Hive", b =>
@@ -335,7 +338,7 @@ namespace HiveMime.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "GIN");
 
-                    b.ToTable("Hives", (string)null);
+                    b.ToTable("Hives");
                 });
 
             modelBuilder.Entity("HiveUser", b =>
@@ -371,7 +374,7 @@ namespace HiveMime.Migrations
                     b.HasIndex("UserId", "HiveId")
                         .IsUnique();
 
-                    b.ToTable("HiveUsers", (string)null);
+                    b.ToTable("HiveUsers");
                 });
 
             modelBuilder.Entity("Poll", b =>
@@ -459,7 +462,7 @@ namespace HiveMime.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "GIN");
 
-                    b.ToTable("Polls", (string)null);
+                    b.ToTable("Polls");
                 });
 
             modelBuilder.Entity("Post", b =>
@@ -514,7 +517,7 @@ namespace HiveMime.Migrations
 
                     b.HasIndex("Hotness");
 
-                    b.ToTable("Posts", (string)null);
+                    b.ToTable("Posts");
                 });
 
             modelBuilder.Entity("PostVote", b =>
@@ -543,7 +546,7 @@ namespace HiveMime.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("PostVotes", (string)null);
+                    b.ToTable("PostVotes");
                 });
 
             modelBuilder.Entity("User", b =>
@@ -592,7 +595,7 @@ namespace HiveMime.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("CandidateCategoryVote", b =>
@@ -793,7 +796,7 @@ namespace HiveMime.Migrations
 
                             b1.HasKey("HiveId");
 
-                            b1.ToTable("Hives", (string)null);
+                            b1.ToTable("Hives");
 
                             b1.WithOwner()
                                 .HasForeignKey("HiveId");
@@ -894,7 +897,7 @@ namespace HiveMime.Migrations
 
                             b1.HasKey("UserId");
 
-                            b1.ToTable("Users", (string)null);
+                            b1.ToTable("Users");
 
                             b1.WithOwner()
                                 .HasForeignKey("UserId");

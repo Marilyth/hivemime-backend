@@ -12,7 +12,7 @@ public class GeoServiceTests : IntegrationTest
     }
 
 
-    [Fact(Skip = "This test is very heavy. Only for debugging.")]
+    [Fact]
     public async Task SearchDivisionAsync_ReturnsDivision()
     {
         var result = await _service.SearchDivisionAsync("Germany");

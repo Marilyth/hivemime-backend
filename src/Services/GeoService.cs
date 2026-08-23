@@ -1,154 +1,95 @@
-
-using System.Text.Json;
-using DuckDB.NET.Data;
+using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Algorithm;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
 
 /// <summary>
 /// A service responsible to fetching relevant geojson files and metadata for regions on the world.
 /// </summary>
-public class GeoService(ILogger<GeoService> logger)
+public class GeoService
 {
-    private DuckDBConnection _connection = new DuckDBConnection($"Data Source=:memory:");
+    private readonly HiveMimeContext _context;
+    private readonly GeoJsonWriter _writer;
 
-    public async Task<List<Division>> SearchDivisionAsync(string name)
+    public GeoService(HiveMimeContext context, GeoJsonWriter writer, OvertureService overture)
     {
-        var command = await CreateCommandAsync($"divisions/division/*.parquet");
-        command.Select("*");
-        command.AdditionalQuery($"WHERE names.primary ILIKE '%{name}%' OR names.common.en ILIKE '%{name}%'");
-        command.AdditionalQuery($"ORDER BY names.common.en");
-        command.AdditionalQuery($"LIMIT 25");
+        _context = context;
+        _writer = writer;
 
-        return await command.GetAsync<List<Division>>();
+        // Ensure the database is populated. Can't continue otherwise.
+        overture.PopulateDatabaseAsync().Wait();
     }
 
-    public async Task<string> GetDivisionAsync(string id)
+    public async Task<List<DivisionSearchResultDto>> SearchDivisionAsync(string name)
     {
-        var command = await CreateCommandAsync($"divisions/division_area/*.parquet");
-        command.Select("localName", "englishName", "subtype");
-        command.AdditionalQuery($"WHERE id = '{id}'");
+        var results = await _context.Divisions
+            .AsNoTracking()
+            .Where(d => EF.Functions.ILike(d.LocalName, $"%{name}%") || EF.Functions.ILike(d.EnglishName, $"%{name}%"))
+            .OrderByDescending(d =>
+                EF.Functions.ILike(d.LocalName, name) ||
+                EF.Functions.ILike(d.EnglishName, name))
+            .ThenByDescending(d =>
+                EF.Functions.ILike(d.LocalName, $"{name}%") ||
+                EF.Functions.ILike(d.EnglishName, $"{name}%"))
+            .ThenBy(d => d.AdminLevel)
+            .ThenBy(d => d.Subtype)
+            .ThenBy(d => d.Class)
+            .ThenByDescending(d => d.Population)
+            .Take(25)
+            .ToListAsync();
 
-        return await command.GetAsync();
+        return results.Select(d => new DivisionSearchResultDto
+        {
+            Id = d.Id,
+            LocalName = d.LocalName,
+            EnglishName = d.EnglishName,
+            Subtype = d.Subtype,
+            Class = d.Class,
+            AdminLevel = d.AdminLevel,
+            Country = d.Country,
+            GeometryGeoJSON = _writer.Write(d.Geometry),
+            Population = d.Population,
+            Region = d.Region
+        }).ToList();
     }
 
-    private async Task<Command> CreateCommandAsync(string location)
+    public async Task<List<DivisionSearchResultWithAreaDto>> SearchDivisionByBboxAsync(double minX, double minY, double maxX, double maxY)
     {
-        await SetupAsync();
-        return new Command(_connection, location);
-    }
+        var polygon = GeometryFactory.Default.CreatePolygon([
+            new Coordinate(minX, minY),
+            new Coordinate(maxX, minY),
+            new Coordinate(maxX, maxY),
+            new Coordinate(minX, maxY),
+            new Coordinate(minX, minY)
+        ]);
 
-    private async Task DownloadDataAsync()
-    {
-        var command = await CreateCommandAsync("divisions/division/data.parquet");
-        command.Select("*");
+        // ToDo: Update to use postgis's && operator for geometry in dotnet 11 for much improved performance. https://github.com/npgsql/efcore.pg/pull/3484/changes
+        // ToDo: Combine subtype and geometry indexes somehow for ordering by subtype. https://www.postgresql.org/docs/current/btree-gist.html
+        var results = await _context.Divisions
+            .AsNoTracking()
+            .AsSingleQuery()
+            .Include(d => d.Areas.Where(a => a.AreaClass == AreaClass.Land))
+            .Where(d => d.Areas.Any(a => a.Geometry.Intersects(polygon)))
+            .Take(50)
+            .ToListAsync();
 
-        await command.DownloadAsync();
-    }
-
-    private async Task SetupAsync()
-    {
-        if (_connection.State != System.Data.ConnectionState.Closed)
-            return;
-
-        await _connection.OpenAsync();
-
-        // Need spatial and httpfs extensions for overture.
-        var installCommand = _connection.CreateCommand();
-        installCommand.CommandText = """
-            INSTALL SPATIAL;
-            INSTALL 'httpfs';
-            LOAD spatial;
-            LOAD httpfs;
-            SET s3_region='eu-central-1';
-            """;
-
-        await installCommand.ExecuteNonQueryAsync();
-        await DownloadDataAsync();
-    }
-    
-    private class Command(DuckDBConnection connection, string location)
-    {
-        private List<string> _selects = ["id"];
-        private string _additionalSyntax;
-
-        /// <summary>
-        /// Selects the columns to return.
-        /// For a list of columns, see https://docs.overturemaps.org/schema/
-        /// </summary>
-        /// <param name="selects">The columns to select.</param>
-        public Command Select(params string[] selects)
+        return results.Select(d => new DivisionSearchResultWithAreaDto
         {
-            _selects.AddRange(selects);
-            return this;
-        }
-
-        public Command AdditionalQuery(string query)
-        {
-            if (string.IsNullOrWhiteSpace(_additionalSyntax))
-                _additionalSyntax = query;
-            else
-                _additionalSyntax += $"\n{query}";
-
-            return this;
-        }
-
-        public async Task DownloadAsync(bool overwrite = false)
-        {
-            var command = connection.CreateCommand();
-            string query = GetCommandText();
-
-            string[] fileSegments = location.Split('/');
-
-            if (fileSegments.Length < 3)
-                throw new ArgumentException("Invalid location format. Expected format: theme/type/fileName");
-
-            // The file already exists, don't download it again.
-            if (File.Exists(location) && !overwrite)
-               return;
-
-            // Create the local directory if it doesn't exist.
-            string directory = Path.GetDirectoryName(location);
-            if (!Directory.Exists(directory))
-                Directory.CreateDirectory(directory);
-
-            string remoteLocation = $"s3://overturemaps-us-west-2/release/2026-07-22.0/theme={fileSegments[0]}/type={fileSegments[1]}/*";
-            query = query.Replace(location, remoteLocation);
-
-            command.CommandText = $"""
-            COPY ( {query} ) TO '{location}' (FORMAT PARQUET);
-            """;
-
-            await command.ExecuteNonQueryAsync();
-        }
-
-        public async Task<string> GetAsync()
-        {
-            var command = connection.CreateCommand();
-            command.CommandText = GetCommandText();
-
-            command.CommandText = $"""
-            SELECT json_group_array(to_json(t))
-            FROM ( {command.CommandText} ) t
-            """;
-
-            return await command.ExecuteScalarAsync() as string;
-        }
-
-        public async Task<T> GetAsync<T>() where T : class
-        {
-            string json = await GetAsync();
-            return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        }
-
-        private string GetCommandText()
-        {
-            string query = $"""
-            SELECT {string.Join(", ", _selects)}
-            FROM read_parquet('{location}', hive_partitioning=1)
-            """;
-
-            if (!string.IsNullOrWhiteSpace(_additionalSyntax))
-                query += $"\n{_additionalSyntax}";
-
-            return query;
-        }
+            Id = d.Id,
+            LocalName = d.LocalName,
+            EnglishName = d.EnglishName,
+            Subtype = d.Subtype,
+            Class = d.Class,
+            AdminLevel = d.AdminLevel,
+            Country = d.Country,
+            GeometryGeoJSON = _writer.Write(d.Geometry),
+            Population = d.Population,
+            Region = d.Region,
+            Areas = d.Areas.Select(a => new DivisionAreaSearchResultDto
+            {
+                Id = a.Id,
+                AreaClass = a.AreaClass
+            })
+        }).ToList();
     }
 }
